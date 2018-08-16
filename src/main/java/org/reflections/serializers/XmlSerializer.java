@@ -1,22 +1,16 @@
 package org.reflections.serializers;
 
-import org.dom4j.Document;
-import org.dom4j.DocumentException;
-import org.dom4j.DocumentFactory;
-import org.dom4j.Element;
-import org.dom4j.io.OutputFormat;
-import org.dom4j.io.SAXReader;
-import org.dom4j.io.XMLWriter;
-import org.reflections.Reflections;
-import org.reflections.ReflectionsException;
-import org.reflections.Store;
+import org.dom4j.*;
+import org.dom4j.io.*;
+import org.reflections.*;
 import org.reflections.util.ConfigurationBuilder;
 import org.reflections.util.Utils;
 
 import java.io.*;
 import java.lang.reflect.Constructor;
 
-/** serialization of Reflections to xml
+/**
+ * serialization of Reflections to xml
  *
  * <p>an example of produced xml:
  * <pre>
@@ -31,9 +25,10 @@ import java.lang.reflect.Constructor;
  *              &#60value>fully.qualified.name.2&#60/value>
  * ...
  * </pre>
- * */
+ */
 public class XmlSerializer implements Serializer {
 
+    @Override
     public Reflections read(InputStream inputStream) {
         Reflections reflections;
         try {
@@ -49,11 +44,11 @@ public class XmlSerializer implements Serializer {
             for (Object e1 : document.getRootElement().elements()) {
                 Element index = (Element) e1;
                 for (Object e2 : index.elements()) {
-                    Element entry = (Element) e2;
-                    Element key = entry.element("key");
+                    Element entry  = (Element) e2;
+                    Element key    = entry.element("key");
                     Element values = entry.element("values");
                     for (Object o3 : values.elements()) {
-                        Element value = (Element) o3;
+                        Node value = (Node) o3;
                         reflections.getStore().getOrCreate(index.getName()).put(key.getText(), value.getText());
                     }
                 }
@@ -67,30 +62,33 @@ public class XmlSerializer implements Serializer {
         return reflections;
     }
 
-    public File save(final Reflections reflections, final String filename) {
+    @Override
+    public File save(Reflections reflections, String filename) {
         File file = Utils.prepareFile(filename);
 
 
         try {
-            Document document = createDocument(reflections);
+            Document  document  = createDocument(reflections);
             XMLWriter xmlWriter = new XMLWriter(new FileOutputStream(file), OutputFormat.createPrettyPrint());
             xmlWriter.write(document);
             xmlWriter.close();
         } catch (IOException e) {
             throw new ReflectionsException("could not save to file " + filename, e);
         } catch (Throwable e) {
-            throw new RuntimeException("Could not save to file " + filename + ". Make sure relevant dependencies exist on classpath.", e);
+            throw new RuntimeException(
+                    "Could not save to file " + filename + ". Make sure relevant dependencies exist on classpath.", e);
         }
 
         return file;
     }
 
-    public String toString(final Reflections reflections) {
+    @Override
+    public String toString(Reflections reflections) {
         Document document = createDocument(reflections);
 
         try {
-            StringWriter writer = new StringWriter();
-            XMLWriter xmlWriter = new XMLWriter(writer, OutputFormat.createPrettyPrint());
+            StringWriter writer    = new StringWriter();
+            XMLWriter    xmlWriter = new XMLWriter(writer, OutputFormat.createPrettyPrint());
             xmlWriter.write(document);
             xmlWriter.close();
             return writer.toString();
@@ -99,11 +97,11 @@ public class XmlSerializer implements Serializer {
         }
     }
 
-    private Document createDocument(final Reflections reflections) {
+    private static Document createDocument(Reflections reflections) {
         Store map = reflections.getStore();
 
         Document document = DocumentFactory.getInstance().createDocument();
-        Element root = document.addElement("Reflections");
+        Element  root     = document.addElement("Reflections");
         for (String indexName : map.keySet()) {
             Element indexElement = root.addElement(indexName);
             for (String key : map.get(indexName).keySet()) {

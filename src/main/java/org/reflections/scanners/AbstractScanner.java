@@ -6,23 +6,25 @@ import com.google.common.collect.Multimap;
 import org.reflections.Configuration;
 import org.reflections.ReflectionsException;
 import org.reflections.adapters.MetadataAdapter;
-import org.reflections.vfs.Vfs;
+import org.reflections.vfs.Vfs.File;
 
 /**
  *
  */
-@SuppressWarnings({"RawUseOfParameterizedType", "unchecked"})
+@SuppressWarnings("RawUseOfParameterizedType")
 public abstract class AbstractScanner implements Scanner {
 
-	private Configuration configuration;
-	private Multimap<String, String> store;
-	private Predicate<String> resultFilter = Predicates.alwaysTrue(); //accept all by default
+    private Configuration            configuration;
+    private Multimap<String, String> store;
+    private Predicate<String>        resultFilter = Predicates.alwaysTrue(); //accept all by default
 
+    @Override
     public boolean acceptsInput(String file) {
         return getMetadataAdapter().acceptsInput(file);
     }
 
-    public Object scan(Vfs.File file, Object classObject) {
+    @Override
+    public Object scan(File file, Object classObject) {
         if (classObject == null) {
             try {
                 classObject = configuration.getMetadataAdapter().getOrCreateClassObject(file);
@@ -41,15 +43,18 @@ public abstract class AbstractScanner implements Scanner {
         return configuration;
     }
 
-    public void setConfiguration(final Configuration configuration) {
+    @Override
+    public void setConfiguration(Configuration configuration) {
         this.configuration = configuration;
     }
 
+    @Override
     public Multimap<String, String> getStore() {
         return store;
     }
 
-    public void setStore(final Multimap<String, String> store) {
+    @Override
+    public void setStore(Multimap<String, String> store) {
         this.store = store;
     }
 
@@ -61,25 +66,30 @@ public abstract class AbstractScanner implements Scanner {
         this.resultFilter = resultFilter;
     }
 
+    @Override
     public Scanner filterResultsBy(Predicate<String> filter) {
-        this.setResultFilter(filter); return this;
+        resultFilter = filter;
+        return this;
     }
 
     //
-    public boolean acceptResult(final String fqn) {
-		return fqn != null && resultFilter.apply(fqn);
-	}
-
-	protected MetadataAdapter getMetadataAdapter() {
-		return configuration.getMetadataAdapter();
-	}
-
-    //
-    @Override public boolean equals(Object o) {
-        return this == o || o != null && getClass() == o.getClass();
+    @Override
+    public boolean acceptResult(String fqn) {
+        return (fqn != null) && resultFilter.apply(fqn);
     }
 
-    @Override public int hashCode() {
+    protected MetadataAdapter getMetadataAdapter() {
+        return configuration.getMetadataAdapter();
+    }
+
+    //
+    @Override
+    public boolean equals(Object o) {
+        return (this == o) || ((o != null) && (getClass() == o.getClass()));
+    }
+
+    @Override
+    public int hashCode() {
         return getClass().hashCode();
     }
 }

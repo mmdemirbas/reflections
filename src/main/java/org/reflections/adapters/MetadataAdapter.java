@@ -1,43 +1,43 @@
 package org.reflections.adapters;
 
-import org.reflections.vfs.Vfs;
+import org.reflections.vfs.Vfs.File;
 
 import java.util.List;
 
 /**
  *
  */
-public interface MetadataAdapter<C,F,M> {
+public interface MetadataAdapter<C, F, M> {
 
     //
-    String getClassName(final C cls);
+    String getClassName(C cls);
 
-    String getSuperclassName(final C cls);
+    String getSuperclassName(C cls);
 
-    List<String> getInterfacesNames(final C cls);
+    List<String> getInterfacesNames(C cls);
 
     //
-    List<F> getFields(final C cls);
+    List<F> getFields(C cls);
 
-    List<M> getMethods(final C cls);
+    List<M> getMethods(C cls);
 
-    String getMethodName(final M method);
+    String getMethodName(M method);
 
-    List<String> getParameterNames(final M method);
+    List<String> getParameterNames(M method);
 
-    List<String> getClassAnnotationNames(final C aClass);
+    List<String> getClassAnnotationNames(C aClass);
 
-    List<String> getFieldAnnotationNames(final F field);
+    List<String> getFieldAnnotationNames(F field);
 
-    List<String> getMethodAnnotationNames(final M method);
+    List<String> getMethodAnnotationNames(M method);
 
-    List<String> getParameterAnnotationNames(final M method, final int parameterIndex);
+    List<String> getParameterAnnotationNames(M method, int parameterIndex);
 
-    String getReturnTypeName(final M method);
+    String getReturnTypeName(M method);
 
-    String getFieldName(final F field);
+    String getFieldName(F field);
 
-    C getOrCreateClassObject(Vfs.File file) throws Exception;
+    C getOrCreateClassObject(File file);
 
     String getMethodModifier(M method);
 
@@ -46,7 +46,7 @@ public interface MetadataAdapter<C,F,M> {
     String getMethodFullKey(C cls, M method);
 
     boolean isPublic(Object o);
-    
+
     boolean acceptsInput(String file);
-    
+
 }

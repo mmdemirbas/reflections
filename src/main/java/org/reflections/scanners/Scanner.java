@@ -3,7 +3,7 @@ package org.reflections.scanners;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Multimap;
 import org.reflections.Configuration;
-import org.reflections.vfs.Vfs;
+import org.reflections.vfs.Vfs.File;
 
 import javax.annotation.Nullable;
 
@@ -22,7 +22,7 @@ public interface Scanner {
 
     boolean acceptsInput(String file);
 
-    Object scan(Vfs.File file, @Nullable Object classObject);
+    Object scan(File file, @Nullable Object classObject);
 
     boolean acceptResult(String fqn);
 }

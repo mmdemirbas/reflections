@@ -1,15 +1,16 @@
 package org.reflections.scanners;
 
-import org.reflections.ReflectionsException;
-import org.reflections.vfs.Vfs;
+import org.reflections.vfs.Vfs.File;
 
-/** scans classes and stores fqn as key and full path as value.
- * <p>Deprecated. use {@link org.reflections.scanners.TypeElementsScanner} */
+/**
+ * scans classes and stores fqn as key and full path as value.
+ * <p>Deprecated. use {@link org.reflections.scanners.TypeElementsScanner}
+ */
 @Deprecated
 public class TypesScanner extends AbstractScanner {
 
     @Override
-    public Object scan(Vfs.File file, Object classObject) {
+    public Object scan(File file, Object classObject) {
         classObject = super.scan(file, classObject);
         String className = getMetadataAdapter().getClassName(classObject);
         getStore().put(className, className);

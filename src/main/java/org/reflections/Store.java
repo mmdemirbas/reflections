@@ -1,6 +1,5 @@
 package org.reflections;
 
-import com.google.common.base.Supplier;
 import com.google.common.collect.*;
 
 import java.util.*;
@@ -14,44 +13,44 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public class Store {
 
-    private transient boolean concurrent;
-    private final Map<String, Multimap<String, String>> storeMap;
+    private final transient boolean                               concurrent;
+    private final           Map<String, Multimap<String, String>> storeMap;
 
     //used via reflection
-    @SuppressWarnings("UnusedDeclaration")
     protected Store() {
-        storeMap = new HashMap<String, Multimap<String, String>>();
+        storeMap = new HashMap<>();
         concurrent = false;
     }
 
     public Store(Configuration configuration) {
-        storeMap = new HashMap<String, Multimap<String, String>>();
+        storeMap = new HashMap<>();
         concurrent = configuration.getExecutorService() != null;
     }
 
-    /** return all indices */
+    /**
+     * return all indices
+     */
     public Set<String> keySet() {
         return storeMap.keySet();
     }
 
-    /** get or create the multimap object for the given {@code index} */
+    /**
+     * get or create the multimap object for the given {@code index}
+     */
     public Multimap<String, String> getOrCreate(String index) {
         Multimap<String, String> mmap = storeMap.get(index);
         if (mmap == null) {
-            SetMultimap<String, String> multimap =
-                    Multimaps.newSetMultimap(new HashMap<String, Collection<String>>(),
-                            new Supplier<Set<String>>() {
-                                public Set<String> get() {
-                                    return Sets.newSetFromMap(new ConcurrentHashMap<String, Boolean>());
-                                }
-                            });
+            SetMultimap<String, String> multimap = Multimaps.newSetMultimap(new HashMap<>(),
+                                                                            () -> Sets.newSetFromMap(new ConcurrentHashMap<>()));
             mmap = concurrent ? Multimaps.synchronizedSetMultimap(multimap) : multimap;
-            storeMap.put(index,mmap);
+            storeMap.put(index, mmap);
         }
         return mmap;
     }
 
-    /** get the multimap object for the given {@code index}, otherwise throws a {@link org.reflections.ReflectionsException} */
+    /**
+     * get the multimap object for the given {@code index}, otherwise throws a {@link org.reflections.ReflectionsException}
+     */
     public Multimap<String, String> get(String index) {
         Multimap<String, String> mmap = storeMap.get(index);
         if (mmap == null) {
@@ -60,22 +59,28 @@ public class Store {
         return mmap;
     }
 
-    /** get the values stored for the given {@code index} and {@code keys} */
+    /**
+     * get the values stored for the given {@code index} and {@code keys}
+     */
     public Iterable<String> get(String index, String... keys) {
         return get(index, Arrays.asList(keys));
     }
 
-    /** get the values stored for the given {@code index} and {@code keys} */
+    /**
+     * get the values stored for the given {@code index} and {@code keys}
+     */
     public Iterable<String> get(String index, Iterable<String> keys) {
-        Multimap<String, String> mmap = get(index);
-        IterableChain<String> result = new IterableChain<String>();
+        Multimap<String, String> mmap   = get(index);
+        IterableChain<String>    result = new IterableChain<>();
         for (String key : keys) {
             result.addAll(mmap.get(key));
         }
         return result;
     }
 
-    /** recursively get the values stored for the given {@code index} and {@code keys}, including keys */
+    /**
+     * recursively get the values stored for the given {@code index} and {@code keys}, including keys
+     */
     private Iterable<String> getAllIncluding(String index, Iterable<String> keys, IterableChain<String> result) {
         result.addAll(keys);
         for (String key : keys) {
@@ -87,21 +92,27 @@ public class Store {
         return result;
     }
 
-    /** recursively get the values stored for the given {@code index} and {@code keys}, not including keys */
+    /**
+     * recursively get the values stored for the given {@code index} and {@code keys}, not including keys
+     */
     public Iterable<String> getAll(String index, String key) {
-        return getAllIncluding(index, get(index, key), new IterableChain<String>());
+        return getAllIncluding(index, get(index, key), new IterableChain<>());
     }
 
-    /** recursively get the values stored for the given {@code index} and {@code keys}, not including keys */
+    /**
+     * recursively get the values stored for the given {@code index} and {@code keys}, not including keys
+     */
     public Iterable<String> getAll(String index, Iterable<String> keys) {
-        return getAllIncluding(index, get(index, keys), new IterableChain<String>());
+        return getAllIncluding(index, get(index, keys), new IterableChain<>());
     }
 
     private static class IterableChain<T> implements Iterable<T> {
+
         private final List<Iterable<T>> chain = Lists.newArrayList();
 
         private void addAll(Iterable<T> iterable) { chain.add(iterable); }
 
+        @Override
         public Iterator<T> iterator() { return Iterables.concat(chain).iterator(); }
     }
 }

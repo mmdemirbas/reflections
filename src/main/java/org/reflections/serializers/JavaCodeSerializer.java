@@ -1,40 +1,24 @@
 package org.reflections.serializers;
 
 import com.google.common.base.Joiner;
-import com.google.common.base.Supplier;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multimap;
-import com.google.common.collect.Multimaps;
-import com.google.common.collect.Sets;
+import com.google.common.collect.*;
 import com.google.common.io.Files;
-import org.reflections.ReflectionUtils;
-import org.reflections.Reflections;
-import org.reflections.ReflectionsException;
+import org.reflections.*;
 import org.reflections.scanners.TypeElementsScanner;
-import org.reflections.util.Utils;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.nio.charset.Charset;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
+import java.util.Map.Entry;
 
 import static org.reflections.Reflections.log;
-import static org.reflections.util.Utils.index;
-import static org.reflections.util.Utils.prepareFile;
-import static org.reflections.util.Utils.repeat;
+import static org.reflections.util.Utils.*;
 
-/** Serialization of Reflections to java code
+/**
+ * Serialization of Reflections to java code
  * <p> Serializes types and types elements into interfaces respectively to fully qualified name,
  * <p> For example, after saving with JavaCodeSerializer:
  * <pre>
@@ -54,7 +38,7 @@ import static org.reflections.util.Utils.repeat;
  *          public interface m1 {}
  *          public interface m2 {}
  *         }
- *	...
+ * 	...
  * }
  * </pre>
  * <p> Use the different resolve methods to resolve the serialized element into Class, Field or Method. for example:
@@ -64,15 +48,16 @@ import static org.reflections.util.Utils.repeat;
  * </pre>
  * <p>The {@link #save(org.reflections.Reflections, String)} method filename should be in the pattern: path/path/path/package.package.classname
  * <p>depends on Reflections configured with {@link org.reflections.scanners.TypeElementsScanner}
- * */
+ */
 public class JavaCodeSerializer implements Serializer {
 
-    private static final String pathSeparator = "_";
+    private static final String pathSeparator   = "_";
     private static final String doubleSeparator = "__";
-    private static final String dotSeparator = ".";
+    private static final String dotSeparator    = ".";
     private static final String arrayDescriptor = "$$";
-    private static final String tokenSeparator = "_";
+    private static final String tokenSeparator  = "_";
 
+    @Override
     public Reflections read(InputStream inputStream) {
         throw new UnsupportedOperationException("read is not implemented on JavaCodeSerializer");
     }
@@ -82,6 +67,7 @@ public class JavaCodeSerializer implements Serializer {
      * for example <pre>/data/projects/my/src/main/java/org.my.project.MyStore</pre>
      * would create class MyStore in package org.my.project in the path /data/projects/my/src/main/java
      */
+    @Override
     public File save(Reflections reflections, String name) {
         if (name.endsWith("/")) {
             name = name.substring(0, name.length() - 1); //trim / at the end
@@ -89,12 +75,12 @@ public class JavaCodeSerializer implements Serializer {
 
         //prepare file
         String filename = name.replace('.', '/').concat(".java");
-        File file = prepareFile(filename);
+        File   file     = prepareFile(filename);
 
         //get package and class names
         String packageName;
         String className;
-        int lastDot = name.lastIndexOf('.');
+        int    lastDot = name.lastIndexOf('.');
         if (lastDot == -1) {
             packageName = "";
             className = name.substring(name.lastIndexOf('/') + 1);
@@ -107,11 +93,13 @@ public class JavaCodeSerializer implements Serializer {
         try {
             StringBuilder sb = new StringBuilder();
             sb.append("//generated using Reflections JavaCodeSerializer")
-                    .append(" [").append(new Date()).append("]")
-                    .append("\n");
-            if (packageName.length() != 0) {
+              .append(" [")
+              .append(new Date())
+              .append(']')
+              .append('\n');
+            if (!packageName.isEmpty()) {
                 sb.append("package ").append(packageName).append(";\n");
-                sb.append("\n");
+                sb.append('\n');
             }
             sb.append("public interface ").append(className).append(" {\n\n");
             sb.append(toString(reflections));
@@ -126,15 +114,18 @@ public class JavaCodeSerializer implements Serializer {
         return file;
     }
 
+    @Override
     public String toString(Reflections reflections) {
         if (reflections.getStore().get(index(TypeElementsScanner.class)).isEmpty()) {
-            if (log != null) log.warn("JavaCodeSerializer needs TypeElementsScanner configured");
+            if (log != null) {
+                log.warn("JavaCodeSerializer needs TypeElementsScanner configured");
+            }
         }
 
         StringBuilder sb = new StringBuilder();
 
         List<String> prevPaths = Lists.newArrayList();
-        int indent = 1;
+        int          indent    = 1;
 
         List<String> keys = Lists.newArrayList(reflections.getStore().get(index(TypeElementsScanner.class)).keySet());
         Collections.sort(keys);
@@ -143,7 +134,7 @@ public class JavaCodeSerializer implements Serializer {
 
             //skip indention
             int i = 0;
-            while (i < Math.min(typePaths.size(), prevPaths.size()) && typePaths.get(i).equals(prevPaths.get(i))) {
+            while ((i < Math.min(typePaths.size(), prevPaths.size())) && typePaths.get(i).equals(prevPaths.get(i))) {
                 i++;
             }
 
@@ -153,21 +144,20 @@ public class JavaCodeSerializer implements Serializer {
             }
 
             //indent right - add packages
-            for (int j = i; j < typePaths.size() - 1; j++) {
-                sb.append(repeat("\t", indent++)).append("public interface ").append(getNonDuplicateName(typePaths.get(j), typePaths, j)).append(" {\n");
+            for (int j = i; j < (typePaths.size() - 1); j++) {
+                sb.append(repeat("\t", indent++))
+                  .append("public interface ")
+                  .append(getNonDuplicateName(typePaths.get(j), typePaths, j))
+                  .append(" {\n");
             }
 
             //indent right - add class
             String className = typePaths.get(typePaths.size() - 1);
 
             //get fields and methods
-            List<String> annotations = Lists.newArrayList();
-            List<String> fields = Lists.newArrayList();
-            final Multimap<String,String> methods = Multimaps.newSetMultimap(new HashMap<String, Collection<String>>(), new Supplier<Set<String>>() {
-                public Set<String> get() {
-                    return Sets.newHashSet();
-                }
-            });
+            List<String>             annotations = Lists.newArrayList();
+            List<String>             fields      = Lists.newArrayList();
+            Multimap<String, String> methods     = Multimaps.newSetMultimap(new HashMap<>(), Sets::newHashSet);
 
             for (String element : reflections.getStore().get(index(TypeElementsScanner.class), fqn)) {
                 if (element.startsWith("@")) {
@@ -175,31 +165,39 @@ public class JavaCodeSerializer implements Serializer {
                 } else if (element.contains("(")) {
                     //method
                     if (!element.startsWith("<")) {
-                        int i1 = element.indexOf('(');
-                        String name = element.substring(0, i1);
-                        String params = element.substring(i1 + 1, element.indexOf(")"));
+                        int    i1     = element.indexOf('(');
+                        String name   = element.substring(0, i1);
+                        String params = element.substring(i1 + 1, element.indexOf(')'));
 
                         String paramsDescriptor = "";
-                        if (params.length() != 0) {
-                            paramsDescriptor = tokenSeparator + params.replace(dotSeparator, tokenSeparator).replace(", ", doubleSeparator).replace("[]", arrayDescriptor);
+                        if (!params.isEmpty()) {
+                            paramsDescriptor = tokenSeparator + params.replace(dotSeparator, tokenSeparator)
+                                                                      .replace(", ", doubleSeparator)
+                                                                      .replace("[]", arrayDescriptor);
                         }
                         String normalized = name + paramsDescriptor;
                         methods.put(name, normalized);
                     }
-                } else if (!Utils.isEmpty(element)) {
+                } else if (!isEmpty(element)) {
                     //field
                     fields.add(element);
                 }
             }
 
             //add class and it's fields and methods
-            sb.append(repeat("\t", indent++)).append("public interface ").append(getNonDuplicateName(className, typePaths, typePaths.size() - 1)).append(" {\n");
+            sb.append(repeat("\t", indent++))
+              .append("public interface ")
+              .append(getNonDuplicateName(className, typePaths, typePaths.size() - 1))
+              .append(" {\n");
 
             //add fields
             if (!fields.isEmpty()) {
                 sb.append(repeat("\t", indent++)).append("public interface fields {\n");
                 for (String field : fields) {
-                    sb.append(repeat("\t", indent)).append("public interface ").append(getNonDuplicateName(field, typePaths)).append(" {}\n");
+                    sb.append(repeat("\t", indent))
+                      .append("public interface ")
+                      .append(getNonDuplicateName(field, typePaths))
+                      .append(" {}\n");
                 }
                 sb.append(repeat("\t", --indent)).append("}\n");
             }
@@ -207,15 +205,18 @@ public class JavaCodeSerializer implements Serializer {
             //add methods
             if (!methods.isEmpty()) {
                 sb.append(repeat("\t", indent++)).append("public interface methods {\n");
-                for (Map.Entry<String, String> entry : methods.entries()) {
+                for (Entry<String, String> entry : methods.entries()) {
                     String simpleName = entry.getKey();
                     String normalized = entry.getValue();
 
-                    String methodName = methods.get(simpleName).size() == 1 ? simpleName : normalized;
+                    String methodName = (methods.get(simpleName).size() == 1) ? simpleName : normalized;
 
                     methodName = getNonDuplicateName(methodName, fields);
 
-                    sb.append(repeat("\t", indent)).append("public interface ").append(getNonDuplicateName(methodName, typePaths)).append(" {}\n");
+                    sb.append(repeat("\t", indent))
+                      .append("public interface ")
+                      .append(getNonDuplicateName(methodName, typePaths))
+                      .append(" {}\n");
                 }
                 sb.append(repeat("\t", --indent)).append("}\n");
             }
@@ -226,7 +227,10 @@ public class JavaCodeSerializer implements Serializer {
                 for (String annotation : annotations) {
                     String nonDuplicateName = annotation;
                     nonDuplicateName = getNonDuplicateName(nonDuplicateName, typePaths);
-                    sb.append(repeat("\t", indent)).append("public interface ").append(nonDuplicateName).append(" {}\n");
+                    sb.append(repeat("\t", indent))
+                      .append("public interface ")
+                      .append(nonDuplicateName)
+                      .append(" {}\n");
                 }
                 sb.append(repeat("\t", --indent)).append("}\n");
             }
@@ -243,7 +247,7 @@ public class JavaCodeSerializer implements Serializer {
         return sb.toString();
     }
 
-    private String getNonDuplicateName(String candidate, List<String> prev, int offset) {
+    private static String getNonDuplicateName(String candidate, List<String> prev, int offset) {
         String normalized = normalize(candidate);
         for (int i = 0; i < offset; i++) {
             if (normalized.equals(prev.get(i))) {
@@ -254,18 +258,18 @@ public class JavaCodeSerializer implements Serializer {
         return normalized;
     }
 
-    private String normalize(String candidate) {
+    private static String normalize(String candidate) {
         return candidate.replace(dotSeparator, pathSeparator);
     }
 
-    private String getNonDuplicateName(String candidate, List<String> prev) {
+    private static String getNonDuplicateName(String candidate, List<String> prev) {
         return getNonDuplicateName(candidate, prev, prev.size());
     }
 
     //
-    public static Class<?> resolveClassOf(final Class element) throws ClassNotFoundException {
-        Class<?> cursor = element;
-        LinkedList<String> ognl = Lists.newLinkedList();
+    public static Class<?> resolveClassOf(Class element) throws ClassNotFoundException {
+        Class<?>           cursor = element;
+        LinkedList<String> ognl   = Lists.newLinkedList();
 
         while (cursor != null) {
             ognl.addFirst(cursor.getSimpleName());
@@ -276,7 +280,7 @@ public class JavaCodeSerializer implements Serializer {
         return Class.forName(classOgnl);
     }
 
-    public static Class<?> resolveClass(final Class aClass) {
+    public static Class<?> resolveClass(Class aClass) {
         try {
             return resolveClassOf(aClass);
         } catch (Exception e) {
@@ -284,9 +288,9 @@ public class JavaCodeSerializer implements Serializer {
         }
     }
 
-    public static Field resolveField(final Class aField) {
+    public static Field resolveField(Class aField) {
         try {
-            String name = aField.getSimpleName();
+            String   name           = aField.getSimpleName();
             Class<?> declaringClass = aField.getDeclaringClass().getDeclaringClass();
             return resolveClassOf(declaringClass).getDeclaredField(name);
         } catch (Exception e) {
@@ -297,21 +301,21 @@ public class JavaCodeSerializer implements Serializer {
     public static Annotation resolveAnnotation(Class annotation) {
         try {
             String name = annotation.getSimpleName().replace(pathSeparator, dotSeparator);
-            Class<?> declaringClass = annotation.getDeclaringClass().getDeclaringClass();
-            Class<?> aClass = resolveClassOf(declaringClass);
-            Class<? extends Annotation> aClass1 = (Class<? extends Annotation>) ReflectionUtils.forName(name);
-            Annotation annotation1 = aClass.getAnnotation(aClass1);
+            Class<?>                    declaringClass = annotation.getDeclaringClass().getDeclaringClass();
+            Class<?>                    aClass         = resolveClassOf(declaringClass);
+            Class<? extends Annotation> aClass1        = (Class<? extends Annotation>) ReflectionUtils.forName(name);
+            Annotation                  annotation1    = aClass.getAnnotation(aClass1);
             return annotation1;
         } catch (Exception e) {
             throw new ReflectionsException("could not resolve to annotation " + annotation.getName(), e);
         }
     }
 
-    public static Method resolveMethod(final Class aMethod) {
+    public static Method resolveMethod(Class aMethod) {
         String methodOgnl = aMethod.getSimpleName();
 
         try {
-            String methodName;
+            String     methodName;
             Class<?>[] paramTypes;
             if (methodOgnl.contains(tokenSeparator)) {
                 methodName = methodOgnl.substring(0, methodOgnl.indexOf(tokenSeparator));

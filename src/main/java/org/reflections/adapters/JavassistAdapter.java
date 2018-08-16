@@ -3,15 +3,13 @@ package org.reflections.adapters;
 import com.google.common.base.Joiner;
 import com.google.common.collect.Lists;
 import javassist.bytecode.*;
+import javassist.bytecode.Descriptor.Iterator;
 import javassist.bytecode.annotation.Annotation;
 import org.reflections.ReflectionsException;
 import org.reflections.util.Utils;
 import org.reflections.vfs.Vfs;
 
-import java.io.BufferedInputStream;
-import java.io.DataInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.util.Arrays;
 import java.util.List;
 
@@ -23,49 +21,68 @@ import static javassist.bytecode.AccessFlag.isProtected;
  */
 public class JavassistAdapter implements MetadataAdapter<ClassFile, FieldInfo, MethodInfo> {
 
-    /**setting this to false will result in returning only visible annotations from the relevant methods here (only {@link java.lang.annotation.RetentionPolicy#RUNTIME})*/
-    public static boolean includeInvisibleTag = true;
+    /**
+     * setting this to false will result in returning only visible annotations from the relevant methods here (only {@link java.lang.annotation.RetentionPolicy#RUNTIME})
+     */
+    public static final boolean includeInvisibleTag = true;
 
-    public List<FieldInfo> getFields(final ClassFile cls) {
+    @Override
+    public List<FieldInfo> getFields(ClassFile cls) {
         //noinspection unchecked
         return cls.getFields();
     }
 
-    public List<MethodInfo> getMethods(final ClassFile cls) {
+    @Override
+    public List<MethodInfo> getMethods(ClassFile cls) {
         //noinspection unchecked
         return cls.getMethods();
     }
 
-    public String getMethodName(final MethodInfo method) {
+    @Override
+    public String getMethodName(MethodInfo method) {
         return method.getName();
     }
 
-    public List<String> getParameterNames(final MethodInfo method) {
+    @Override
+    public List<String> getParameterNames(MethodInfo method) {
         String descriptor = method.getDescriptor();
-        descriptor = descriptor.substring(descriptor.indexOf("(") + 1, descriptor.lastIndexOf(")"));
+        descriptor = descriptor.substring(descriptor.indexOf('(') + 1, descriptor.lastIndexOf(')'));
         return splitDescriptorToTypeNames(descriptor);
     }
 
-    public List<String> getClassAnnotationNames(final ClassFile aClass) {
-        return getAnnotationNames((AnnotationsAttribute) aClass.getAttribute(AnnotationsAttribute.visibleTag),
-                includeInvisibleTag ? (AnnotationsAttribute) aClass.getAttribute(AnnotationsAttribute.invisibleTag) : null);
+    @Override
+    public List<String> getClassAnnotationNames(ClassFile aClass) {
+        return includeInvisibleTag
+               ? getAnnotationNames((AnnotationsAttribute) aClass.getAttribute(AnnotationsAttribute.visibleTag),
+                                    (AnnotationsAttribute) aClass.getAttribute(AnnotationsAttribute.invisibleTag))
+               : getAnnotationNames((AnnotationsAttribute) aClass.getAttribute(AnnotationsAttribute.visibleTag), null);
     }
 
-    public List<String> getFieldAnnotationNames(final FieldInfo field) {
-        return getAnnotationNames((AnnotationsAttribute) field.getAttribute(AnnotationsAttribute.visibleTag),
-                includeInvisibleTag ? (AnnotationsAttribute) field.getAttribute(AnnotationsAttribute.invisibleTag) : null);
+    @Override
+    public List<String> getFieldAnnotationNames(FieldInfo field) {
+        return includeInvisibleTag
+               ? getAnnotationNames((AnnotationsAttribute) field.getAttribute(AnnotationsAttribute.visibleTag),
+                                    (AnnotationsAttribute) field.getAttribute(AnnotationsAttribute.invisibleTag))
+               : getAnnotationNames((AnnotationsAttribute) field.getAttribute(AnnotationsAttribute.visibleTag), null);
     }
 
-    public List<String> getMethodAnnotationNames(final MethodInfo method) {
-        return getAnnotationNames((AnnotationsAttribute) method.getAttribute(AnnotationsAttribute.visibleTag),
-                includeInvisibleTag ? (AnnotationsAttribute) method.getAttribute(AnnotationsAttribute.invisibleTag) : null);
+    @Override
+    public List<String> getMethodAnnotationNames(MethodInfo method) {
+        return includeInvisibleTag
+               ? getAnnotationNames((AnnotationsAttribute) method.getAttribute(AnnotationsAttribute.visibleTag),
+                                    (AnnotationsAttribute) method.getAttribute(AnnotationsAttribute.invisibleTag))
+               : getAnnotationNames((AnnotationsAttribute) method.getAttribute(AnnotationsAttribute.visibleTag), null);
     }
 
-    public List<String> getParameterAnnotationNames(final MethodInfo method, final int parameterIndex) {
+    @Override
+    public List<String> getParameterAnnotationNames(MethodInfo method, int parameterIndex) {
         List<String> result = Lists.newArrayList();
 
-        List<ParameterAnnotationsAttribute> parameterAnnotationsAttributes = Lists.newArrayList((ParameterAnnotationsAttribute) method.getAttribute(ParameterAnnotationsAttribute.visibleTag),
-                (ParameterAnnotationsAttribute) method.getAttribute(ParameterAnnotationsAttribute.invisibleTag));
+        List<ParameterAnnotationsAttribute> parameterAnnotationsAttributes = Lists.newArrayList((ParameterAnnotationsAttribute) method
+                                                                                                        .getAttribute(ParameterAnnotationsAttribute.visibleTag),
+                                                                                                (ParameterAnnotationsAttribute) method
+                                                                                                        .getAttribute(
+                                                                                                                ParameterAnnotationsAttribute.invisibleTag));
 
         if (parameterAnnotationsAttributes != null) {
             for (ParameterAnnotationsAttribute parameterAnnotationsAttribute : parameterAnnotationsAttributes) {
@@ -82,17 +99,20 @@ public class JavassistAdapter implements MetadataAdapter<ClassFile, FieldInfo, M
         return result;
     }
 
-    public String getReturnTypeName(final MethodInfo method) {
+    @Override
+    public String getReturnTypeName(MethodInfo method) {
         String descriptor = method.getDescriptor();
-        descriptor = descriptor.substring(descriptor.lastIndexOf(")") + 1);
+        descriptor = descriptor.substring(descriptor.lastIndexOf(')') + 1);
         return splitDescriptorToTypeNames(descriptor).get(0);
     }
 
-    public String getFieldName(final FieldInfo field) {
+    @Override
+    public String getFieldName(FieldInfo field) {
         return field.getName();
     }
 
-    public ClassFile getOrCreateClassObject(final Vfs.File file) {
+    @Override
+    public ClassFile getOrCreateClassObject(Vfs.File file) {
         InputStream inputStream = null;
         try {
             inputStream = file.openInputStream();
@@ -105,49 +125,58 @@ public class JavassistAdapter implements MetadataAdapter<ClassFile, FieldInfo, M
         }
     }
 
+    @Override
     public String getMethodModifier(MethodInfo method) {
         int accessFlags = method.getAccessFlags();
-        return isPrivate(accessFlags) ? "private" :
-               isProtected(accessFlags) ? "protected" :
-               isPublic(accessFlags) ? "public" : "";
+        return isPrivate(accessFlags)
+               ? "private"
+               : (isProtected(accessFlags) ? "protected" : (isPublic(accessFlags) ? "public" : ""));
     }
 
+    @Override
     public String getMethodKey(ClassFile cls, MethodInfo method) {
-        return getMethodName(method) + "(" + Joiner.on(", ").join(getParameterNames(method)) + ")";
+        return getMethodName(method) + '(' + Joiner.on(", ").join(getParameterNames(method)) + ')';
     }
 
+    @Override
     public String getMethodFullKey(ClassFile cls, MethodInfo method) {
-        return getClassName(cls) + "." + getMethodKey(cls, method);
+        return getClassName(cls) + '.' + getMethodKey(cls, method);
     }
 
+    @Override
     public boolean isPublic(Object o) {
-        Integer accessFlags =
-                o instanceof ClassFile ? ((ClassFile) o).getAccessFlags() :
-                o instanceof FieldInfo ? ((FieldInfo) o).getAccessFlags() :
-                o instanceof MethodInfo ? ((MethodInfo) o).getAccessFlags() : null;
+        Integer accessFlags = (o instanceof ClassFile)
+                              ? ((ClassFile) o).getAccessFlags()
+                              : ((o instanceof FieldInfo)
+                                 ? ((FieldInfo) o).getAccessFlags()
+                                 : ((o instanceof MethodInfo) ? ((MethodInfo) o).getAccessFlags() : null));
 
-        return accessFlags != null && AccessFlag.isPublic(accessFlags);
+        return (accessFlags != null) && AccessFlag.isPublic(accessFlags);
     }
 
     //
-    public String getClassName(final ClassFile cls) {
+    @Override
+    public String getClassName(ClassFile cls) {
         return cls.getName();
     }
 
-    public String getSuperclassName(final ClassFile cls) {
+    @Override
+    public String getSuperclassName(ClassFile cls) {
         return cls.getSuperclass();
     }
 
-    public List<String> getInterfacesNames(final ClassFile cls) {
+    @Override
+    public List<String> getInterfacesNames(ClassFile cls) {
         return Arrays.asList(cls.getInterfaces());
     }
 
+    @Override
     public boolean acceptsInput(String file) {
         return file.endsWith(".class");
     }
-    
+
     //
-    private List<String> getAnnotationNames(final AnnotationsAttribute... annotationsAttributes) {
+    private static List<String> getAnnotationNames(AnnotationsAttribute... annotationsAttributes) {
         List<String> result = Lists.newArrayList();
 
         if (annotationsAttributes != null) {
@@ -163,7 +192,7 @@ public class JavassistAdapter implements MetadataAdapter<ClassFile, FieldInfo, M
         return result;
     }
 
-    private List<String> getAnnotationNames(final Annotation[] annotations) {
+    private static List<String> getAnnotationNames(Annotation[] annotations) {
         List<String> result = Lists.newArrayList();
 
         for (Annotation annotation : annotations) {
@@ -173,19 +202,19 @@ public class JavassistAdapter implements MetadataAdapter<ClassFile, FieldInfo, M
         return result;
     }
 
-    private List<String> splitDescriptorToTypeNames(final String descriptors) {
+    private static List<String> splitDescriptorToTypeNames(String descriptors) {
         List<String> result = Lists.newArrayList();
 
-        if (descriptors != null && descriptors.length() != 0) {
+        if ((descriptors != null) && !descriptors.isEmpty()) {
 
-            List<Integer> indices = Lists.newArrayList();
-            Descriptor.Iterator iterator = new Descriptor.Iterator(descriptors);
+            List<Integer> indices  = Lists.newArrayList();
+            Iterator      iterator = new Iterator(descriptors);
             while (iterator.hasNext()) {
                 indices.add(iterator.next());
             }
             indices.add(descriptors.length());
 
-            for (int i = 0; i < indices.size() - 1; i++) {
+            for (int i = 0; i < (indices.size() - 1); i++) {
                 String s1 = Descriptor.toString(descriptors.substring(indices.get(i), indices.get(i + 1)));
                 result.add(s1);
             }

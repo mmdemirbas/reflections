@@ -4,13 +4,15 @@ import org.reflections.adapters.MetadataAdapter;
 
 import java.util.List;
 
-/** scans methods/constructors and indexes parameters, return type and parameter annotations */
+/**
+ * scans methods/constructors and indexes parameters, return type and parameter annotations
+ */
 @SuppressWarnings("unchecked")
 public class MethodParameterScanner extends AbstractScanner {
 
     @Override
     public void scan(Object cls) {
-        final MetadataAdapter md = getMetadataAdapter();
+        MetadataAdapter md = getMetadataAdapter();
 
         for (Object method : md.getMethods(cls)) {
 

@@ -1,5 +1,11 @@
 package org.reflections.vfs;
 
+import com.google.common.base.Predicate;
+import org.reflections.Reflections;
+import org.reflections.ReflectionsException;
+import org.reflections.vfs.Vfs.Dir;
+import org.reflections.vfs.Vfs.UrlType;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -8,32 +14,28 @@ import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.reflections.Reflections;
-import org.reflections.ReflectionsException;
-import org.reflections.vfs.Vfs.Dir;
-import org.reflections.vfs.Vfs.UrlType;
-
-import com.google.common.base.Predicate;
-
 /**
  * UrlType to be used by Reflections library.
  * This class handles the vfszip and vfsfile protocol of JBOSS files.
  * <p>
- * <p>to use it, register it in Vfs via {@link org.reflections.vfs.Vfs#addDefaultURLTypes(org.reflections.vfs.Vfs.UrlType)} or {@link org.reflections.vfs.Vfs#setDefaultURLTypes(java.util.List)}.
- * @author Sergio Pola
+ * <p>to use it, register it in Vfs via {@link org.reflections.vfs.Vfs#addDefaultURLTypes(UrlType)} or {@link org.reflections.vfs.Vfs#setDefaultURLTypes(java.util.List)}.
  *
+ * @author Sergio Pola
  */
 public class UrlTypeVFS implements UrlType {
-    public final static String[] REPLACE_EXTENSION = new String[]{".ear/", ".jar/", ".war/", ".sar/", ".har/", ".par/"};
 
-    final String VFSZIP = "vfszip";
-    final String VFSFILE = "vfsfile";
+    private static final String[] REPLACE_EXTENSION = {".ear/", ".jar/", ".war/", ".sar/", ".har/", ".par/"};
 
+    private static final String VFSZIP  = "vfszip";
+    private static final String VFSFILE = "vfsfile";
+
+    @Override
     public boolean matches(URL url) {
         return VFSZIP.equals(url.getProtocol()) || VFSFILE.equals(url.getProtocol());
     }
 
-    public Dir createDir(final URL url) {
+    @Override
+    public Dir createDir(URL url) {
         try {
             URL adaptedUrl = adaptURL(url);
             return new ZipDir(new JarFile(adaptedUrl.getFile()));
@@ -50,7 +52,7 @@ public class UrlTypeVFS implements UrlType {
         return null;
     }
 
-    public URL adaptURL(URL url) throws MalformedURLException {
+    private URL adaptURL(URL url) throws MalformedURLException {
         if (VFSZIP.equals(url.getProtocol())) {
             return replaceZipSeparators(url.getPath(), realFile);
         } else if (VFSFILE.equals(url.getProtocol())) {
@@ -60,59 +62,49 @@ public class UrlTypeVFS implements UrlType {
         }
     }
 
-    URL replaceZipSeparators(String path, Predicate<File> acceptFile)
-            throws MalformedURLException {
+    private static URL replaceZipSeparators(String path, Predicate<? super File> acceptFile) throws MalformedURLException {
         int pos = 0;
         while (pos != -1) {
             pos = findFirstMatchOfDeployableExtention(path, pos);
 
             if (pos > 0) {
                 File file = new File(path.substring(0, pos - 1));
-                if (acceptFile.apply(file)) { return replaceZipSeparatorStartingFrom(path, pos); }
+                if (acceptFile.apply(file)) {
+                    return replaceZipSeparatorStartingFrom(path, pos);
+                }
             }
         }
 
         throw new ReflectionsException("Unable to identify the real zip file in path '" + path + "'.");
     }
 
-    int findFirstMatchOfDeployableExtention(String path, int pos) {
+    private static int findFirstMatchOfDeployableExtention(String path, int pos) {
         Pattern p = Pattern.compile("\\.[ejprw]ar/");
         Matcher m = p.matcher(path);
-        if (m.find(pos)) {
-            return m.end();
-        } else {
-            return -1;
-        }
+        return m.find(pos) ? m.end() : -1;
     }
 
-    Predicate<File> realFile = new Predicate<File>() {
-        public boolean apply(File file) {
-            return file.exists() && file.isFile();
-        }
-    };
+    private final Predicate<File> realFile = file -> file.exists() && file.isFile();
 
-    URL replaceZipSeparatorStartingFrom(String path, int pos)
-            throws MalformedURLException {
+    private static URL replaceZipSeparatorStartingFrom(String path, int pos) throws MalformedURLException {
         String zipFile = path.substring(0, pos - 1);
         String zipPath = path.substring(pos);
 
         int numSubs = 1;
         for (String ext : REPLACE_EXTENSION) {
             while (zipPath.contains(ext)) {
-                zipPath = zipPath.replace(ext, ext.substring(0, 4) + "!");
+                zipPath = zipPath.replace(ext, ext.substring(0, 4) + '!');
                 numSubs++;
             }
         }
 
-        String prefix = "";
+        StringBuilder prefix = new StringBuilder();
         for (int i = 0; i < numSubs; i++) {
-            prefix += "zip:";
+            prefix.append("zip:");
         }
 
-        if (zipPath.trim().length() == 0) {
-            return new URL(prefix + "/" + zipFile);
-        } else {
-            return new URL(prefix + "/" + zipFile + "!" + zipPath);
-        }
+        return zipPath.trim().isEmpty()
+               ? new URL(prefix.toString() + '/' + zipFile)
+               : new URL(prefix.toString() + '/' + zipFile + '!' + zipPath);
     }
 }
