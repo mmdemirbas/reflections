@@ -1,4 +1,5 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
@@ -54,7 +55,7 @@
     <properties>
         <guava.version>20.0</guava.version>
         <javassist.version>3.21.0-GA</javassist.version>
-        <jdk.version>1.7</jdk.version>
+        <jdk.version>1.8</jdk.version>
         <additionalparam>-Xdoclint:none</additionalparam>
     </properties>
 
@@ -181,8 +182,7 @@
                         <configuration>
                             <instructions>
                                 <Import-Package>
-                                    org.jboss.vfs.*;resolution:=optional,
-                                    *
+                                    org.jboss.vfs.*;resolution:=optional, *
                                 </Import-Package>
                                 <Export-Package>
                                     org.reflections.*
@@ -202,14 +202,14 @@
                                     <rules>
                                         <requireProperty>
                                             <property>gpg.keyname</property>
-                                            <message>gpg.keyname must be supplied using -D.
-                                                create a key using gpg --gen-key or use existing one.
+                                            <message>gpg.keyname must be supplied using -D. create a key using gpg
+                                                --gen-key or use existing one.
                                             </message>
                                         </requireProperty>
                                         <requireProperty>
                                             <property>gpg.passphrase</property>
-                                            <message>gpg.passphrase must be supplied using -D.
-                                                create a key using gpg --gen-key or use existing one.
+                                            <message>gpg.passphrase must be supplied using -D. create a key using gpg
+                                                --gen-key or use existing one.
                                             </message>
                                         </requireProperty>
                                     </rules>
