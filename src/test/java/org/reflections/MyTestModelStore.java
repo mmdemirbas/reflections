@@ -1,142 +1,186 @@
-//generated using Reflections JavaCodeSerializer [Thu Aug 16 17:40:37 EET 2018]
+//generated using Reflections JavaCodeSerializer [Sat Aug 18 04:05:36 EET 2018]
 package org.reflections;
 
 public interface MyTestModelStore {
 
-	public interface org {
-		public interface reflections {
-			public interface TestModel$AC1 {
-				public interface annotations {
-					public interface java_lang_annotation_Inherited {}
-					public interface java_lang_annotation_Retention {}
+	interface org {
+		interface reflections {
+			interface TestModel$AC1 {
+				interface annotations {
+					interface java_lang_annotation_Inherited {}
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$AC1n {
-				public interface annotations {
-					public interface java_lang_annotation_Retention {}
+			interface TestModel$AC1n {
+				interface annotations {
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$AC2 {
-				public interface methods {
-					public interface value {}
+			interface TestModel$AC2 {
+				interface methods {
+					interface value {}
 				}
-				public interface annotations {
-					public interface java_lang_annotation_Retention {}
-				}
-			}
-			public interface TestModel$AC3 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AC2 {}
-					public interface java_lang_annotation_Retention {}
+				interface annotations {
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$AF1 {
-				public interface methods {
-					public interface value {}
-				}
-				public interface annotations {
-					public interface java_lang_annotation_Retention {}
-				}
-			}
-			public interface TestModel$AI1 {
-				public interface annotations {
-					public interface org_reflections_TestModel$MAI1 {}
-					public interface java_lang_annotation_Retention {}
+			interface TestModel$AC3 {
+				interface annotations {
+					interface org_reflections_TestModel$AC2 {}
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$AI2 {
-				public interface annotations {
-					public interface java_lang_annotation_Inherited {}
-					public interface java_lang_annotation_Retention {}
+			interface TestModel$AF1 {
+				interface methods {
+					interface value {}
+				}
+				interface annotations {
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$AM1 {
-				public interface methods {
-					public interface value {}
-				}
-				public interface annotations {
-					public interface java_lang_annotation_Retention {}
-				}
-			}
-			public interface TestModel$C1 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AC1n {}
-					public interface org_reflections_TestModel$AC1 {}
+			interface TestModel$AI1 {
+				interface annotations {
+					interface org_reflections_TestModel$MAI1 {}
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$C2 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AC2 {}
+			interface TestModel$AI2 {
+				interface annotations {
+					interface java_lang_annotation_Inherited {}
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$C3 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AC2 {}
+			interface TestModel$AM1 {
+				interface methods {
+					interface value {}
+				}
+				interface annotations {
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
 				}
 			}
-			public interface TestModel$C4 {
-				public interface fields {
-					public interface f1 {}
-					public interface f2 {}
-					public interface f3 {}
-				}
-				public interface methods {
-					public interface add {}
-					public interface m1_int__java_lang_String$$ {}
-					public interface m1 {}
-					public interface m1_int$$$$__java_lang_String$$$$ {}
-					public interface m3 {}
-					public interface m4 {}
-					public interface c2toC3 {}
+			interface TestModel$C1 {
+				interface annotations {
+					interface org_reflections_TestModel$AC1n {}
+					interface org_reflections_TestModel$AC1 {}
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$C5 {
-			}
-			public interface TestModel$C6 {
-			}
-			public interface TestModel$C7 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AC3 {}
+			interface TestModel$C2 {
+				interface annotations {
+					interface org_reflections_TestModel$AC2 {}
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$I1 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AI1 {}
+			interface TestModel$C3 {
+				interface annotations {
+					interface org_reflections_TestModel$AC2 {}
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$I2 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AI2 {}
+			interface TestModel$C4 {
+				interface fields {
+					interface f1 {}
+					interface f2 {}
+					interface f3 {}
+				}
+				interface methods {
+					interface f1$annotations {}
+					interface add {}
+					interface f2$annotations {}
+					interface m1_int__java_lang_String$$ {}
+					interface m1 {}
+					interface m1_int$$$$__java_lang_String$$$$ {}
+					interface m3 {}
+					interface m4 {}
+					interface getF3 {}
+					interface getF2 {}
+					interface setF2 {}
+					interface setF3 {}
+					interface c2toC3 {}
+				}
+				interface annotations {
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$I3 {
-				public interface annotations {
-					public interface org_reflections_TestModel$AC2 {}
+			interface TestModel$C5 {
+				interface annotations {
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$MAI1 {
-				public interface annotations {
-					public interface java_lang_annotation_Inherited {}
-					public interface java_lang_annotation_Retention {}
+			interface TestModel$C6 {
+				interface annotations {
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$Usage {
-			}
-			public interface TestModel$Usage$C1 {
-				public interface fields {
-					public interface c2 {}
-				}
-				public interface methods {
-					public interface method {}
-					public interface method_java_lang_String {}
+			interface TestModel$C7 {
+				interface annotations {
+					interface org_reflections_TestModel$AC3 {}
+					interface kotlin_Metadata {}
 				}
 			}
-			public interface TestModel$Usage$C2 {
-				public interface fields {
-					public interface c1 {}
+			interface TestModel$I1 {
+				interface annotations {
+					interface kotlin_Metadata {}
+					interface org_reflections_TestModel$AI1 {}
 				}
-				public interface methods {
-					public interface method {}
+			}
+			interface TestModel$I2 {
+				interface annotations {
+					interface kotlin_Metadata {}
+					interface org_reflections_TestModel$AI2 {}
+				}
+			}
+			interface TestModel$I3 {
+				interface annotations {
+					interface org_reflections_TestModel$AC2 {}
+					interface kotlin_Metadata {}
+				}
+			}
+			interface TestModel$MAI1 {
+				interface annotations {
+					interface java_lang_annotation_Inherited {}
+					interface kotlin_Metadata {}
+					interface java_lang_annotation_Retention {}
+				}
+			}
+			interface TestModel$Usage {
+				interface annotations {
+					interface kotlin_Metadata {}
+				}
+			}
+			interface TestModel$Usage$C1 {
+				interface fields {
+					interface c2 {}
+				}
+				interface methods {
+					interface method {}
+					interface method_java_lang_String {}
+					interface getC2$reflections {}
+					interface setC2$reflections {}
+				}
+				interface annotations {
+					interface kotlin_Metadata {}
+				}
+			}
+			interface TestModel$Usage$C2 {
+				interface fields {
+					interface c1 {}
+				}
+				interface methods {
+					interface getC1$reflections {}
+					interface setC1$reflections {}
+					interface method {}
+				}
+				interface annotations {
+					interface kotlin_Metadata {}
 				}
 			}
 		}
