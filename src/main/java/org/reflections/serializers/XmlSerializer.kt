@@ -108,7 +108,7 @@ class XmlSerializer : Serializer {
                 val entryElement = indexElement.addElement("entry")
                 entryElement.addElement("key").text = key
                 val valuesElement = entryElement.addElement("values")
-                for (value in map.get(indexName).get(key)) {
+                for (value in map.get(indexName).get(key)!!) {
                     valuesElement.addElement("value").text = value
                 }
             }

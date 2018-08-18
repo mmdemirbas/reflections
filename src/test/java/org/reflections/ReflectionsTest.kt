@@ -1,8 +1,5 @@
 package org.reflections
 
-import com.google.common.collect.Iterables
-import com.google.common.collect.Lists
-import com.google.common.collect.Sets
 import org.hamcrest.BaseMatcher
 import org.hamcrest.Description
 import org.hamcrest.Matcher
@@ -253,18 +250,18 @@ open class ReflectionsTest {
     @Test
     @Throws(NoSuchMethodException::class)
     fun testMethodParameterNames() {
-        assertEquals(reflections.getMethodParamNames(C4::class.java.getDeclaredMethod("m3")), Lists.newArrayList<Any>())
+        assertEquals(reflections.getMethodParamNames(C4::class.java.getDeclaredMethod("m3")), listOf<Any>())
 
         assertEquals(reflections.getMethodParamNames(C4::class.java.getDeclaredMethod("m4", String::class.java)),
-                     Lists.newArrayList("string"))
+                     listOf("string"))
 
         assertEquals(reflections.getMethodParamNames(C4::class.java.getDeclaredMethod("add",
                                                                                       Int::class.javaPrimitiveType,
                                                                                       Int::class.javaPrimitiveType)),
-                     Lists.newArrayList("i1", "i2"))
+                     listOf("i1", "i2"))
 
         assertEquals(reflections.getConstructorParamNames(C4::class.java.getDeclaredConstructor(String::class.java)),
-                     Lists.newArrayList("f1"))
+                     listOf("f1"))
     }
 
     @Test
@@ -315,7 +312,7 @@ open class ReflectionsTest {
         return object : Match<Set<Class<*>>>() {
             override fun matches(o: Any): Boolean {
                 for (c in o as Iterable<Class<*>>) {
-                    if (!Iterables.contains(annotationTypes(Arrays.asList(*c.annotations)), annotation)) {
+                    if (!annotationTypes(Arrays.asList(*c.annotations)).contains(annotation)) {
                         return false
                     }
                 }
@@ -328,8 +325,8 @@ open class ReflectionsTest {
         return object : Match<Set<Class<*>>>() {
             override fun matches(o: Any): Boolean {
                 for (c in o as Iterable<Class<*>>) {
-                    val result = Sets.newHashSet<Class<*>>()
-                    val stack = Lists.newArrayList(ReflectionUtils.getAllSuperTypes(c))
+                    val result = mutableSetOf<Class<*>>()
+                    val stack = ReflectionUtils.getAllSuperTypes(c).toMutableList()
                     while (!stack.isEmpty()) {
                         val next = stack.removeAt(0)
                         if (result.add(next)) {
@@ -350,7 +347,7 @@ open class ReflectionsTest {
     }
 
     private fun annotationTypes(annotations: Iterable<Annotation>): Iterable<Class<out Annotation>> {
-        return Iterables.transform(annotations) { input -> input?.annotationType() }
+        return annotations.map { input -> input.annotationType() }
     }
 
     companion object {
@@ -378,7 +375,7 @@ open class ReflectionsTest {
         val userDir: String
             get() {
                 var file = File(System.getProperty("user.dir"))
-                if (Lists.newArrayList(*file.list()!!).contains("reflections")) {
+                if (listOf(*file.list()!!).contains("reflections")) {
                     file = File(file, "reflections")
                 }
                 return file.absolutePath

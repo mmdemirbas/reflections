@@ -1,9 +1,5 @@
 package org.reflections.util
 
-import com.google.common.collect.Lists
-import com.google.common.collect.ObjectArrays
-import com.google.common.collect.Sets
-import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.reflections.*
 import org.reflections.adapters.JavaReflectionAdapter
 import org.reflections.adapters.JavassistAdapter
@@ -37,8 +33,8 @@ import java.util.function.Predicate
  */
 class ConfigurationBuilder : Configuration {
 
-    override var scanners: MutableSet<Scanner> = Sets.newHashSet<Scanner>(TypeAnnotationsScanner(), SubTypesScanner())
-    override var urls: MutableSet<URL> = Sets.newHashSet<URL>()
+    override var scanners: MutableSet<Scanner> = mutableSetOf<Scanner>(TypeAnnotationsScanner(), SubTypesScanner())
+    override var urls: MutableSet<URL> = mutableSetOf<URL>()
     override var inputsFilter: ((String) -> Boolean)? = null
     override var executorService: ExecutorService? = null
     /**
@@ -79,7 +75,7 @@ class ConfigurationBuilder : Configuration {
      * use [org.reflections.util.ClasspathHelper] convenient methods to get the relevant urls
      */
     fun setUrls(urls: Iterable<URL>): ConfigurationBuilder {
-        this.urls = Sets.newHashSet(urls)
+        this.urls = urls.toMutableSet()
         return this
     }
 
@@ -94,7 +90,7 @@ class ConfigurationBuilder : Configuration {
      * use [org.reflections.util.ClasspathHelper] convenient methods to get the relevant urls
      */
     fun setUrls(vararg urls: URL): ConfigurationBuilder {
-        this.urls = Sets.newHashSet(*urls)
+        this.urls = urls.toMutableSet()
         return this
     }
 
@@ -114,7 +110,7 @@ class ConfigurationBuilder : Configuration {
      * use [org.reflections.util.ClasspathHelper] convenient methods to get the relevant urls
      */
     fun addUrls(vararg urls: URL): ConfigurationBuilder {
-        this.urls.addAll(Sets.newHashSet(*urls))
+        this.urls.addAll(setOf(*urls))
         return this
     }
 
@@ -143,8 +139,8 @@ class ConfigurationBuilder : Configuration {
      */
     @JvmOverloads
     fun useParallelExecutor(availableProcessors: Int = Runtime.getRuntime().availableProcessors()): ConfigurationBuilder {
-        val factory = ThreadFactoryBuilder().setDaemon(true).setNameFormat("org.reflections-scanner-%d").build()
-        executorService = (Executors.newFixedThreadPool(availableProcessors, factory))
+        val factory = DefaultThreadFactory("org.reflections-scanner-", true)
+        executorService = Executors.newFixedThreadPool(availableProcessors, factory)
         return this
     }
 
@@ -176,8 +172,7 @@ class ConfigurationBuilder : Configuration {
      * add class loader, might be used for resolving methods/fields
      */
     fun addClassLoaders(vararg classLoaders: ClassLoader): ConfigurationBuilder {
-        this.classLoaders = if (this.classLoaders == null) classLoaders
-        else ObjectArrays.concat(this.classLoaders!!, classLoaders, ClassLoader::class.java)
+        this.classLoaders = (this.classLoaders.asList() + classLoaders.asList()).toTypedArray()
         return this
     }
 
@@ -211,7 +206,7 @@ class ConfigurationBuilder : Configuration {
             val builder = ConfigurationBuilder()
 
             //flatten
-            val parameters = Lists.newArrayList<Any>()
+            val parameters = mutableListOf<Any>()
             if (params != null) {
                 for (param in params) {
                     if (param != null) {
@@ -234,7 +229,7 @@ class ConfigurationBuilder : Configuration {
                 }
             }
 
-            val loaders = Lists.newArrayList<ClassLoader>()
+            val loaders = mutableListOf<ClassLoader>()
             for (param in parameters) {
                 if (param is ClassLoader) {
                     loaders.add(param)
@@ -243,7 +238,7 @@ class ConfigurationBuilder : Configuration {
 
             val classLoaders = if (loaders.isEmpty()) emptyArray() else loaders.toTypedArray()
             val filter = FilterBuilder()
-            val scanners = Lists.newArrayList<Scanner>()
+            val scanners = mutableListOf<Scanner>()
 
             for (param in parameters) {
                 if (param is String) {

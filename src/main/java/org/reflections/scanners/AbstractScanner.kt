@@ -1,6 +1,5 @@
 package org.reflections.scanners
 
-import com.google.common.collect.Multimap
 import org.reflections.*
 import org.reflections.adapters.MetadataAdapter
 import org.reflections.vfs.Vfs.File

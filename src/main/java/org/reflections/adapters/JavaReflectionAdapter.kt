@@ -1,7 +1,5 @@
 package org.reflections.adapters
 
-import com.google.common.base.Joiner
-import com.google.common.collect.Lists
 import org.reflections.JavaReflectionClassWrapper
 import org.reflections.JavaReflectionFieldWrapper
 import org.reflections.JavaReflectionMethodWrapper
@@ -22,7 +20,7 @@ class JavaReflectionAdapter : MetadataAdapter<JavaReflectionClassWrapper, JavaRe
     }
 
     override fun getMethods(cls: JavaReflectionClassWrapper): List<JavaReflectionMethodWrapper> {
-        val methods = Lists.newArrayList<JavaReflectionMethodWrapper>()
+        val methods = mutableListOf<JavaReflectionMethodWrapper>()
         methods.addAll(cls.delegate.declaredMethods.map { JavaReflectionMethodWrapper(it) })
         methods.addAll(cls.delegate.declaredConstructors.map { JavaReflectionMethodWrapper(it) })
         return methods
@@ -33,7 +31,7 @@ class JavaReflectionAdapter : MetadataAdapter<JavaReflectionClassWrapper, JavaRe
     }
 
     override fun getParameterNames(member: JavaReflectionMethodWrapper): List<String> {
-        val result = Lists.newArrayList<String>()
+        val result = mutableListOf<String>()
 
         val parameterTypes = (member as? Executable)?.parameterTypes
 
@@ -90,7 +88,7 @@ class JavaReflectionAdapter : MetadataAdapter<JavaReflectionClassWrapper, JavaRe
     }
 
     override fun getMethodKey(cls: JavaReflectionClassWrapper, method: JavaReflectionMethodWrapper): String {
-        return getMethodName(method) + '('.toString() + Joiner.on(", ").join(getParameterNames(method)) + ')'.toString()
+        return getMethodName(method) + '('.toString() + getParameterNames(method).joinToString() + ')'.toString()
     }
 
     override fun getMethodFullKey(cls: JavaReflectionClassWrapper, method: JavaReflectionMethodWrapper): String {

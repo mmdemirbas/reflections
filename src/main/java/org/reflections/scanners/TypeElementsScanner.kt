@@ -1,6 +1,5 @@
 package org.reflections.scanners
 
-import com.google.common.base.Joiner
 import org.reflections.ClassWrapper
 
 /**
@@ -32,8 +31,8 @@ class TypeElementsScanner : AbstractScanner() {
             for (method in metadataAdapter.getMethods(cls)) {
                 if (!publicOnly || metadataAdapter.isPublic(method)) {
                     val methodKey =
-                            (metadataAdapter.getMethodName(method) + '('.toString() + Joiner.on(", ").join(
-                                    metadataAdapter.getParameterNames(method)) + ')'.toString())
+                            (metadataAdapter.getMethodName(method) + '('.toString() + metadataAdapter.getParameterNames(
+                                    method).joinToString() + ')'.toString())
                     store!!.put(className, methodKey)
                 }
             }

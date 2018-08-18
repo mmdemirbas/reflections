@@ -1,10 +1,6 @@
 package org.reflections.serializers
 
-import com.google.common.base.Joiner
-import com.google.common.collect.Lists
-import com.google.common.collect.Multimaps
-import com.google.common.collect.Sets
-import com.google.common.io.Files
+import org.reflections.Multimap
 import org.reflections.ReflectionUtils
 import org.reflections.Reflections
 import org.reflections.Reflections.Companion.log
@@ -18,6 +14,7 @@ import java.io.InputStream
 import java.lang.reflect.Field
 import java.lang.reflect.Method
 import java.nio.charset.Charset
+import java.nio.file.Files.write
 import java.util.*
 
 /**
@@ -104,7 +101,7 @@ class JavaCodeSerializer : Serializer {
             sb.append(toString(reflections))
             sb.append("}\n")
 
-            Files.write(sb.toString(), File(filename), Charset.defaultCharset())
+            write(File(filename).toPath(), sb.toString().toByteArray(Charset.defaultCharset()))
 
         } catch (e: IOException) {
             throw RuntimeException()
@@ -120,14 +117,13 @@ class JavaCodeSerializer : Serializer {
 
         val sb = StringBuilder()
 
-        var prevPaths: List<String> = Lists.newArrayList()
+        var prevPaths: List<String> = listOf()
         var indent = 1
 
-        val keys = Lists.newArrayList(reflections.store!!.get(index(TypeElementsScanner::class.java)).keySet())
+        val keys = reflections.store!!.get(index(TypeElementsScanner::class.java)).keySet().toMutableList()
         Collections.sort(keys)
         for (fqn in keys) {
-            val typePaths =
-                    Lists.newArrayList(*fqn.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
+            val typePaths = listOf(*fqn.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
 
             //skip indention
             var i = 0
@@ -150,9 +146,9 @@ class JavaCodeSerializer : Serializer {
             val className = typePaths[typePaths.size - 1]
 
             //get fields and methods
-            val annotations = Lists.newArrayList<String>()
-            val fields = Lists.newArrayList<String>()
-            val methods = Multimaps.newSetMultimap(HashMap<String, Collection<String>>(), { Sets.newHashSet() })
+            val annotations = mutableListOf<String>()
+            val fields = mutableListOf<String>()
+            val methods = Multimap<String, String>()
 
             for (element in reflections.store.get(index(TypeElementsScanner::class.java), fqn)) {
                 if (element.startsWith("@")) {
@@ -199,7 +195,7 @@ class JavaCodeSerializer : Serializer {
                 sb.append(Utils.repeat("\t", indent++)).append("public interface methods {\n")
                 for ((simpleName, normalized) in methods.entries()) {
 
-                    var methodName = if (methods.get(simpleName).size == 1) simpleName else normalized
+                    var methodName = if (methods.get(simpleName)!!.size == 1) simpleName else normalized
 
                     methodName = getNonDuplicateName(methodName, fields)
 
@@ -260,14 +256,14 @@ class JavaCodeSerializer : Serializer {
         @Throws(ClassNotFoundException::class)
         fun resolveClassOf(element: Class<*>): Class<*> {
             var cursor: Class<*>? = element
-            val ognl = Lists.newLinkedList<String>()
+            val ognl = mutableListOf<String>()
 
             while (cursor != null) {
-                ognl.addFirst(cursor.simpleName)
+                ognl.add(cursor.simpleName)
                 cursor = cursor.declaringClass
             }
 
-            val classOgnl = Joiner.on(".").join(ognl.subList(1, ognl.size)).replace(".$", "$")
+            val classOgnl = ognl.reversed().subList(1, ognl.size).joinToString(".").replace(".$", "$")
             return Class.forName(classOgnl)
         }
 

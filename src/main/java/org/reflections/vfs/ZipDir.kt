@@ -1,9 +1,7 @@
 package org.reflections.vfs
 
-import com.google.common.collect.AbstractIterator
 import org.reflections.Reflections
 import org.reflections.vfs.Vfs.Dir
-import org.reflections.vfs.Vfs.File
 import java.io.IOException
 import java.util.jar.JarFile
 
@@ -19,27 +17,11 @@ class ZipDir(jarFile: JarFile) : Dir {
     }
 
     override val path: String
-        get() {
-            return jarFile.name
-        }
-    override val files: Iterable<File>
-        get() {
-            return Iterable {
-                object : AbstractIterator<File>() {
-                    internal val entries = jarFile.entries()
+        get() = jarFile.name
 
-                    override fun computeNext(): File? {
-                        while (entries.hasMoreElements()) {
-                            val entry = entries.nextElement()
-                            if (!entry.isDirectory) {
-                                return ZipFile(this@ZipDir, entry)
-                            }
-                        }
-
-                        return endOfData()
-                    }
-                }
-            }
+    override val files
+        get() = jarFile.entries().asSequence().filter { !it.isDirectory }.map {
+            ZipFile(this, it)
         }
 
     override fun close() {

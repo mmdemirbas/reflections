@@ -1,6 +1,5 @@
 package org.reflections
 
-import com.google.common.collect.Sets
 import org.hamcrest.BaseMatcher
 import org.hamcrest.Description
 import org.junit.Assert.*
@@ -62,7 +61,7 @@ class ReflectionUtilsTest {
         val target = Collections::class.java
         val arg1 = Arrays.asList(1, 2, 3)
 
-        val allMethods = Sets.newHashSet<Method>()
+        val allMethods = mutableSetOf<Method>()
         for (type in ReflectionUtils.getAllSuperTypes(arg1.javaClass)) {
             allMethods.addAll(ReflectionUtils.getAllMethods(target,
                                                             ReflectionUtils.withModifier(Modifier.STATIC),
@@ -92,7 +91,7 @@ class ReflectionUtilsTest {
         val target = Collections::class.java
         val arg1 = Arrays.asList(1, 2, 3)
 
-        val allMethods = Sets.newHashSet<Method>()
+        val allMethods = mutableSetOf<Method>()
         for (type in ReflectionUtils.getAllSuperTypes(arg1.javaClass)) {
             allMethods.addAll(ReflectionUtils.getAllMethods(target,
                                                             ReflectionUtils.withModifier(Modifier.STATIC),

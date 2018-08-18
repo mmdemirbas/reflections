@@ -26,7 +26,7 @@ public final class JavaSpecific {
         };
     }
 
-    static AC2 newAC2(final String value) {
+    static AC2 newAC2(String value) {
         return new AC2() {
             @Override
             public String value() {return value;}

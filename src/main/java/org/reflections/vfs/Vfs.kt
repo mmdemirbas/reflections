@@ -1,7 +1,5 @@
 package org.reflections.vfs
 
-import com.google.common.collect.Iterables
-import com.google.common.collect.Lists
 import org.reflections.Reflections
 import org.reflections.ReflectionsException
 import org.reflections.util.ClasspathHelper
@@ -59,7 +57,7 @@ import java.util.jar.JarFile
  */
 object Vfs {
 
-    private var defaultUrlTypes: MutableList<UrlType> = Lists.newArrayList(*DefaultUrlTypes.values())
+    private var defaultUrlTypes: MutableList<UrlType> = DefaultUrlTypes.values().toMutableList()
 
     /**
      * an abstract vfs dir
@@ -68,7 +66,7 @@ object Vfs {
 
         val path: String
 
-        val files: Iterable<File>
+        val files: Sequence<File>
 
         fun close()
     }
@@ -148,7 +146,7 @@ object Vfs {
      * tries to create a Dir from the given url, using the given urlTypes
      */
     fun fromURL(url: URL, vararg urlTypes: UrlType): Dir {
-        return fromURL(url, Lists.newArrayList(*urlTypes))
+        return fromURL(url, listOf(*urlTypes))
     }
 
     /**
@@ -176,7 +174,7 @@ object Vfs {
 
         for (url in inUrls) {
             try {
-                result = Iterables.concat(result, fromURL(url).files.filter(filePredicate))
+                result += fromURL(url).files.filter(filePredicate)
             } catch (e: Throwable) {
                 if (Reflections.log != null) {
                     Reflections.log.error("could not findFiles for url. continuing. [" + url + ']'.toString(), e)

@@ -1,6 +1,5 @@
 package org.reflections
 
-import com.google.common.collect.ImmutableMap
 import org.junit.Assert.assertEquals
 import org.junit.Test
 import org.reflections.scanners.SubTypesScanner
@@ -20,10 +19,10 @@ class ReflectionsThreadSafenessTest {
 
         val callable = {
             val reflections =
-                    Reflections(ConfigurationBuilder().setUrls(listOfNotNull(ClasspathHelper.forClass(ImmutableMap::class.java))).setScanners(
+                    Reflections(ConfigurationBuilder().setUrls(listOfNotNull(ClasspathHelper.forClass(Map::class.java))).setScanners(
                             SubTypesScanner(false)))
 
-            reflections.getSubTypesOf(ImmutableMap::class.java)
+            reflections.getSubTypesOf(Map::class.java)
         }
 
         val pool = Executors.newFixedThreadPool(2)

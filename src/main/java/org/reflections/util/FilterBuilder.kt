@@ -1,7 +1,5 @@
 package org.reflections.util
 
-import com.google.common.base.Joiner
-import com.google.common.collect.Lists
 import org.reflections.ReflectionsException
 import java.util.*
 import java.util.function.Predicate
@@ -22,11 +20,11 @@ class FilterBuilder : Predicate<String> {
     private val chain: MutableList<Predicate<String>>?
 
     constructor() {
-        chain = Lists.newArrayList()
+        chain = mutableListOf()
     }
 
     private constructor(filters: Iterable<Predicate<String>>) {
-        chain = Lists.newArrayList(filters)
+        chain = filters.toMutableList()
     }
 
     /**
@@ -84,7 +82,7 @@ class FilterBuilder : Predicate<String> {
     }
 
     override fun toString(): String {
-        return Joiner.on(", ").join(chain!!)
+        return chain!!.joinToString()
     }
 
     override fun test(regex: String): Boolean {

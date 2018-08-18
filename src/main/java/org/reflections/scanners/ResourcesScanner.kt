@@ -15,7 +15,7 @@ class ResourcesScanner : AbstractScanner() {
     }
 
     override fun scan(file: File, classObject: ClassWrapper?): ClassWrapper? {
-        store!!.put(file.name, file.relativePath)
+        store!!.put(file.name, file.relativePath!!)
         return classObject
     }
 

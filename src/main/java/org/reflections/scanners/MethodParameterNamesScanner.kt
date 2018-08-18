@@ -1,6 +1,5 @@
 package org.reflections.scanners
 
-import com.google.common.base.Joiner
 import javassist.bytecode.LocalVariableAttribute
 import org.reflections.ClassWrapper
 import org.reflections.JavassistMethodWrapper
@@ -30,7 +29,7 @@ class MethodParameterNamesScanner : AbstractScanner() {
                     while (i < length) {
                         names.add(method.delegate.constPool.getUtf8Info(table!!.nameIndex(i++)))
                     }
-                    store!!.put(key, Joiner.on(", ").join(names))
+                    store!!.put(key, names.joinToString())
                 }
             }
         }

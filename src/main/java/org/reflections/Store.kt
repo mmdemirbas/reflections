@@ -1,9 +1,6 @@
 package org.reflections
 
-import com.google.common.collect.*
-
 import java.util.*
-import java.util.concurrent.ConcurrentHashMap
 
 /**
  * stores metadata information in multimaps
@@ -40,17 +37,7 @@ class Store {
     /**
      * get or create the multimap object for the given `index`
      */
-    fun getOrCreate(index: String): Multimap<String, String> {
-        var mmap: Multimap<String, String>? = storeMap[index]
-        if (mmap == null) {
-            val multimap = Multimaps.newSetMultimap(HashMap<String, Collection<String>>()) {
-                Sets.newSetFromMap(ConcurrentHashMap())
-            }
-            mmap = if (concurrent) Multimaps.synchronizedSetMultimap(multimap) else multimap
-            storeMap[index] = mmap
-        }
-        return mmap!!
-    }
+    fun getOrCreate(index: String) = storeMap.getOrPut(index) { Multimap() }
 
     /**
      * get the multimap object for the given `index`, otherwise throws a [org.reflections.ReflectionsException]
@@ -71,9 +58,9 @@ class Store {
      */
     operator fun get(index: String, keys: Iterable<String>): Iterable<String> {
         val mmap = get(index)
-        val result = IterableChain<String>()
+        val result = mutableListOf<String>()
         for (key in keys) {
-            result.addAll(mmap.get(key))
+            result.addAll(mmap.get(key).orEmpty())
         }
         return result
     }
@@ -81,9 +68,7 @@ class Store {
     /**
      * recursively get the values stored for the given `index` and `keys`, including keys
      */
-    private fun getAllIncluding(index: String,
-                                keys: Iterable<String>,
-                                result: IterableChain<String>): Iterable<String> {
+    private fun getAllIncluding(index: String, keys: Iterable<String>, result: MutableList<String>): Iterable<String> {
         result.addAll(keys)
         for (key in keys) {
             val values = get(index, key)
@@ -98,26 +83,13 @@ class Store {
      * recursively get the values stored for the given `index` and `keys`, not including keys
      */
     fun getAll(index: String, key: String): Iterable<String> {
-        return getAllIncluding(index, get(index, key), IterableChain())
+        return getAllIncluding(index, get(index, key), mutableListOf())
     }
 
     /**
      * recursively get the values stored for the given `index` and `keys`, not including keys
      */
     fun getAll(index: String, keys: Iterable<String>): Iterable<String> {
-        return getAllIncluding(index, get(index, keys), IterableChain())
-    }
-
-    class IterableChain<T> : Iterable<T> {
-
-        val chain = Lists.newArrayList<Iterable<T>>()
-
-        fun addAll(iterable: Iterable<T>) {
-            chain.add(iterable)
-        }
-
-        override fun iterator(): Iterator<T> {
-            return Iterables.concat(chain).iterator()
-        }
+        return getAllIncluding(index, get(index, keys), mutableListOf())
     }
 }

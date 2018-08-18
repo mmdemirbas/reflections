@@ -1,6 +1,5 @@
 package org.reflections
 
-import com.google.common.collect.Iterables
 import org.junit.Assert.*
 import org.junit.Ignore
 import org.junit.Test
@@ -247,7 +246,7 @@ class VfsTest {
         private val zipDir: ZipDir
         override val path: String
 
-        override val files: Iterable<Vfs.File>
+        override val files: Sequence<Vfs.File>
             get() = zipDir.files
 
         init {
@@ -305,7 +304,7 @@ class VfsTest {
 
         for (jar in ClasspathHelper.forClassLoader()) {
             try {
-                for (file in Iterables.limit(JarInputDir(jar).files, 5)) {
+                for (file in JarInputDir(jar).files.take(5)) {
                     if (file.name.endsWith(".class")) {
                         val className = javassistAdapter.getClassName(javassistAdapter.getOrCreateClassObject(file))
                     }

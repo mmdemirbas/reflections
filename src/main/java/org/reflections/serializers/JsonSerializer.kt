@@ -1,10 +1,7 @@
 package org.reflections.serializers
 
-import com.google.common.collect.Multimap
-import com.google.common.collect.Multimaps
-import com.google.common.collect.Sets
-import com.google.common.io.Files
 import com.google.gson.*
+import org.reflections.Multimap
 import org.reflections.Reflections
 import org.reflections.util.Utils
 import java.io.File
@@ -12,7 +9,7 @@ import java.io.IOException
 import java.io.InputStream
 import java.io.InputStreamReader
 import java.nio.charset.Charset
-import java.util.*
+import java.nio.file.Files.write
 
 /**
  * serialization of Reflections to json
@@ -38,7 +35,7 @@ class JsonSerializer : Serializer {
     override fun save(reflections: Reflections, filename: String): File {
         try {
             val file = Utils.prepareFile(filename)
-            Files.write(toString(reflections), file, Charset.defaultCharset())
+            write(file.toPath(), toString(reflections).toByteArray(Charset.defaultCharset()))
             return file
         } catch (e: IOException) {
             throw RuntimeException(e)
@@ -59,12 +56,10 @@ class JsonSerializer : Serializer {
                                                       })
                         .registerTypeAdapter(Multimap::class.java,
                                              JsonDeserializer<Multimap<*, *>> { jsonElement, type, jsonDeserializationContext ->
-                                                 val map =
-                                                         Multimaps.newSetMultimap(HashMap<String, Collection<String>>(),
-                                                                                  { Sets.newHashSet() })
+                                                 val map = Multimap<String, String>()
                                                  for ((key, value) in (jsonElement as JsonObject).entrySet()) {
                                                      for (element in value as JsonArray) {
-                                                         map.get(key).add(element.asString)
+                                                         map.get(key)!!.add(element.asString)
                                                      }
                                                  }
                                                  map

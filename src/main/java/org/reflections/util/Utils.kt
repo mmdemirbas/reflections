@@ -1,7 +1,5 @@
 package org.reflections.util
 
-import com.google.common.base.Joiner
-import com.google.common.collect.Sets
 import org.reflections.ReflectionUtils.forName
 import org.reflections.Reflections
 import org.reflections.ReflectionsException
@@ -103,7 +101,7 @@ object Utils {
 
     @JvmStatic
     fun getMethodsFromDescriptors(annotatedWith: Iterable<String>, vararg classLoaders: ClassLoader): Set<Method> {
-        val result = Sets.newHashSet<Method>()
+        val result = mutableSetOf<Method>()
         for (annotated in annotatedWith) {
             if (!isConstructor(annotated)) {
                 val member = getMemberFromDescriptor(annotated, *classLoaders) as Method
@@ -118,7 +116,7 @@ object Utils {
     @JvmStatic
     fun getConstructorsFromDescriptors(annotatedWith: Iterable<String>,
                                        vararg classLoaders: ClassLoader): Set<Constructor<*>> {
-        val result = Sets.newHashSet<Constructor<*>>()
+        val result = mutableSetOf<Constructor<*>>()
         for (annotated in annotatedWith) {
             if (isConstructor(annotated)) {
                 val member = getMemberFromDescriptor(annotated, *classLoaders) as Constructor<*>
@@ -132,7 +130,7 @@ object Utils {
 
     @JvmStatic
     fun getMembersFromDescriptors(values: Iterable<String>, vararg classLoaders: ClassLoader): Set<Member> {
-        val result = Sets.newHashSet<Member>()
+        val result = mutableSetOf<Member>()
         for (value in values) {
             try {
                 result.add(getMemberFromDescriptor(value, *classLoaders))
@@ -220,13 +218,12 @@ object Utils {
 
     @JvmStatic
     fun name(constructor: Constructor<*>): String {
-        return constructor.name + '.'.toString() + "<init>" + '('.toString() + Joiner.on(", ").join(names(*constructor.parameterTypes)) + ')'.toString()
+        return constructor.name + '.'.toString() + "<init>" + '('.toString() + names(*constructor.parameterTypes).joinToString() + ')'.toString()
     }
 
     @JvmStatic
     fun name(method: Method): String {
-        return (method.declaringClass.name + '.'.toString() + method.name + '('.toString() + Joiner.on(", ").join(names(
-                *method.parameterTypes)) + ')'.toString())
+        return (method.declaringClass.name + '.'.toString() + method.name + '('.toString() + names(*method.parameterTypes).joinToString() + ')'.toString())
     }
 
     @JvmStatic

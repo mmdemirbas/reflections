@@ -1,8 +1,8 @@
 package org.reflections.scanners
 
-import com.google.common.collect.Multimap
 import org.reflections.ClassWrapper
 import org.reflections.Configuration
+import org.reflections.Multimap
 import org.reflections.vfs.Vfs.File
 
 /**

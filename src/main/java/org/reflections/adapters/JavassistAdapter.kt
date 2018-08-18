@@ -1,7 +1,5 @@
 package org.reflections.adapters
 
-import com.google.common.base.Joiner
-import com.google.common.collect.Lists
 import javassist.bytecode.*
 import javassist.bytecode.AccessFlag.isPrivate
 import javassist.bytecode.AccessFlag.isProtected
@@ -61,11 +59,11 @@ class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWr
     }
 
     override fun getParameterAnnotationNames(method: JavassistMethodWrapper, parameterIndex: Int): List<String> {
-        val result = Lists.newArrayList<String>()
+        val result = mutableListOf<String>()
 
         val parameterAnnotationsAttributes =
-                Lists.newArrayList(method.delegate.getAttribute(ParameterAnnotationsAttribute.visibleTag) as ParameterAnnotationsAttribute?,
-                                   method.delegate.getAttribute(ParameterAnnotationsAttribute.invisibleTag) as ParameterAnnotationsAttribute?)
+                listOf(method.delegate.getAttribute(ParameterAnnotationsAttribute.visibleTag) as ParameterAnnotationsAttribute?,
+                       method.delegate.getAttribute(ParameterAnnotationsAttribute.invisibleTag) as ParameterAnnotationsAttribute?)
 
         if (parameterAnnotationsAttributes != null) {
             for (parameterAnnotationsAttribute in parameterAnnotationsAttributes) {
@@ -112,7 +110,7 @@ class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWr
     }
 
     override fun getMethodKey(cls: JavassistClassWrapper, method: JavassistMethodWrapper): String {
-        return getMethodName(method) + '('.toString() + Joiner.on(", ").join(getParameterNames(method)) + ')'.toString()
+        return getMethodName(method) + '('.toString() + getParameterNames(method).joinToString() + ')'.toString()
     }
 
     override fun getMethodFullKey(cls: JavassistClassWrapper, method: JavassistMethodWrapper): String {
@@ -154,7 +152,7 @@ class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWr
 
         //
         private fun getAnnotationNames(vararg annotationsAttributes: AnnotationsAttribute?): List<String> {
-            val result = Lists.newArrayList<String>()
+            val result = mutableListOf<String>()
 
             if (annotationsAttributes != null) {
                 for (annotationsAttribute in annotationsAttributes) {
@@ -170,7 +168,7 @@ class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWr
         }
 
         private fun getAnnotationNames(annotations: Array<Annotation>): List<String> {
-            val result = Lists.newArrayList<String>()
+            val result = mutableListOf<String>()
 
             for (annotation in annotations) {
                 result.add(annotation.typeName)
@@ -180,11 +178,11 @@ class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWr
         }
 
         private fun splitDescriptorToTypeNames(descriptors: String?): List<String> {
-            val result = Lists.newArrayList<String>()
+            val result = mutableListOf<String>()
 
             if (descriptors != null && !descriptors.isEmpty()) {
 
-                val indices = Lists.newArrayList<Int>()
+                val indices = mutableListOf<Int>()
                 val iterator = Iterator(descriptors)
                 while (iterator.hasNext()) {
                     indices.add(iterator.next())

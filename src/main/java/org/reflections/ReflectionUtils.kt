@@ -1,8 +1,5 @@
 package org.reflections
 
-import com.google.common.collect.Iterables
-import com.google.common.collect.Lists
-import com.google.common.collect.Sets
 import org.reflections.util.ClasspathHelper
 import org.reflections.util.Utils
 import org.reflections.util.Utils.isEmpty
@@ -73,7 +70,7 @@ object ReflectionUtils {
      *  include `Object.class` if [.includeObject] is true
      */
     fun getAllSuperTypes(type: Class<*>?, vararg predicates: (Class<*>) -> Boolean): Set<Class<*>> {
-        val result = Sets.newLinkedHashSet<Class<*>>()
+        val result = mutableSetOf<Class<*>>()
         if (type != null && (includeObject || type != Any::class.java)) {
             result.add(type)
             for (supertype in getSuperTypes(type)) {
@@ -103,7 +100,7 @@ object ReflectionUtils {
      * get all methods of given `type`, up the super class hierarchy, optionally filtered by `predicates`
      */
     fun getAllMethods(type: Class<*>, vararg predicates: (Method) -> Boolean): Set<Method> {
-        val result = Sets.newHashSet<Method>()
+        val result = mutableSetOf<Method>()
         for (t in getAllSuperTypes(type)) {
             result.addAll(getMethods(t, *predicates))
         }
@@ -121,7 +118,7 @@ object ReflectionUtils {
      * get all constructors of given `type`, up the super class hierarchy, optionally filtered by `predicates`
      */
     fun getAllConstructors(type: Class<*>, vararg predicates: (Constructor<*>) -> Boolean): Set<Constructor<*>> {
-        val result = Sets.newHashSet<Constructor<*>>()
+        val result = mutableSetOf<Constructor<*>>()
         for (t in getAllSuperTypes(type)) {
             result.addAll(getConstructors(t, *predicates))
         }
@@ -139,7 +136,7 @@ object ReflectionUtils {
      * get all fields of given `type`, up the super class hierarchy, optionally filtered by `predicates`
      */
     fun getAllFields(type: Class<*>, vararg predicates: (Field) -> Boolean): Set<Field> {
-        val result = Sets.newHashSet<Field>()
+        val result = mutableSetOf<Field>()
         for (t in getAllSuperTypes(type)) {
             result.addAll(getFields(t, *predicates))
         }
@@ -157,7 +154,7 @@ object ReflectionUtils {
      * get all annotations of given `type`, up the super class hierarchy, optionally filtered by `predicates`
      */
     fun <T : AnnotatedElement> getAllAnnotations(type: T, vararg predicates: (Annotation) -> Boolean): Set<Annotation> {
-        val result = Sets.newHashSet<Annotation>()
+        val result = mutableSetOf<Annotation>()
         if (type is Class<*>) {
             for (t in getAllSuperTypes(type as Class<*>)) {
                 result.addAll(getAnnotations(t, *predicates))
@@ -179,7 +176,7 @@ object ReflectionUtils {
      * filter all given `elements` with `predicates`, if given
      */
     fun <T : AnnotatedElement> getAll(elements: Set<T>, vararg predicates: (T) -> Boolean): Set<T> {
-        return if (Utils.isEmpty(predicates)) elements else Sets.newHashSet(elements.filterAll(*predicates))
+        return if (Utils.isEmpty(predicates)) elements else elements.filterAll(*predicates).toSet()
     }
 
     //predicates
@@ -293,7 +290,7 @@ object ReflectionUtils {
      */
     fun withAnyParameterAnnotation(annotationClass: Class<out Annotation>): (Member) -> Boolean {
         return { input ->
-            input != null && Iterables.any(annotationTypes(parameterAnnotations(input))) { input1 -> input1 == annotationClass }
+            input != null && annotationTypes(parameterAnnotations(input)).any { input1 -> input1 == annotationClass }
         }
     }
 
@@ -302,7 +299,7 @@ object ReflectionUtils {
      */
     fun withAnyParameterAnnotation(annotation: Annotation): (Member) -> Boolean {
         return { input ->
-            input != null && Iterables.any(parameterAnnotations(input)) { input1 ->
+            input != null && parameterAnnotations(input).any { input1 ->
                 areAnnotationMembersMatching(annotation, input1)
             }
         }
@@ -387,7 +384,7 @@ object ReflectionUtils {
                 type = typeName
             }
 
-            val reflectionsExceptions = Lists.newArrayList<ReflectionsException>()
+            val reflectionsExceptions = mutableListOf<ReflectionsException>()
             for (classLoader in ClasspathHelper.classLoaders(*classLoaders)) {
                 if (type.contains("[")) {
                     try {
@@ -439,7 +436,7 @@ object ReflectionUtils {
     }
 
     private fun parameterAnnotations(member: Member?): Set<Annotation> {
-        val result = Sets.newHashSet<Annotation>()
+        val result = mutableSetOf<Annotation>()
         val annotations: Array<Array<Annotation>>?
         annotations = (member as? Executable)?.parameterAnnotations
         for (annotation in annotations!!) {
@@ -449,7 +446,7 @@ object ReflectionUtils {
     }
 
     private fun annotationTypes(annotations: Iterable<Annotation>): Set<Class<out Annotation>> {
-        val result = Sets.newHashSet<Class<out Annotation>>()
+        val result = mutableSetOf<Class<out Annotation>>()
         for (annotation in annotations) {
             result.add(annotation.annotationType())
         }
@@ -464,19 +461,18 @@ object ReflectionUtils {
 
     private fun initPrimitives() {
         if (primitiveNames == null) {
-            primitiveNames =
-                    Lists.newArrayList("boolean", "char", "byte", "short", "int", "long", "float", "double", "void")
+            primitiveNames = listOf("boolean", "char", "byte", "short", "int", "long", "float", "double", "void")
             primitiveTypes =
-                    Lists.newArrayList<Class<*>>(Boolean::class.javaPrimitiveType,
-                                                 Char::class.javaPrimitiveType,
-                                                 Byte::class.javaPrimitiveType,
-                                                 Short::class.javaPrimitiveType,
-                                                 Int::class.javaPrimitiveType,
-                                                 Long::class.javaPrimitiveType,
-                                                 Float::class.javaPrimitiveType,
-                                                 Double::class.javaPrimitiveType,
-                                                 Void.TYPE)
-            primitiveDescriptors = Lists.newArrayList("Z", "C", "B", "S", "I", "J", "F", "D", "V")
+                    listOf<Class<*>>(Boolean::class.javaPrimitiveType!!,
+                                     Char::class.javaPrimitiveType!!,
+                                     Byte::class.javaPrimitiveType!!,
+                                     Short::class.javaPrimitiveType!!,
+                                     Int::class.javaPrimitiveType!!,
+                                     Long::class.javaPrimitiveType!!,
+                                     Float::class.javaPrimitiveType!!,
+                                     Double::class.javaPrimitiveType!!,
+                                     Void.TYPE)
+            primitiveDescriptors = listOf("Z", "C", "B", "S", "I", "J", "F", "D", "V")
         }
     }
 
@@ -497,13 +493,13 @@ object ReflectionUtils {
 
     //
     internal fun <T> filter(elements: Array<T>, vararg predicates: (T) -> Boolean): Set<T> {
-        return if (isEmpty(predicates)) Sets.newHashSet(*elements)
-        else Sets.newHashSet(elements.asList().filterAll(*predicates))
+        return if (isEmpty(predicates)) elements.toSet()
+        else elements.asList().filterAll(*predicates).toSet()
     }
 
     internal fun <T> filter(elements: Iterable<T>, vararg predicates: (T) -> Boolean): Set<T> {
-        return if (isEmpty(predicates)) Sets.newHashSet(elements)
-        else Sets.newHashSet(elements.filterAll(*predicates))
+        return if (isEmpty(predicates)) elements.toSet()
+        else elements.filterAll(*predicates).toSet()
     }
 
     private fun areAnnotationMembersMatching(annotation1: Annotation, annotation2: Annotation?): Boolean {

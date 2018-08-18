@@ -1,6 +1,5 @@
 package org.reflections.scanners
 
-import com.google.common.base.Joiner
 import javassist.*
 import javassist.bytecode.MethodInfo
 import javassist.expr.*
@@ -89,7 +88,7 @@ class MemberUsageScanner : AbstractScanner() {
     }
 
     internal fun parameterNames(info: MethodInfo): String {
-        return Joiner.on(", ").join(metadataAdapter.getParameterNames(JavassistMethodWrapper(info)))
+        return metadataAdapter.getParameterNames(JavassistMethodWrapper(info)).joinToString()
     }
 
     private fun getClassPool(): ClassPool {
