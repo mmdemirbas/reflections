@@ -1,6 +1,6 @@
 package org.reflections
 
-import org.reflections.adapters.MetadataAdapter
+import org.reflections.adapters.ClassAdapterFactory
 import org.reflections.scanners.Scanner
 import org.reflections.serializers.Serializer
 import java.net.URL
@@ -26,7 +26,7 @@ interface Configuration {
     /**
      * the metadata adapter used to fetch metadata from classes
      */
-    val metadataAdapter: MetadataAdapter<ClassWrapper, FieldWrapper, MethodWrapper>
+    val metadataAdapter: ClassAdapterFactory
 
     /**
      * get the fully qualified name filter used to filter types to be scanned

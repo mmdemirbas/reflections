@@ -1,14 +1,11 @@
 package org.reflections.util
 
-import org.reflections.ClassWrapper
 import org.reflections.Configuration
 import org.reflections.DefaultThreadFactory
-import org.reflections.FieldWrapper
-import org.reflections.MethodWrapper
 import org.reflections.ReflectionsException
-import org.reflections.adapters.JavaReflectionAdapter
-import org.reflections.adapters.JavassistAdapter
-import org.reflections.adapters.MetadataAdapter
+import org.reflections.adapters.ClassAdapterFactory
+import org.reflections.adapters.JavaReflectionFactory
+import org.reflections.adapters.JavassistFactory
 import org.reflections.logWarn
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
@@ -124,16 +121,16 @@ class ConfigurationBuilder : Configuration {
 
     /**
      * returns the metadata adapter.
-     * if javassist library exists in the classpath, this method returns [JavassistAdapter] otherwise defaults to [JavaReflectionAdapter].
+     * if javassist library exists in the classpath, this method returns [JavassistFactory] otherwise defaults to [JavaReflectionFactory].
      *
-     * the [JavassistAdapter] is preferred in terms of performance and class loading.
+     * the [JavassistFactory] is preferred in terms of performance and class loading.
      */
-    override val metadataAdapter by lazy {
+    override val metadataAdapter: ClassAdapterFactory by lazy {
         try {
-            JavassistAdapter() as MetadataAdapter<ClassWrapper, FieldWrapper, MethodWrapper>
+            JavassistFactory
         } catch (e: Throwable) {
-            logWarn("could not create JavassistAdapter, using JavaReflectionAdapter", e)
-            JavaReflectionAdapter() as MetadataAdapter<ClassWrapper, FieldWrapper, MethodWrapper>
+            logWarn("could not create JavassistFactory, using JavaReflectionFactory", e)
+            JavaReflectionFactory
         }
     }
 

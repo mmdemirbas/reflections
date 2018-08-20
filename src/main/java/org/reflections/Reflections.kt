@@ -1,14 +1,13 @@
 package org.reflections
 
 import jdk.nashorn.internal.runtime.regexp.joni.Config.log
-import org.reflections.Predicates.`in`
-import org.reflections.Predicates.not
 import org.reflections.ReflectionUtils.filter
 import org.reflections.ReflectionUtils.forName
 import org.reflections.ReflectionUtils.forNames
 import org.reflections.ReflectionUtils.getSuperTypes
 import org.reflections.ReflectionUtils.withAnnotation
 import org.reflections.ReflectionUtils.withAnyParameterAnnotation
+import org.reflections.adapters.ClassAdapter
 import org.reflections.scanners.FieldAnnotationsScanner
 import org.reflections.scanners.MemberUsageScanner
 import org.reflections.scanners.MethodAnnotationsScanner
@@ -100,7 +99,7 @@ import java.util.regex.Pattern
  * Set&#60Method> voidMethods =      reflections.getMethodsReturn(void.class);
  * Set&#60Method> pathParamMethods = reflections.getMethodsWithAnyParamAnnotated(PathParam.class);
  * Set&#60Method> floatToString =    reflections.getConverters(Float.class, String.class);
- * List&#60String> parameterNames =  reflections.getMethodsParamNames(Method.class);
+ * List&#60String> parameters =  reflections.getMethodsParamNames(Method.class);
  *
  * Set&#60Member> fieldUsage =       reflections.getFieldUsage(Field.class);
  * Set&#60Member> methodUsage =      reflections.getMethodUsage(Method.class);
@@ -285,7 +284,7 @@ class Reflections(@Transient val configuration: Configuration) {
                 val path = file.relativePath
                 val fqn = path!!.replace('/', '.')
                 if (inputsFilter == null || inputsFilter(path) || inputsFilter(fqn)) {
-                    var classObject: ClassWrapper? = null
+                    var classObject: ClassAdapter? = null
                     for (scanner in configuration.scanners) {
                         try {
                             if (scanner.acceptsInput(path) || scanner.acceptsInput(fqn)) {
@@ -492,8 +491,7 @@ class Reflections(@Transient val configuration: Configuration) {
      * get methods with any parameter annotated with given annotation
      */
     fun getMethodsWithAnyParamAnnotated(annotation: Class<out Annotation>): Set<Method> {
-        return getMethodsFromDescriptors(store[index(MethodParameterScanner::class.java), annotation.name],
-                                         *loaders())
+        return getMethodsFromDescriptors(store[index(MethodParameterScanner::class.java), annotation.name], *loaders())
 
     }
 

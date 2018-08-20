@@ -11,23 +11,23 @@ import javassist.expr.ExprEditor
 import javassist.expr.FieldAccess
 import javassist.expr.MethodCall
 import javassist.expr.NewExpr
-import org.reflections.ClassWrapper
-import org.reflections.JavassistMethodWrapper
 import org.reflections.ReflectionsException
+import org.reflections.adapters.ClassAdapter
+import org.reflections.adapters.JavassistMethodAdapter
 import org.reflections.util.ClasspathHelper
 
 /**
  * scans methods/constructors/fields usage
  *
- * * depends on [org.reflections.adapters.JavassistAdapter] configured *
+ * * depends on [org.reflections.adapters.JavassistFactory] configured *
  */
 class MemberUsageScanner : AbstractScanner() {
 
     private var classPool: ClassPool? = null
 
-    override fun scan(cls: ClassWrapper) {
+    override fun scan(cls: ClassAdapter) {
         try {
-            val ctClass = getClassPool().get(metadataAdapter.getClassName(cls))
+            val ctClass = getClassPool().get(cls.name)
             for (member in ctClass.declaredConstructors) {
                 scanMember(member)
             }
@@ -36,7 +36,7 @@ class MemberUsageScanner : AbstractScanner() {
             }
             ctClass.detach()
         } catch (e: Exception) {
-            throw ReflectionsException("Could not scan method usage for " + metadataAdapter.getClassName(cls), e)
+            throw ReflectionsException("Could not scan method usage for " + cls.name, e)
         }
 
     }
@@ -96,7 +96,7 @@ class MemberUsageScanner : AbstractScanner() {
     }
 
     internal fun parameterNames(info: MethodInfo): String {
-        return metadataAdapter.getParameterNames(JavassistMethodWrapper(info)).joinToString()
+        return JavassistMethodAdapter(info).parameters.joinToString()
     }
 
     private fun getClassPool(): ClassPool {

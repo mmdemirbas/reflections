@@ -142,7 +142,8 @@ object ReflectionUtils {
     /**
      * get fields of given `type`, optionally filtered by `predicates`
      */
-    private fun getFields(type: Class<*>, vararg predicates: (Field) -> Boolean) = filter(type.declaredFields, *predicates)
+    private fun getFields(type: Class<*>, vararg predicates: (Field) -> Boolean) =
+            filter(type.declaredFields, *predicates)
 
     /**
      * get all annotations of given `type`, up the super class hierarchy, optionally filtered by `predicates`

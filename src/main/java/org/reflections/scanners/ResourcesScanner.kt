@@ -1,6 +1,6 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 import org.reflections.vfs.Vfs.File
 
 /**
@@ -14,12 +14,12 @@ class ResourcesScanner : AbstractScanner() {
         return !file.endsWith(".class") //not a class
     }
 
-    override fun scan(file: File, classObject: ClassWrapper?): ClassWrapper? {
+    override fun scan(file: File, classObject: ClassAdapter?): ClassAdapter? {
         store!!.put(file.name, file.relativePath!!)
         return classObject
     }
 
-    override fun scan(cls: ClassWrapper) {
+    override fun scan(cls: ClassAdapter) {
         throw UnsupportedOperationException() //shouldn't get here
     }
 }

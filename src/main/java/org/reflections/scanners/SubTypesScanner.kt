@@ -1,6 +1,6 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 import org.reflections.util.FilterBuilder
 
 /**
@@ -16,19 +16,20 @@ class SubTypesScanner
 
     init {
         if (excludeObjectClass) {
-            filterResultsBy(FilterBuilder().exclude(Any::class.java.name).asPredicate()) //exclude direct Object subtypes
+            //exclude direct Object subtypes
+            acceptResult = FilterBuilder().exclude(Any::class.java.name).asPredicate()
         }
     }
 
-    override fun scan(cls: ClassWrapper) {
-        val className = metadataAdapter.getClassName(cls)
-        val superclass = metadataAdapter.getSuperclassName(cls)
+    override fun scan(cls: ClassAdapter) {
+        val className = cls.name
+        val superclass = cls.superclass
 
         if (acceptResult(superclass)) {
             store!!.put(superclass, className)
         }
 
-        for (anInterface in metadataAdapter.getInterfacesNames(cls)) {
+        for (anInterface in cls.interfaces) {
             if (acceptResult(anInterface)) {
                 store!!.put(anInterface, className)
             }

@@ -1,6 +1,6 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 import java.lang.annotation.Inherited
 
 /**
@@ -8,10 +8,10 @@ import java.lang.annotation.Inherited
  */
 class TypeAnnotationsScanner : AbstractScanner() {
 
-    override fun scan(cls: ClassWrapper) {
-        val className = metadataAdapter.getClassName(cls)
+    override fun scan(cls: ClassAdapter) {
+        val className = cls.name
 
-        for (annotationType in metadataAdapter.getClassAnnotationNames(cls)) {
+        for (annotationType in cls.annotations) {
 
             if (acceptResult(annotationType) || annotationType == Inherited::class.java.name) { //as an exception, accept Inherited as well
                 store!!.put(annotationType, className)

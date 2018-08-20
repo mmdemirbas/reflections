@@ -6,7 +6,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Ignore
 import org.junit.Test
-import org.reflections.adapters.JavassistAdapter
+import org.reflections.adapters.JavassistFactory
 import org.reflections.util.ClasspathHelper
 import org.reflections.vfs.JarInputDir
 import org.reflections.vfs.SystemDir
@@ -52,8 +52,6 @@ class VfsTest {
     @Test
     @Throws(Exception::class)
     fun allKindsOfShittyUrls() {
-        val mdAdapter = JavassistAdapter()
-
         run {
             val jar1 = someJar
             assertTrue(jar1.toString().startsWith("file:"))
@@ -72,8 +70,8 @@ class VfsTest {
                 }
             }
 
-            val stringCF = mdAdapter.getOrCreateClassObject(file!!).delegate
-            val className = mdAdapter.getClassName(JavassistClassWrapper(stringCF))
+            val stringCF = JavassistFactory(file!!)
+            val className = stringCF.name
         }
 
         run {
@@ -94,8 +92,8 @@ class VfsTest {
                 }
             }
 
-            val stringCF = mdAdapter.getOrCreateClassObject(file!!).delegate
-            val className = mdAdapter.getClassName(JavassistClassWrapper(stringCF))
+            val stringCF = JavassistFactory(file!!)
+            val className = stringCF.name
             assertTrue(className == "java.lang.String")
         }
 
@@ -117,8 +115,8 @@ class VfsTest {
                 }
             }
 
-            val stringCF = mdAdapter.getOrCreateClassObject(file!!).delegate
-            val className = mdAdapter.getClassName(JavassistClassWrapper(stringCF))
+            val stringCF = JavassistFactory(file!!)
+            val className = stringCF.name
             assertTrue(className == javaClass.name)
         }
         // create a file, then delete it so we can treat as a non-existing directory
@@ -287,13 +285,11 @@ class VfsTest {
 
     @Test
     fun jarInputStream() {
-        val javassistAdapter = JavassistAdapter()
-
         for (jar in ClasspathHelper.forClassLoader()) {
             try {
                 for (file in JarInputDir(jar).files.take(5)) {
                     if (file.name.endsWith(".class")) {
-                        val className = javassistAdapter.getClassName(javassistAdapter.getOrCreateClassObject(file))
+                        val className = JavassistFactory(file).name
                     }
                 }
             } catch (e: Exception) {

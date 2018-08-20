@@ -1,6 +1,6 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 
 /**
  * scans fields and methods and stores fqn as key and elements as values
@@ -12,8 +12,8 @@ class TypeElementsScanner : AbstractScanner() {
     private var includeAnnotations = true
     private var publicOnly = true
 
-    override fun scan(cls: ClassWrapper) {
-        val className = metadataAdapter.getClassName(cls)
+    override fun scan(cls: ClassAdapter) {
+        val className = cls.name
         if (!acceptResult(className)) {
             return
         }
@@ -21,25 +21,24 @@ class TypeElementsScanner : AbstractScanner() {
         store!!.put(className, "")
 
         if (includeFields) {
-            for (field in metadataAdapter.getFields(cls)) {
-                val fieldName = metadataAdapter.getFieldName(field)
+            for (field in cls.fields) {
+                val fieldName = field.name
                 store!!.put(className, fieldName)
             }
         }
 
         if (includeMethods) {
-            for (method in metadataAdapter.getMethods(cls)) {
-                if (!publicOnly || metadataAdapter.isPublic(method)) {
+            for (method in cls.methods) {
+                if (!publicOnly || method.isPublic) {
                     val methodKey =
-                            (metadataAdapter.getMethodName(method) + '('.toString() + metadataAdapter.getParameterNames(
-                                    method).joinToString() + ')'.toString())
+                            (method.name + '('.toString() + method.parameters.joinToString() + ')'.toString())
                     store!!.put(className, methodKey)
                 }
             }
         }
 
         if (includeAnnotations) {
-            for (annotation in metadataAdapter.getClassAnnotationNames(cls)) {
+            for (annotation in cls.annotations) {
                 store!!.put(className, "@$annotation")
             }
         }

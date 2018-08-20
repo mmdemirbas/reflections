@@ -1,6 +1,6 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 import org.reflections.vfs.Vfs.File
 
 /**
@@ -11,15 +11,15 @@ import org.reflections.vfs.Vfs.File
 @Deprecated("")
 class TypesScanner : AbstractScanner() {
 
-    override fun scan(file: File, classObject: ClassWrapper?): ClassWrapper? {
+    override fun scan(file: File, classObject: ClassAdapter?): ClassAdapter? {
         var classObject = classObject
         classObject = super.scan(file, classObject)
-        val className = metadataAdapter.getClassName(classObject!!)
+        val className = classObject!!.name
         store!!.put(className, className)
         return classObject
     }
 
-    override fun scan(cls: ClassWrapper) {
+    override fun scan(cls: ClassAdapter) {
         throw UnsupportedOperationException("should not get here")
     }
 }

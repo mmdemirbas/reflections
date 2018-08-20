@@ -1,32 +1,32 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 
 /**
  * scans methods/constructors and indexes parameters, return type and parameter annotations
  */
 class MethodParameterScanner : AbstractScanner() {
 
-    override fun scan(cls: ClassWrapper) {
+    override fun scan(cls: ClassAdapter) {
         val md = metadataAdapter
 
-        for (method in md.getMethods(cls)) {
+        for (method in cls.methods) {
 
-            val signature = md.getParameterNames(method).toString()
+            val signature = method.parameters.toString()
             if (acceptResult(signature)) {
-                store!!.put(signature, md.getMethodFullKey(cls, method))
+                store!!.put(signature, method.getMethodFullKey(cls))
             }
 
-            val returnTypeName = md.getReturnTypeName(method)
+            val returnTypeName = method.returnType
             if (acceptResult(returnTypeName)) {
-                store!!.put(returnTypeName, md.getMethodFullKey(cls, method))
+                store!!.put(returnTypeName, method.getMethodFullKey(cls))
             }
 
-            val parameterNames = md.getParameterNames(method)
+            val parameterNames = method.parameters
             for (i in parameterNames.indices) {
-                for (paramAnnotation in md.getParameterAnnotationNames(method, i)) {
+                for (paramAnnotation in method.parameterAnnotations(i)) {
                     if (acceptResult(paramAnnotation)) {
-                        store!!.put(paramAnnotation, md.getMethodFullKey(cls, method))
+                        store!!.put(paramAnnotation, method.getMethodFullKey(cls))
                     }
                 }
             }

@@ -1,17 +1,17 @@
 package org.reflections.scanners
 
-import org.reflections.ClassWrapper
+import org.reflections.adapters.ClassAdapter
 
 /**
  * scans for method's annotations
  */
 class MethodAnnotationsScanner : AbstractScanner() {
 
-    override fun scan(cls: ClassWrapper) {
-        for (method in metadataAdapter.getMethods(cls)) {
-            for (methodAnnotation in metadataAdapter.getMethodAnnotationNames(method)) {
+    override fun scan(cls: ClassAdapter) {
+        for (method in cls.methods) {
+            for (methodAnnotation in method.annotations) {
                 if (acceptResult(methodAnnotation)) {
-                    store!!.put(methodAnnotation, metadataAdapter.getMethodFullKey(cls, method))
+                    store!!.put(methodAnnotation, method.getMethodFullKey(cls))
                 }
             }
         }
