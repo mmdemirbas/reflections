@@ -9,7 +9,7 @@ class MethodAnnotationsScanner : AbstractScanner() {
 
     override fun scan(cls: ClassWrapper) {
         for (method in metadataAdapter.getMethods(cls)) {
-            for (methodAnnotation in metadataAdapter.getMethodAnnotationNames(method) as List<String>) {
+            for (methodAnnotation in metadataAdapter.getMethodAnnotationNames(method)) {
                 if (acceptResult(methodAnnotation)) {
                     store!!.put(methodAnnotation, metadataAdapter.getMethodFullKey(cls, method))
                 }

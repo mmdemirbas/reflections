@@ -9,58 +9,25 @@
 
     <name>Reflections</name>
     <description>Reflections - a Java runtime metadata analysis</description>
-    <url>http://github.com/ronmamo/reflections</url>
-
-    <licenses>
-        <license>
-            <name>WTFPL</name>
-            <url>http://www.wtfpl.net/</url>
-        </license>
-        <license>
-            <name>The New BSD License</name>
-            <url>http://www.opensource.org/licenses/bsd-license.html</url>
-        </license>
-    </licenses>
-
-    <scm>
-        <url>https://github.com/ronmamo/reflections/issues</url>
-        <connection>scm:git:git://github.com/ronmamo/reflections.git</connection>
-    </scm>
-
-    <issueManagement>
-        <url>https://github.com/ronmamo/reflections/issues</url>
-        <system>GitHub Issues</system>
-    </issueManagement>
-
-    <mailingLists>
-        <mailingList>
-            <name>google-code-reflections</name>
-            <archive>http://groups.google.com/group/google-code-reflections</archive>
-        </mailingList>
-    </mailingLists>
-
-    <developers>
-        <developer>
-            <email>ronmamo at gmail</email>
-        </developer>
-    </developers>
-
-    <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
-    </distributionManagement>
 
     <properties>
-        <guava.version>20.0</guava.version>
-        <javassist.version>3.21.0-GA</javassist.version>
-        <jdk.version>1.8</jdk.version>
-        <additionalparam>-Xdoclint:none</additionalparam>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
         <kotlin.version>1.2.60</kotlin.version>
+        <javassist.version>3.21.0-GA</javassist.version>
     </properties>
 
     <dependencies>
+
+        <!-- Kotlin -->
+        <dependency>
+            <groupId>org.jetbrains.kotlin</groupId>
+            <artifactId>kotlin-stdlib-jdk8</artifactId>
+            <version>${kotlin.version}</version>
+        </dependency>
+
+        <!-- Javassist -->
         <dependency>
             <groupId>org.javassist</groupId>
             <artifactId>javassist</artifactId>
@@ -69,13 +36,25 @@
             </optional> <!-- case: when not actually scanning with javassist or if using {@link Reflections.collect()} -->
         </dependency>
 
+        <!-- Logger - use any implementation you like -->
         <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-api</artifactId>
-            <version>1.7.24</version>
-            <optional>true</optional> <!-- case: when logging is not needed -->
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-api</artifactId>
+            <version>2.11.0</version>
         </dependency>
 
+        <!-- Test -->
+        <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+
+
+        <!-- OPTIONAL DEPENDENCIES -->
+
+        <!-- dom4j for XmlSerializer -->
         <dependency>
             <groupId>dom4j</groupId>
             <artifactId>dom4j</artifactId>
@@ -83,6 +62,7 @@
             <optional>true</optional> <!-- case: when no xml de/serialization -->
         </dependency>
 
+        <!-- gson for JsonSerializer -->
         <dependency>
             <groupId>com.google.code.gson</groupId>
             <artifactId>gson</artifactId>
@@ -90,6 +70,7 @@
             <optional>true</optional> <!-- case: when no json de/serialization -->
         </dependency>
 
+        <!--Servlet-->
         <dependency>
             <groupId>javax.servlet</groupId>
             <artifactId>servlet-api</artifactId>
@@ -98,149 +79,7 @@
             <optional>true</optional> <!-- case: when no servlet environment -->
         </dependency>
 
-        <!-- use any implementation you like -->
-        <dependency>
-            <groupId>org.slf4j</groupId>
-            <artifactId>slf4j-simple</artifactId>
-            <version>1.7.24</version>
-            <optional>true</optional> <!-- case: when other logging implementation used or logging is not needed -->
-        </dependency>
-
-        <dependency>
-            <groupId>com.google.code.findbugs</groupId>
-            <artifactId>jsr305</artifactId>
-            <version>3.0.1</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.12</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-stdlib-jdk8</artifactId>
-            <version>${kotlin.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>org.jetbrains.kotlin</groupId>
-            <artifactId>kotlin-test</artifactId>
-            <version>${kotlin.version}</version>
-            <scope>test</scope>
-        </dependency>
-
     </dependencies>
-
-    <profiles>
-        <profile>
-            <id>build</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <artifactId>maven-jar-plugin</artifactId>
-                        <configuration>
-                            <archive>
-                                <manifestFile>${project.build.outputDirectory}/META-INF/MANIFEST.MF</manifestFile>
-                            </archive>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-source-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>attach-sources</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-javadoc-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>attach-javadocs</id>
-                                <goals>
-                                    <goal>jar</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <additionalparam>-Xdoclint:none</additionalparam>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.felix</groupId>
-                        <artifactId>maven-bundle-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>bundle-manifest</id>
-                                <phase>process-classes</phase>
-                                <goals>
-                                    <goal>manifest</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                        <configuration>
-                            <instructions>
-                                <Import-Package>
-                                    org.jboss.vfs.*;resolution:=optional, *
-                                </Import-Package>
-                                <Export-Package>
-                                    org.reflections.*
-                                </Export-Package>
-                                <Bundle-SymbolicName>org.reflections</Bundle-SymbolicName>
-                            </instructions>
-                        </configuration>
-                    </plugin>
-                    <plugin>
-                        <artifactId>maven-enforcer-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <goals>
-                                    <goal>enforce</goal>
-                                </goals>
-                                <configuration>
-                                    <rules>
-                                        <requireProperty>
-                                            <property>gpg.keyname</property>
-                                            <message>gpg.keyname must be supplied using -D. create a key using gpg
-                                                --gen-key or use existing one.
-                                            </message>
-                                        </requireProperty>
-                                        <requireProperty>
-                                            <property>gpg.passphrase</property>
-                                            <message>gpg.passphrase must be supplied using -D. create a key using gpg
-                                                --gen-key or use existing one.
-                                            </message>
-                                        </requireProperty>
-                                    </rules>
-                                    <fail>true</fail>
-                                </configuration>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.apache.maven.plugins</groupId>
-                        <artifactId>maven-gpg-plugin</artifactId>
-                        <executions>
-                            <execution>
-                                <id>sign-artifacts</id>
-                                <phase>verify</phase>
-                                <goals>
-                                    <goal>sign</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-    </profiles>
 
     <build>
         <plugins>
@@ -271,10 +110,6 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <configuration>
-                    <source>${jdk.version}</source>
-                    <target>${jdk.version}</target>
-                </configuration>
                 <executions>
                     <execution>
                         <id>compile</id>

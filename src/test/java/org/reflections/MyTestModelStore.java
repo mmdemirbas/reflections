@@ -1,6 +1,7 @@
 //generated using Reflections JavaCodeSerializer [Sat Aug 18 04:05:36 EET 2018]
 package org.reflections;
 
+@SuppressWarnings("ALL")
 public interface MyTestModelStore {
 
     interface org {

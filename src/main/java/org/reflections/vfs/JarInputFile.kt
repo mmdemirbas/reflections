@@ -27,12 +27,12 @@ class JarInputFile(private val entry: ZipEntry,
         return object : InputStream() {
             @Throws(IOException::class)
             override fun read(): Int {
-                if (jarInputDir.cursor >= fromIndex && jarInputDir.cursor <= endIndex) {
+                return if (jarInputDir.cursor in fromIndex..endIndex) {
                     val read = jarInputDir.jarInputStream!!.read()
                     jarInputDir.cursor++
-                    return read
+                    read
                 } else {
-                    return -1
+                    -1
                 }
             }
         }

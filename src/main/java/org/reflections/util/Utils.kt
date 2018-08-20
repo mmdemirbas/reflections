@@ -1,11 +1,9 @@
 package org.reflections.util
 
 import org.reflections.ReflectionUtils.forName
-import org.reflections.Reflections
 import org.reflections.ReflectionsException
+import org.reflections.logWarn
 import org.reflections.scanners.Scanner
-import org.slf4j.Logger
-import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
 import java.io.IOException
@@ -31,18 +29,8 @@ object Utils {
         return sb.toString()
     }
 
-    /**
-     * isEmpty compatible with Java 5
-     */
     @JvmStatic
-    fun isEmpty(s: String?): Boolean {
-        return s == null || s.isEmpty()
-    }
-
-    @JvmStatic
-    fun isEmpty(objects: Array<*>?): Boolean {
-        return objects == null || objects.size == 0
-    }
+    fun isEmpty(objects: Array<*>?) = objects == null || objects.isEmpty()
 
     @JvmStatic
     fun prepareFile(filename: String): File {
@@ -67,17 +55,17 @@ object Utils {
         val memberName = memberKey.substring(p1 + 1)
 
         val parameterTypes: Array<Class<*>>
-        if (!isEmpty(methodParameters)) {
+        parameterTypes = if (!methodParameters.isEmpty()) {
             val parameterNames = methodParameters.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-            val result = ArrayList<Class<*>>(parameterNames.size)
+            val result = mutableListOf<Class<*>>()
             for (name in parameterNames) {
                 val element = forName(name.trim { it <= ' ' }, *classLoaders)
                 if (element != null) {
                     result.add(element)
                 }
             }
-            parameterTypes = result.toTypedArray()
-        } else parameterTypes = emptyArray()
+            result.toTypedArray()
+        } else emptyArray()
 
         var aClass = forName(className, *classLoaders)
         while (aClass != null) {
@@ -94,7 +82,6 @@ object Utils {
             } catch (e: Exception) {
                 aClass = aClass.superclass
             }
-
         }
         throw ReflectionsException("Can't resolve member named $memberName for class $className")
     }
@@ -105,9 +92,7 @@ object Utils {
         for (annotated in annotatedWith) {
             if (!isConstructor(annotated)) {
                 val member = getMemberFromDescriptor(annotated, *classLoaders) as Method
-                if (member != null) {
-                    result.add(member)
-                }
+                result.add(member)
             }
         }
         return result
@@ -120,9 +105,7 @@ object Utils {
         for (annotated in annotatedWith) {
             if (isConstructor(annotated)) {
                 val member = getMemberFromDescriptor(annotated, *classLoaders) as Constructor<*>
-                if (member != null) {
-                    result.add(member)
-                }
+                result.add(member)
             }
         }
         return result
@@ -152,7 +135,6 @@ object Utils {
         } catch (e: NoSuchFieldException) {
             throw ReflectionsException("Can't resolve field named $fieldName", e)
         }
-
     }
 
     @JvmStatic
@@ -160,79 +142,45 @@ object Utils {
         try {
             closeable?.close()
         } catch (e: IOException) {
-            if (Reflections.log != null) {
-                Reflections.log.warn("Could not close InputStream", e)
-            }
+            logWarn("Could not close InputStream", e)
         }
-
     }
 
     @JvmStatic
-    fun findLogger(aClass: Class<*>): Logger? {
-        try {
-            // This is to check whether an optional SLF4J binding is available. While SLF4J recommends that libraries
-            // "should not declare a dependency on any SLF4J binding but only depend on slf4j-api", doing so forces
-            // users of the library to either add a binding to the classpath (even if just slf4j-nop) or to set the
-            // "slf4j.suppressInitError" system property in order to avoid the warning, which both is inconvenient.
-            Class.forName("org.slf4j.impl.StaticLoggerBinder")
-            return LoggerFactory.getLogger(aClass)
-        } catch (e: Throwable) {
-            return null
-        }
-
-    }
-
-    @JvmStatic
-    fun isConstructor(fqn: String): Boolean {
-        return fqn.contains("init>")
-    }
+    fun isConstructor(fqn: String) = fqn.contains("init>")
 
     @JvmStatic
     fun name(type: Class<*>): String {
         var type = type
-        if (type.isArray) {
+        return if (type.isArray) {
             var dim = 0
             while (type.isArray) {
                 dim++
                 type = type.componentType
             }
-            return type.name + repeat("[]", dim)
+            type.name + repeat("[]", dim)
         } else {
-            return type.name
+            type.name
         }
     }
 
     @JvmStatic
-    fun names(types: Iterable<Class<*>>): List<String> {
-        val result = ArrayList<String>()
-        for (type in types) {
-            result.add(name(type))
-        }
-        return result
-    }
+    fun names(types: Iterable<Class<*>>) = types.map { name(it) }
 
     @JvmStatic
-    fun names(vararg types: Class<*>): List<String> {
-        return names(Arrays.asList(*types))
-    }
+    fun names(vararg types: Class<*>) = names(Arrays.asList(*types))
 
     @JvmStatic
-    fun name(constructor: Constructor<*>): String {
-        return constructor.name + '.'.toString() + "<init>" + '('.toString() + names(*constructor.parameterTypes).joinToString() + ')'.toString()
-    }
+    fun name(constructor: Constructor<*>) =
+            constructor.name + '.'.toString() + "<init>" + '('.toString() + names(*constructor.parameterTypes).joinToString() + ')'.toString()
 
     @JvmStatic
-    fun name(method: Method): String {
-        return (method.declaringClass.name + '.'.toString() + method.name + '('.toString() + names(*method.parameterTypes).joinToString() + ')'.toString())
-    }
+    fun name(method: Method) =
+            (method.declaringClass.name + '.'.toString() + method.name + '('.toString() + names(*method.parameterTypes).joinToString() + ')'.toString())
 
     @JvmStatic
-    fun name(field: Field): String {
-        return field.declaringClass.name + '.'.toString() + field.name
-    }
+    fun name(field: Field) = field.declaringClass.name + '.'.toString() + field.name
 
     @JvmStatic
-    fun index(scannerClass: Class<out Scanner>): String {
-        return scannerClass.simpleName
-    }
+    fun index(scannerClass: Class<out Scanner>) = scannerClass.simpleName!!
 }

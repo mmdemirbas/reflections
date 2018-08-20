@@ -3,6 +3,7 @@ package org.reflections
 import javassist.bytecode.ClassFile
 import javassist.bytecode.FieldInfo
 import javassist.bytecode.MethodInfo
+import org.apache.logging.log4j.LogManager
 import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.util.*
@@ -26,7 +27,7 @@ data class JavaReflectionMethodWrapper(val delegate: Member) : MethodWrapper
 
 
 class Multimap<K, V> {
-     val map = mutableMapOf<K, MutableSet<V>>()
+    val map = mutableMapOf<K, MutableSet<V>>()
 
     val isEmpty get() = map.isEmpty()
 
@@ -45,11 +46,11 @@ class Multimap<K, V> {
         return true
     }
 
-    private fun getOrPut(key: K) = map.getOrPut(key, { mutableSetOf() })
+    private fun getOrPut(key: K) = map.getOrPut(key) { mutableSetOf() }
 
     // Views
 
-    fun get(key: K) = map.get(key)
+    fun get(key: K) = map[key]
 
     fun keySet() = map.keys
 
@@ -64,7 +65,7 @@ class Multimap<K, V> {
     fun asMap() = map
 }
 
-open class DefaultThreadFactory(val namePrefix: String, val daemon: Boolean) : ThreadFactory {
+open class DefaultThreadFactory(private val namePrefix: String, private val daemon: Boolean) : ThreadFactory {
     private val group = System.getSecurityManager()?.threadGroup ?: Thread.currentThread().threadGroup
     private val threadNumber = AtomicInteger(1)
 
@@ -73,3 +74,18 @@ open class DefaultThreadFactory(val namePrefix: String, val daemon: Boolean) : T
         priority = Thread.NORM_PRIORITY
     }
 }
+
+fun Annotation.annotationType() = annotationClass.java
+
+private val logger = LogManager.getLogger("org.reflections.Reflections")
+
+fun logDebug(format: String, vararg args: Any?) = logger.debug(format, args)
+fun logInfo(format: String, vararg args: Any?) = logger.info(format, args)
+fun logWarn(format: String, vararg args: Any?) = logger.warn(format, args)
+fun logError(format: String, vararg args: Any?) = logger.error(format, args)
+
+
+
+fun <T> not(predicate: (T) -> Boolean): (T) -> Boolean = { it -> !predicate(it) }
+
+fun <T> `in`(collection: Collection<*>): (T) -> Boolean = { it -> collection.contains(it) }

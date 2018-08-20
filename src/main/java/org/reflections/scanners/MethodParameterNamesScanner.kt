@@ -4,7 +4,6 @@ import javassist.bytecode.LocalVariableAttribute
 import org.reflections.ClassWrapper
 import org.reflections.JavassistMethodWrapper
 import java.lang.reflect.Modifier
-import java.util.*
 
 /**
  * scans methods/constructors and indexes parameter names
@@ -25,7 +24,7 @@ class MethodParameterNamesScanner : AbstractScanner() {
                 val length = table?.tableLength() ?: 0
                 var i = if (Modifier.isStatic(method.delegate.accessFlags)) 0 else 1 //skip this
                 if (i < length) {
-                    val names = ArrayList<String>(length - i)
+                    val names = mutableListOf<String>()
                     while (i < length) {
                         names.add(method.delegate.constPool.getUtf8Info(table!!.nameIndex(i++)))
                     }

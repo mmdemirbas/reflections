@@ -1,6 +1,9 @@
 package org.reflections
 
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertTrue
 import org.junit.Ignore
 import org.junit.Test
 import org.reflections.adapters.JavassistAdapter
@@ -122,12 +125,12 @@ class VfsTest {
         val tempFile = File.createTempFile("nosuch", "dir")
         tempFile.delete()
         assertFalse(tempFile.exists())
-        val dir = DefaultUrlTypes.directory.createDir(tempFile.toURL())
+        val dir = DefaultUrlTypes.directory.createDir(tempFile.toURL())!!
         assertNotNull(dir)
-        assertFalse(dir!!.files.iterator().hasNext())
-        assertNotNull(dir!!.path)
-        assertNotNull(dir!!.toString())
-        dir!!.close()
+        assertFalse(dir.files.iterator().hasNext())
+        assertNotNull(dir.path)
+        assertNotNull(dir.toString())
+        dir.close()
 
     }
 
@@ -242,28 +245,12 @@ class VfsTest {
     //this is just for the test...
     internal class HttpDir(url: URL) : Vfs.Dir {
 
-        private val file: File?
-        private val zipDir: ZipDir
-        override val path: String
+        private val file = downloadTempLocally(url)
+        private val zipDir = ZipDir(JarFile(file!!))
+        override val path: String = url.toExternalForm()
 
         override val files: Sequence<Vfs.File>
             get() = zipDir.files
-
-        init {
-            path = url.toExternalForm()
-            try {
-                file = downloadTempLocally(url)
-            } catch (e: IOException) {
-                throw RuntimeException(e)
-            }
-
-            try {
-                zipDir = ZipDir(JarFile(file!!))
-            } catch (e: Exception) {
-                throw RuntimeException(e)
-            }
-
-        }
 
         override fun close() {
             file!!.delete()
@@ -312,7 +299,6 @@ class VfsTest {
             } catch (e: Exception) {
                 throw RuntimeException(e)
             }
-
         }
     }
 }

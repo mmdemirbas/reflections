@@ -1,7 +1,7 @@
 package org.reflections.vfs
 
-import org.reflections.Reflections
 import org.reflections.ReflectionsException
+import org.reflections.logWarn
 import org.reflections.vfs.Vfs.Dir
 import org.reflections.vfs.Vfs.UrlType
 import java.io.File
@@ -17,13 +17,13 @@ import java.util.regex.Pattern
  *
  *
  *
- * to use it, register it in Vfs via [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.setDefaultURLTypes].
+ * to use it, register it in Vfs via [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.defaultUrlTypes].
  *
  * @author Sergio Pola
  */
 class UrlTypeVFS : UrlType {
 
-    private val realFile = { file: File -> file.exists() && file.isFile() }
+    private val realFile = { file: File -> file.exists() && file.isFile }
 
     override fun matches(url: URL): Boolean {
         return VFSZIP == url.protocol || VFSFILE == url.protocol
@@ -37,34 +37,27 @@ class UrlTypeVFS : UrlType {
             try {
                 return ZipDir(JarFile(url.file))
             } catch (e1: IOException) {
-                if (Reflections.log != null) {
-                    Reflections.log.warn("Could not get URL", e)
-                    Reflections.log.warn("Could not get URL", e1)
-                }
+                logWarn("Could not get URL", e)
+                logWarn("Could not get URL", e1)
             }
-
         }
 
         return null
     }
 
     @Throws(MalformedURLException::class)
-    private fun adaptURL(url: URL): URL {
-        return if (VFSZIP == url.protocol) {
-            replaceZipSeparators(url.path, realFile)
-        } else if (VFSFILE == url.protocol) {
-            URL(url.toString().replace(VFSFILE, "file"))
-        } else {
-            url
-        }
+    private fun adaptURL(url: URL) = when {
+        VFSZIP == url.protocol  -> replaceZipSeparators(url.path, realFile)
+        VFSFILE == url.protocol -> URL(url.toString().replace(VFSFILE, "file"))
+        else                    -> url
     }
 
     companion object {
 
         private val REPLACE_EXTENSION = arrayOf(".ear/", ".jar/", ".war/", ".sar/", ".har/", ".par/")
 
-        private val VFSZIP = "vfszip"
-        private val VFSFILE = "vfsfile"
+        private const val VFSZIP = "vfszip"
+        private const val VFSFILE = "vfsfile"
 
         @Throws(MalformedURLException::class)
         private fun replaceZipSeparators(path: String, acceptFile: (File) -> Boolean): URL {

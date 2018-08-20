@@ -3,8 +3,8 @@ package org.reflections.serializers
 import org.reflections.Multimap
 import org.reflections.ReflectionUtils
 import org.reflections.Reflections
-import org.reflections.Reflections.Companion.log
 import org.reflections.ReflectionsException
+import org.reflections.logWarn
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.util.Utils
 import org.reflections.util.Utils.index
@@ -111,8 +111,8 @@ class JavaCodeSerializer : Serializer {
     }
 
     override fun toString(reflections: Reflections): String {
-        if (reflections.store!!.get(index(TypeElementsScanner::class.java)).isEmpty) {
-            log?.warn("JavaCodeSerializer needs TypeElementsScanner configured")
+        if (reflections.store[index(TypeElementsScanner::class.java)].isEmpty) {
+            logWarn("JavaCodeSerializer needs TypeElementsScanner configured")
         }
 
         val sb = StringBuilder()
@@ -120,8 +120,7 @@ class JavaCodeSerializer : Serializer {
         var prevPaths: List<String> = listOf()
         var indent = 1
 
-        val keys = reflections.store!!.get(index(TypeElementsScanner::class.java)).keySet().toMutableList()
-        Collections.sort(keys)
+        val keys = reflections.store[index(TypeElementsScanner::class.java)].keySet().sorted().toMutableList()
         for (fqn in keys) {
             val typePaths = listOf(*fqn.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
 
@@ -150,7 +149,7 @@ class JavaCodeSerializer : Serializer {
             val fields = mutableListOf<String>()
             val methods = Multimap<String, String>()
 
-            for (element in reflections.store.get(index(TypeElementsScanner::class.java), fqn)) {
+            for (element in reflections.store[index(TypeElementsScanner::class.java), fqn]) {
                 if (element.startsWith("@")) {
                     annotations.add(element.substring(1))
                 } else if (element.contains("(")) {
@@ -170,7 +169,7 @@ class JavaCodeSerializer : Serializer {
                         val normalized = name + paramsDescriptor
                         methods.put(name, normalized)
                     }
-                } else if (!Utils.isEmpty(element)) {
+                } else if (!element.isEmpty()) {
                     //field
                     fields.add(element)
                 }
@@ -231,11 +230,11 @@ class JavaCodeSerializer : Serializer {
 
     companion object {
 
-        private val pathSeparator = "_"
-        private val doubleSeparator = "__"
-        private val dotSeparator = "."
-        private val arrayDescriptor = "$$"
-        private val tokenSeparator = "_"
+        private const val pathSeparator = "_"
+        private const val doubleSeparator = "__"
+        private const val dotSeparator = "."
+        private const val arrayDescriptor = "$$"
+        private const val tokenSeparator = "_"
 
         private fun getNonDuplicateName(candidate: String, prev: List<String>, offset: Int = prev.size): String {
             val normalized = normalize(candidate)

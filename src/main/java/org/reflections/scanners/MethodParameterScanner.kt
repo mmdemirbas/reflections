@@ -25,7 +25,7 @@ class MethodParameterScanner : AbstractScanner() {
             val parameterNames = md.getParameterNames(method)
             for (i in parameterNames.indices) {
                 for (paramAnnotation in md.getParameterAnnotationNames(method, i)) {
-                    if (acceptResult(paramAnnotation as String)) {
+                    if (acceptResult(paramAnnotation)) {
                         store!!.put(paramAnnotation, md.getMethodFullKey(cls, method))
                     }
                 }

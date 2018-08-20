@@ -3,11 +3,40 @@ package org.reflections
 import org.hamcrest.BaseMatcher
 import org.hamcrest.Description
 import org.hamcrest.Matcher
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThat
+import org.junit.Assert.fail
 import org.junit.BeforeClass
 import org.junit.Test
-import org.reflections.TestModel.*
-import org.reflections.scanners.*
+import org.reflections.TestModel.AC1
+import org.reflections.TestModel.AC1n
+import org.reflections.TestModel.AC2
+import org.reflections.TestModel.AC3
+import org.reflections.TestModel.AF1
+import org.reflections.TestModel.AI1
+import org.reflections.TestModel.AI2
+import org.reflections.TestModel.AM1
+import org.reflections.TestModel.C1
+import org.reflections.TestModel.C2
+import org.reflections.TestModel.C3
+import org.reflections.TestModel.C4
+import org.reflections.TestModel.C5
+import org.reflections.TestModel.C6
+import org.reflections.TestModel.C7
+import org.reflections.TestModel.I1
+import org.reflections.TestModel.I2
+import org.reflections.TestModel.I3
+import org.reflections.TestModel.MAI1
+import org.reflections.TestModel.Usage
+import org.reflections.scanners.FieldAnnotationsScanner
+import org.reflections.scanners.MemberUsageScanner
+import org.reflections.scanners.MethodAnnotationsScanner
+import org.reflections.scanners.MethodParameterNamesScanner
+import org.reflections.scanners.MethodParameterScanner
+import org.reflections.scanners.ResourcesScanner
+import org.reflections.scanners.SubTypesScanner
+import org.reflections.scanners.TypeAnnotationsScanner
 import org.reflections.util.ClasspathHelper
 import org.reflections.util.ConfigurationBuilder
 import org.reflections.util.FilterBuilder
@@ -243,7 +272,7 @@ open class ReflectionsTest {
         val resolved = reflections.getResources(Pattern.compile(".*resource1-reflections\\.xml"))
         assertThat(resolved, are("META-INF/reflections/resource1-reflections.xml"))
 
-        val resources = reflections.store!![index(ResourcesScanner::class.java)].keySet()
+        val resources = (reflections.store)[index(ResourcesScanner::class.java)].keySet()
         assertThat(resources, are("resource1-reflections.xml", "resource2-reflections.xml"))
     }
 

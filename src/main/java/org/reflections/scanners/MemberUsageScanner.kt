@@ -1,8 +1,16 @@
 package org.reflections.scanners
 
-import javassist.*
+import javassist.CannotCompileException
+import javassist.ClassPool
+import javassist.CtBehavior
+import javassist.LoaderClassPath
+import javassist.NotFoundException
 import javassist.bytecode.MethodInfo
-import javassist.expr.*
+import javassist.expr.ConstructorCall
+import javassist.expr.ExprEditor
+import javassist.expr.FieldAccess
+import javassist.expr.MethodCall
+import javassist.expr.NewExpr
 import org.reflections.ClassWrapper
 import org.reflections.JavassistMethodWrapper
 import org.reflections.ReflectionsException
@@ -95,7 +103,7 @@ class MemberUsageScanner : AbstractScanner() {
         if (classPool == null) {
             synchronized(this) {
                 classPool = ClassPool()
-                var classLoaders = getConfiguration()!!.classLoaders
+                var classLoaders = configuration!!.classLoaders
                 if (classLoaders.isEmpty()) {
                     classLoaders = ClasspathHelper.classLoaders()
                 }

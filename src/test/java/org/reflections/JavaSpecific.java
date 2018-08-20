@@ -1,7 +1,9 @@
 package org.reflections;
 
 import org.jetbrains.annotations.NotNull;
-import org.reflections.TestModel.*;
+import org.reflections.TestModel.AC2;
+import org.reflections.TestModel.AF1;
+import org.reflections.TestModel.AM1;
 
 import java.lang.annotation.Annotation;
 
@@ -9,6 +11,7 @@ import java.lang.annotation.Annotation;
  * @author Muhammed Demirbaş
  * @since 2018-08-18 04:15
  */
+@SuppressWarnings("ALL")
 public final class JavaSpecific {
 
     @NotNull

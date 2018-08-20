@@ -28,7 +28,7 @@ class SubTypesScanner
             store!!.put(superclass, className)
         }
 
-        for (anInterface in metadataAdapter.getInterfacesNames(cls) as List<String>) {
+        for (anInterface in metadataAdapter.getInterfacesNames(cls)) {
             if (acceptResult(anInterface)) {
                 store!!.put(anInterface, className)
             }

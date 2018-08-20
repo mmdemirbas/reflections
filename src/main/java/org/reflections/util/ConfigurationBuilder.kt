@@ -1,9 +1,15 @@
 package org.reflections.util
 
-import org.reflections.*
+import org.reflections.ClassWrapper
+import org.reflections.Configuration
+import org.reflections.DefaultThreadFactory
+import org.reflections.FieldWrapper
+import org.reflections.MethodWrapper
+import org.reflections.ReflectionsException
 import org.reflections.adapters.JavaReflectionAdapter
 import org.reflections.adapters.JavassistAdapter
 import org.reflections.adapters.MetadataAdapter
+import org.reflections.logWarn
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
@@ -33,10 +39,11 @@ import java.util.function.Predicate
  */
 class ConfigurationBuilder : Configuration {
 
-    override var scanners: MutableSet<Scanner> = mutableSetOf<Scanner>(TypeAnnotationsScanner(), SubTypesScanner())
-    override var urls: MutableSet<URL> = mutableSetOf<URL>()
+    override var scanners = mutableSetOf<Scanner>(TypeAnnotationsScanner(), SubTypesScanner())
+    override var urls = mutableSetOf<URL>()
     override var inputsFilter: ((String) -> Boolean)? = null
     override var executorService: ExecutorService? = null
+
     /**
      * get class loader, might be used for scanning or resolving methods/fields
      */
@@ -44,6 +51,7 @@ class ConfigurationBuilder : Configuration {
      * set class loader, might be used for resolving methods/fields
      */
     override var classLoaders: Array<out ClassLoader> = emptyArray()
+
     private var expandSuperTypes = true
 
     fun forPackages(vararg packages: String): ConfigurationBuilder {
@@ -124,9 +132,7 @@ class ConfigurationBuilder : Configuration {
         try {
             JavassistAdapter() as MetadataAdapter<ClassWrapper, FieldWrapper, MethodWrapper>
         } catch (e: Throwable) {
-            if (Reflections.log != null) {
-                Reflections.log.warn("could not create JavassistAdapter, using JavaReflectionAdapter", e)
-            }
+            logWarn("could not create JavassistAdapter, using JavaReflectionAdapter", e)
             JavaReflectionAdapter() as MetadataAdapter<ClassWrapper, FieldWrapper, MethodWrapper>
         }
     }
@@ -171,7 +177,7 @@ class ConfigurationBuilder : Configuration {
     /**
      * add class loader, might be used for resolving methods/fields
      */
-    fun addClassLoaders(vararg classLoaders: ClassLoader): ConfigurationBuilder {
+    private fun addClassLoaders(vararg classLoaders: ClassLoader): ConfigurationBuilder {
         this.classLoaders = (this.classLoaders.asList() + classLoaders.asList()).toTypedArray()
         return this
     }
@@ -207,25 +213,17 @@ class ConfigurationBuilder : Configuration {
 
             //flatten
             val parameters = mutableListOf<Any>()
-            if (params != null) {
-                for (param in params) {
-                    if (param != null) {
-                        if (param.javaClass.isArray) {
-                            for (p in param as Array<Any>) {
-                                if (p != null) {
-                                    parameters.add(p)
-                                }
-                            }
-                        } else if (param is Iterable<*>) {
-                            for (p in param) {
-                                if (p != null) {
-                                    parameters.add(p)
-                                }
-                            }
-                        } else {
-                            parameters.add(param)
+            for (param in params) {
+                when {
+                    param.javaClass.isArray -> for (p in param as Array<Any>) {
+                        parameters.add(p)
+                    }
+                    param is Iterable<*>    -> for (p in param) {
+                        if (p != null) {
+                            parameters.add(p)
                         }
                     }
+                    else                    -> parameters.add(param)
                 }
             }
 
@@ -241,42 +239,37 @@ class ConfigurationBuilder : Configuration {
             val scanners = mutableListOf<Scanner>()
 
             for (param in parameters) {
-                if (param is String) {
-                    builder.addUrls(ClasspathHelper.forPackage(param, *classLoaders))
-                    filter.includePackage(param)
-                } else if (param is Class<*>) {
-                    if (Scanner::class.java.isAssignableFrom(param)) {
-                        try {
-                            builder.addScanners(param.newInstance() as Scanner)
-                        } catch (e: Exception) {
-                            /*fallback*/
-                        }
-
+                when (param) {
+                    is String          -> {
+                        builder.addUrls(ClasspathHelper.forPackage(param, *classLoaders))
+                        filter.includePackage(param)
                     }
-                    val url = ClasspathHelper.forClass(param, *classLoaders)
-                    if (url != null) builder.addUrls(url)
-                    filter.includePackage(param)
-                } else if (param is Scanner) {
-                    scanners.add(param)
-                } else if (param is URL) {
-                    builder.addUrls(param)
-                } else if (param is ClassLoader) {
-                    /* already taken care */
-                } else if (param is Predicate<*>) {
-                    filter.add(param as Predicate<String>)
-                } else if (param is ExecutorService) {
-                    builder.executorService = param
-                } else if (Reflections.log != null) {
-                    throw ReflectionsException("could not use param $param")
+                    is Class<*>        -> {
+                        if (Scanner::class.java.isAssignableFrom(param)) {
+                            try {
+                                builder.addScanners(param.newInstance() as Scanner)
+                            } catch (e: Exception) {
+                                /*fallback*/
+                            }
+
+                        }
+                        val url = ClasspathHelper.forClass(param, *classLoaders)
+                        if (url != null) builder.addUrls(url)
+                        filter.includePackage(param)
+                    }
+                    is Scanner         -> scanners.add(param)
+                    is URL             -> builder.addUrls(param)
+                    is ClassLoader     -> {
+                        /* already taken care */
+                    }
+                    is Predicate<*>    -> filter.add(param as Predicate<String>)
+                    is ExecutorService -> builder.executorService = param
+                    else               -> throw ReflectionsException("could not use param $param")
                 }
             }
 
             if (builder.urls.isEmpty()) {
-                if (classLoaders != null) {
-                    builder.addUrls(ClasspathHelper.forClassLoader(*classLoaders)) //default urls getResources("")
-                } else {
-                    builder.addUrls(ClasspathHelper.forClassLoader()) //default urls getResources("")
-                }
+                builder.addUrls(ClasspathHelper.forClassLoader(*classLoaders))
             }
 
             builder.inputsFilter = { filter.test(it) }
@@ -291,8 +284,3 @@ class ConfigurationBuilder : Configuration {
         }
     }
 }
-/**
- * sets the executor service used for scanning to ThreadPoolExecutor with core size as [java.lang.Runtime.availableProcessors]
- *
- * default is ThreadPoolExecutor with a single core
- */

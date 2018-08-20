@@ -1,5 +1,6 @@
 package org.reflections
 
+import jdk.nashorn.internal.runtime.regexp.joni.Config.log
 import org.reflections.Predicates.`in`
 import org.reflections.Predicates.not
 import org.reflections.ReflectionUtils.filter
@@ -8,14 +9,20 @@ import org.reflections.ReflectionUtils.forNames
 import org.reflections.ReflectionUtils.getSuperTypes
 import org.reflections.ReflectionUtils.withAnnotation
 import org.reflections.ReflectionUtils.withAnyParameterAnnotation
-import org.reflections.scanners.*
+import org.reflections.scanners.FieldAnnotationsScanner
+import org.reflections.scanners.MemberUsageScanner
+import org.reflections.scanners.MethodAnnotationsScanner
+import org.reflections.scanners.MethodParameterNamesScanner
+import org.reflections.scanners.MethodParameterScanner
+import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.Scanner
+import org.reflections.scanners.SubTypesScanner
+import org.reflections.scanners.TypeAnnotationsScanner
 import org.reflections.serializers.Serializer
 import org.reflections.serializers.XmlSerializer
 import org.reflections.util.ClasspathHelper
 import org.reflections.util.ConfigurationBuilder
 import org.reflections.util.FilterBuilder
-import org.reflections.util.Utils
 import org.reflections.util.Utils.close
 import org.reflections.util.Utils.getConstructorsFromDescriptors
 import org.reflections.util.Utils.getFieldFromString
@@ -25,7 +32,11 @@ import org.reflections.util.Utils.index
 import org.reflections.util.Utils.name
 import org.reflections.util.Utils.names
 import org.reflections.vfs.Vfs
-import java.io.*
+import java.io.File
+import java.io.FileInputStream
+import java.io.FileNotFoundException
+import java.io.IOException
+import java.io.InputStream
 import java.lang.String.format
 import java.lang.annotation.Inherited
 import java.lang.reflect.Constructor
@@ -118,16 +129,12 @@ import java.util.regex.Pattern
  *
  *For Javadoc, source code, and more information about Reflections Library, see http://github.com/ronmamo/reflections/
  */
-class Reflections {
+class Reflections(@Transient val configuration: Configuration) {
 
-    /**
-     * returns the [org.reflections.Configuration] object of this instance
-     */
-    @Transient val configuration: Configuration
     /**
      * returns the [org.reflections.Store] used for storing and querying the metadata
      */
-    val store: Store?
+    val store = Store()
 
     /**
      * get all types scanned. this is effectively similar to getting all subtypes of Object.
@@ -141,26 +148,18 @@ class Reflections {
      */
     val allTypes: Set<String>
         get() {
-            val allTypes = store!!.getAll(index(SubTypesScanner::class.java), Any::class.java.name).toSet()
+            val allTypes = store.getAll(index(SubTypesScanner::class.java), Any::class.java.name).toSet()
             if (allTypes.isEmpty()) {
                 throw ReflectionsException("Couldn't find subtypes of Object. " + "Make sure SubTypesScanner initialized to include Object class - new SubTypesScanner(false)")
             }
             return allTypes
         }
 
-    /**
-     * constructs a Reflections instance and scan according to given [org.reflections.Configuration]
-     *
-     * it is preferred to use [org.reflections.util.ConfigurationBuilder]
-     */
-    constructor(configuration: Configuration) {
-        this.configuration = configuration
-        store = Store(configuration)
-
-        if (configuration.scanners != null && !configuration.scanners.isEmpty()) {
+    init {
+        if (!configuration.scanners.isEmpty()) {
             //inject to scanners
             for (scanner in configuration.scanners) {
-                scanner.setConfiguration(configuration)
+                scanner.configuration = configuration
                 scanner.store = store.getOrCreate(index(scanner.javaClass))
             }
 
@@ -183,7 +182,7 @@ class Reflections {
      * @param prefix   package prefix, to be used with [org.reflections.util.ClasspathHelper.forPackage] )}
      * @param scanners optionally supply scanners, otherwise defaults to [org.reflections.scanners.TypeAnnotationsScanner] and [org.reflections.scanners.SubTypesScanner]
      */
-    constructor(prefix: String, vararg scanners: Scanner) : this(prefix as Any, scanners) {}
+    constructor(prefix: String, vararg scanners: Scanner) : this(prefix as Any, scanners)
 
     /**
      * a convenient constructor for Reflections, where given `Object...` parameter types can be either:
@@ -209,23 +208,17 @@ class Reflections {
      * new Reflections(myUrl, myOtherUrl);
     </pre> *
      */
-    constructor(vararg params: Any) : this(ConfigurationBuilder.build(*params)) {}
+    constructor(vararg params: Any) : this(ConfigurationBuilder.build(*params))
 
-    private constructor() {
-        configuration = ConfigurationBuilder()
-        store = Store(configuration)
-    }
+    private constructor() : this(ConfigurationBuilder())
 
-    //
     private fun scan() {
-        if (configuration.urls == null || configuration.urls.isEmpty()) {
-            log?.warn("given scan urls are empty. set urls in the configuration")
+        if (configuration.urls.isEmpty()) {
+            logWarn("given scan urls are empty. set urls in the configuration")
             return
         }
 
-        if (log != null && log.isDebugEnabled) {
-            log.debug("going to scan these urls:\n{}", configuration.urls.joinToString("\n"))
-        }
+        logDebug("going to scan these urls:\n{}", configuration.urls.joinToString("\n"))
 
         var time = System.currentTimeMillis()
         var scannedUrls = 0
@@ -236,7 +229,7 @@ class Reflections {
             try {
                 if (executorService != null) {
                     futures.add(executorService.submit {
-                        log?.debug("[{}] scanning {}", Thread.currentThread(), url)
+                        logDebug("[{}] scanning {}", Thread.currentThread(), url)
                         scan(url)
                     })
                 } else {
@@ -244,20 +237,16 @@ class Reflections {
                 }
                 scannedUrls++
             } catch (e: ReflectionsException) {
-                log?.warn("could not create Vfs.Dir from url. ignoring the exception and continuing", e)
+                logWarn("could not create Vfs.Dir from url. ignoring the exception and continuing", e)
             }
-
         }
 
         //todo use CompletionService
-        if (executorService != null) {
-            for (future in futures) {
-                try {
-                    future.get()
-                } catch (e: Exception) {
-                    throw RuntimeException(e)
-                }
-
+        futures.forEach { future ->
+            try {
+                future.get()
+            } catch (e: Exception) {
+                throw RuntimeException(e)
             }
         }
 
@@ -266,31 +255,25 @@ class Reflections {
         //gracefully shutdown the parallel scanner executor service.
         executorService?.shutdown()
 
-        if (log != null) {
-            var keys = 0
-            var values = 0
-            for (index in store!!.keySet()) {
-                keys += store.get(index).keySet().size
-                values += store.get(index).size()
-            }
-
-            if (executorService is ThreadPoolExecutor) {
-                log.info(format("Reflections took %d ms to scan %d urls, producing %d keys and %d values %s",
-                                time,
-                                scannedUrls,
-                                keys,
-                                values,
-                                format("[using %d cores]", executorService.maximumPoolSize)))
-            } else {
-                log.info(format("Reflections took %d ms to scan %d urls, producing %d keys and %d values %s",
-                                time,
-                                scannedUrls,
-                                keys,
-                                values,
-                                ""))
-            }
+        if (executorService is ThreadPoolExecutor) {
+            logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values {}",
+                    time,
+                    scannedUrls,
+                    keyCount(),
+                    valueCount(),
+                    format("[using %d cores]", executorService.maximumPoolSize))
+        } else {
+            logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values {}",
+                    time,
+                    scannedUrls,
+                    keyCount(),
+                    valueCount(),
+                    "")
         }
     }
+
+    private fun keyCount(): Int = store.keySet().sumBy { store[it].keySet().size }
+    private fun valueCount(): Int = store.keySet().sumBy { store[it].size() }
 
     private fun scan(url: URL) {
         val dir = Vfs.fromURL(url)
@@ -309,13 +292,12 @@ class Reflections {
                                 classObject = scanner.scan(file, classObject)
                             }
                         } catch (e: Exception) {
-                            log?.warn("could not scan file {} in url {} with scanner {}",
-                                      file.relativePath,
-                                      url.toExternalForm(),
-                                      scanner.javaClass.simpleName,
-                                      e)
+                            logWarn("could not scan file {} in url {} with scanner {}",
+                                    file.relativePath,
+                                    url.toExternalForm(),
+                                    scanner.javaClass.simpleName,
+                                    e)
                         }
-
                     }
                 }
             }
@@ -328,10 +310,10 @@ class Reflections {
      * merges saved Reflections resources from the given input stream, using the serializer configured in this instance's Configuration
      * <br></br> useful if you know the serialized resource location and prefer not to look it up the classpath
      */
-    fun collect(inputStream: InputStream): Reflections {
+    private fun collect(inputStream: InputStream): Reflections {
         try {
             merge(configuration.serializer.read(inputStream))
-            log?.info("Reflections collected metadata from input stream using serializer " + configuration.serializer.javaClass.name)
+            logInfo("Reflections collected metadata from input stream using serializer " + configuration.serializer.javaClass.name)
         } catch (ex: Exception) {
             throw ReflectionsException("could not merge input stream", ex)
         }
@@ -360,13 +342,11 @@ class Reflections {
      * merges a Reflections instance metadata into this instance
      */
     fun merge(reflections: Reflections): Reflections {
-        if (reflections.store != null) {
-            for (indexName in reflections.store.keySet()) {
-                val index = reflections.store.get(indexName)
-                for (key in index.keySet()) {
-                    for (string in index.get(key)!!) {
-                        store!!.getOrCreate(indexName).put(key, string)
-                    }
+        for (indexName in reflections.store.keySet()) {
+            val index = reflections.store[indexName]
+            for (key in index.keySet()) {
+                for (string in index.get(key)!!) {
+                    store.getOrCreate(indexName).put(key, string)
                 }
             }
         }
@@ -386,8 +366,8 @@ class Reflections {
      *
      */
     fun expandSuperTypes() {
-        if (store!!.keySet().contains(index(SubTypesScanner::class.java))) {
-            val mmap = store.get(index(SubTypesScanner::class.java))
+        if (store.keySet().contains(index(SubTypesScanner::class.java))) {
+            val mmap = store[index(SubTypesScanner::class.java)]
             val keys = mmap.keySet() - mmap.values().toSet()
             val expand = Multimap<String, String>()
             for (key in keys) {
@@ -408,7 +388,7 @@ class Reflections {
      * depends on SubTypesScanner configured
      */
     fun <T> getSubTypesOf(type: Class<T>): Set<Class<out T>> {
-        return ReflectionUtils.forNames<T>(store!!.getAll(index(SubTypesScanner::class.java), listOf(type.name)),
+        return ReflectionUtils.forNames<T>(store.getAll(index(SubTypesScanner::class.java), listOf(type.name)),
                                            *loaders()).toSet()
     }
 
@@ -428,7 +408,7 @@ class Reflections {
      */
     @JvmOverloads
     fun getTypesAnnotatedWith(annotation: Class<out Annotation>, honorInherited: Boolean = false): Set<Class<*>> {
-        val annotated = store!!.get(index(TypeAnnotationsScanner::class.java), annotation.name)
+        val annotated = store[index(TypeAnnotationsScanner::class.java), annotation.name]
         val classes = getAllAnnotated(annotated, annotation.isAnnotationPresent(Inherited::class.java), honorInherited)
         return ReflectionUtils.forNames<Any>(annotated, *loaders()).toSet() + ReflectionUtils.forNames(classes,
                                                                                                        *loaders())
@@ -443,8 +423,7 @@ class Reflections {
      */
     @JvmOverloads
     fun getTypesAnnotatedWith(annotation: Annotation, honorInherited: Boolean = false): Set<Class<*>> {
-        val annotated =
-                store!!.get(index(TypeAnnotationsScanner::class.java), annotation.annotationClass.java.getName())
+        val annotated = store[index(TypeAnnotationsScanner::class.java), annotation.annotationClass.java.name]
         val filter =
                 ReflectionUtils.filter(ReflectionUtils.forNames<Any>(annotated, *loaders()),
                                        ReflectionUtils.withAnnotation(annotation))
@@ -458,19 +437,19 @@ class Reflections {
     private fun getAllAnnotated(annotated: Iterable<String>,
                                 inherited: Boolean,
                                 honorInherited: Boolean): Iterable<String> {
-        if (honorInherited) {
+        return if (honorInherited) {
             if (inherited) {
-                val subTypes = store!!.get(index(SubTypesScanner::class.java), filter(annotated, { input: String ->
+                val subTypes = store[index(SubTypesScanner::class.java), filter(annotated, { input: String ->
                     val type = forName(input, *loaders())
                     type != null && !type.isInterface
-                }))
-                return subTypes + store.getAll(index(SubTypesScanner::class.java), subTypes)
+                })]
+                subTypes + store.getAll(index(SubTypesScanner::class.java), subTypes)
             } else {
-                return annotated
+                annotated
             }
         } else {
-            val subTypes = annotated + store!!.getAll(index(TypeAnnotationsScanner::class.java), annotated)
-            return subTypes + store.getAll(index(SubTypesScanner::class.java), subTypes)
+            val subTypes = annotated + store.getAll(index(TypeAnnotationsScanner::class.java), annotated)
+            subTypes + store.getAll(index(SubTypesScanner::class.java), subTypes)
         }
     }
 
@@ -480,7 +459,7 @@ class Reflections {
      * depends on MethodAnnotationsScanner configured
      */
     fun getMethodsAnnotatedWith(annotation: Class<out Annotation>): Set<Method> {
-        val methods = store!!.get(index(MethodAnnotationsScanner::class.java), annotation.name)
+        val methods = store[index(MethodAnnotationsScanner::class.java), annotation.name]
         return getMethodsFromDescriptors(methods, *loaders())
     }
 
@@ -497,15 +476,15 @@ class Reflections {
      * get methods with parameter types matching given `types`
      */
     fun getMethodsMatchParams(vararg types: Class<*>): Set<Method> {
-        return getMethodsFromDescriptors(store!!.get(index(MethodParameterScanner::class.java),
-                                                     names(*types).toString()), *loaders())
+        return getMethodsFromDescriptors(store[index(MethodParameterScanner::class.java), names(*types).toString()],
+                                         *loaders())
     }
 
     /**
      * get methods with return type match given type
      */
     fun getMethodsReturn(returnType: Class<*>): Set<Method> {
-        return getMethodsFromDescriptors(store!!.get(index(MethodParameterScanner::class.java), names(returnType)),
+        return getMethodsFromDescriptors(store[index(MethodParameterScanner::class.java), names(returnType)],
                                          *loaders())
     }
 
@@ -513,7 +492,7 @@ class Reflections {
      * get methods with any parameter annotated with given annotation
      */
     fun getMethodsWithAnyParamAnnotated(annotation: Class<out Annotation>): Set<Method> {
-        return getMethodsFromDescriptors(store!!.get(index(MethodParameterScanner::class.java), annotation.name),
+        return getMethodsFromDescriptors(store[index(MethodParameterScanner::class.java), annotation.name],
                                          *loaders())
 
     }
@@ -532,7 +511,7 @@ class Reflections {
      * depends on MethodAnnotationsScanner configured
      */
     fun getConstructorsAnnotatedWith(annotation: Class<out Annotation>): Set<Constructor<*>> {
-        val methods = store!!.get(index(MethodAnnotationsScanner::class.java), annotation.name)
+        val methods = store[index(MethodAnnotationsScanner::class.java), annotation.name]
         return getConstructorsFromDescriptors(methods, *loaders())
     }
 
@@ -549,15 +528,15 @@ class Reflections {
      * get constructors with parameter types matching given `types`
      */
     fun getConstructorsMatchParams(vararg types: Class<*>): Set<Constructor<*>> {
-        return getConstructorsFromDescriptors(store!!.get(index(MethodParameterScanner::class.java),
-                                                          names(*types).toString()), *loaders())
+        return getConstructorsFromDescriptors(store[index(MethodParameterScanner::class.java), names(*types).toString()],
+                                              *loaders())
     }
 
     /**
      * get constructors with any parameter annotated with given annotation
      */
     fun getConstructorsWithAnyParamAnnotated(annotation: Class<out Annotation>): Set<Constructor<*>> {
-        return getConstructorsFromDescriptors(store!!.get(index(MethodParameterScanner::class.java), annotation.name),
+        return getConstructorsFromDescriptors(store[index(MethodParameterScanner::class.java), annotation.name],
                                               *loaders())
     }
 
@@ -576,7 +555,7 @@ class Reflections {
      */
     fun getFieldsAnnotatedWith(annotation: Class<out Annotation>): Set<Field> {
         val result = mutableSetOf<Field>()
-        for (annotated in store!!.get(index(FieldAnnotationsScanner::class.java), annotation.name)) {
+        for (annotated in store[index(FieldAnnotationsScanner::class.java), annotation.name]) {
             result.add(getFieldFromString(annotated, *loaders()))
         }
         return result
@@ -596,9 +575,9 @@ class Reflections {
      *
      * depends on ResourcesScanner configured
      */
-    fun getResources(namePredicate: (String) -> Boolean): Set<String> {
-        val resources = store!!.get(index(ResourcesScanner::class.java)).keySet().filter(namePredicate)
-        return store.get(index(ResourcesScanner::class.java), resources).toMutableSet()
+    private fun getResources(namePredicate: (String) -> Boolean): Set<String> {
+        val resources = store[index(ResourcesScanner::class.java)].keySet().filter(namePredicate)
+        return store[index(ResourcesScanner::class.java), resources].toMutableSet()
     }
 
     /**
@@ -608,7 +587,7 @@ class Reflections {
      * <pre>Set&lt;String> xmls = reflections.getResources(".*\\.xml");</pre>
      */
     fun getResources(pattern: Pattern): Set<String> {
-        return getResources({ input: String -> pattern.matcher(input).matches() })
+        return getResources { input: String -> pattern.matcher(input).matches() }
     }
 
     /**
@@ -617,7 +596,7 @@ class Reflections {
      * depends on MethodParameterNamesScanner configured
      */
     fun getMethodParamNames(method: Method): List<String> {
-        val names = store!!.get(index(MethodParameterNamesScanner::class.java), name(method)).toList()
+        val names = store[index(MethodParameterNamesScanner::class.java), name(method)].toList()
         return if (names.isEmpty()) emptyList()
         else Arrays.asList(*names.single().split(", ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
     }
@@ -628,7 +607,7 @@ class Reflections {
      * depends on MethodParameterNamesScanner configured
      */
     fun getConstructorParamNames(constructor: Constructor<*>): List<String> {
-        val names = store!!.get(index(MethodParameterNamesScanner::class.java), name(constructor)).toList()
+        val names = store[index(MethodParameterNamesScanner::class.java), name(constructor)].toList()
         return if (names.isEmpty()) emptyList()
         else Arrays.asList(*names.single().split(", ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray())
     }
@@ -639,7 +618,7 @@ class Reflections {
      * depends on MemberUsageScanner configured
      */
     fun getFieldUsage(field: Field): Set<Member> {
-        return getMembersFromDescriptors(store!!.get(index(MemberUsageScanner::class.java), name(field)))
+        return getMembersFromDescriptors(store[index(MemberUsageScanner::class.java), name(field)])
     }
 
     /**
@@ -648,7 +627,7 @@ class Reflections {
      * depends on MemberUsageScanner configured
      */
     fun getMethodUsage(method: Method): Set<Member> {
-        return getMembersFromDescriptors(store!!.get(index(MemberUsageScanner::class.java), name(method)))
+        return getMembersFromDescriptors(store[index(MemberUsageScanner::class.java), name(method)])
     }
 
     /**
@@ -657,7 +636,7 @@ class Reflections {
      * depends on MemberUsageScanner configured
      */
     fun getConstructorUsage(constructor: Constructor<*>): Set<Member> {
-        return getMembersFromDescriptors(store!!.get(index(MemberUsageScanner::class.java), name(constructor)))
+        return getMembersFromDescriptors(store[index(MemberUsageScanner::class.java), name(constructor)])
     }
 
     /**
@@ -669,7 +648,7 @@ class Reflections {
     @JvmOverloads
     fun save(filename: String, serializer: Serializer = configuration.serializer): File {
         val file = serializer.save(this, filename)
-        log?.info("Reflections successfully saved in " + file.absolutePath + " using " + serializer.javaClass.simpleName)
+        logInfo("Reflections successfully saved in " + file.absolutePath + " using " + serializer.javaClass.simpleName)
         return file
     }
 
@@ -678,8 +657,6 @@ class Reflections {
     }
 
     companion object {
-
-        val log = Utils.findLogger(Reflections::class.java)
 
         /**
          * collect saved Reflection xml resources and merge it into a Reflections instance
@@ -705,9 +682,7 @@ class Reflections {
         fun collect(packagePrefix: String,
                     resourceNameFilter: (String) -> Boolean,
                     vararg optionalSerializer: Serializer): Reflections? {
-            val serializer = if (optionalSerializer != null && optionalSerializer.size == 1) optionalSerializer[0]
-            else XmlSerializer()
-
+            val serializer = optionalSerializer.singleOrNull() ?: XmlSerializer()
             val urls = ClasspathHelper.forPackage(packagePrefix)
             if (urls.isEmpty()) {
                 return null
@@ -731,27 +706,27 @@ class Reflections {
                 val store = reflections.store
                 var keys = 0
                 var values = 0
-                for (index in store!!.keySet()) {
-                    keys += store.get(index).keySet().size
-                    values += store.get(index).size()
+                for (index in store.keySet()) {
+                    keys += store[index].keySet().size
+                    values += store[index].size()
                 }
 
                 if (urls.size > 1) {
-                    log.info(format("Reflections took %d ms to collect %d url%s, producing %d keys and %d values [%s]",
-                                    System.currentTimeMillis() - start,
-                                    urls.size,
-                                    "s",
-                                    keys,
-                                    values,
-                                    urls.joinToString()))
+                    logInfo(format("Reflections took %d ms to collect %d url%s, producing %d keys and %d values [%s]",
+                                   System.currentTimeMillis() - start,
+                                   urls.size,
+                                   "s",
+                                   keys,
+                                   values,
+                                   urls.joinToString()))
                 } else {
-                    log.info(format("Reflections took %d ms to collect %d url%s, producing %d keys and %d values [%s]",
-                                    System.currentTimeMillis() - start,
-                                    urls.size,
-                                    "",
-                                    keys,
-                                    values,
-                                    urls.joinToString()))
+                    logInfo(format("Reflections took %d ms to collect %d url%s, producing %d keys and %d values [%s]",
+                                   System.currentTimeMillis() - start,
+                                   urls.size,
+                                   "",
+                                   keys,
+                                   values,
+                                   urls.joinToString()))
                 }
             }
             return reflections
@@ -760,40 +735,10 @@ class Reflections {
         private fun expandSupertypes(mmap: Multimap<in String, in String>, key: String, type: Class<*>) {
             for (supertype in getSuperTypes(type)) {
                 if (mmap.put(supertype.name, key)) {
-                    log?.debug("expanded subtype {} -> {}", supertype.name, key)
+                    logDebug("expanded subtype {} -> {}", supertype.name, key)
                     expandSupertypes(mmap, supertype.name, supertype)
                 }
             }
         }
     }
 }
-
-fun Annotation.annotationType() = annotationClass.java
-
-/**
- * get types annotated with a given annotation, both classes and annotations
- *
- * [java.lang.annotation.Inherited] is not honored by default.
- *
- * when honoring @Inherited, meta-annotation should only effect annotated super classes and its sub types
- *
- * *Note that this (@Inherited) meta-annotation type has no effect if the annotated type is used for anything other then a class.
- * Also, this meta-annotation causes annotations to be inherited only from superclasses; annotations on implemented interfaces have no effect.*
- *
- * depends on TypeAnnotationsScanner and SubTypesScanner configured
- */
-/**
- * get types annotated with a given annotation, both classes and annotations, including annotation member values matching
- *
- * [java.lang.annotation.Inherited] is not honored by default
- *
- * depends on TypeAnnotationsScanner configured
- */
-/**
- * serialize to a given directory and filename
- *
- * * it is preferred to specify a designated directory (for example META-INF/reflections),
- * so that it could be found later much faster using the load method
- *
- * see the documentation for the save method on the configured [org.reflections.serializers.Serializer]
- */

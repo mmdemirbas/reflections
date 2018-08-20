@@ -1,6 +1,5 @@
 package org.reflections.serializers
 
-import com.google.gson.*
 import org.reflections.Multimap
 import org.reflections.Reflections
 import org.reflections.util.Utils
@@ -26,11 +25,10 @@ import java.nio.file.Files.write
  */
 class JsonSerializer : Serializer {
 
-    private var gson: Gson? = null
+    private var gson: com.google.gson.Gson? = null
 
-    override fun read(inputStream: InputStream): Reflections {
-        return getGson().fromJson(InputStreamReader(inputStream), Reflections::class.java)
-    }
+    override fun read(inputStream: InputStream) =
+            getGson().fromJson(InputStreamReader(inputStream), Reflections::class.java)!!
 
     override fun save(reflections: Reflections, filename: String): File {
         try {
@@ -40,25 +38,23 @@ class JsonSerializer : Serializer {
         } catch (e: IOException) {
             throw RuntimeException(e)
         }
-
     }
 
-    override fun toString(reflections: Reflections): String {
-        return getGson().toJson(reflections)
-    }
+    override fun toString(reflections: Reflections) = getGson().toJson(reflections)!!
 
-    private fun getGson(): Gson {
+    private fun getGson(): com.google.gson.Gson {
         if (gson == null) {
             gson =
-                    GsonBuilder().registerTypeAdapter(Multimap::class.java,
-                                                      com.google.gson.JsonSerializer<Multimap<*, *>> { multimap, type, jsonSerializationContext ->
-                                                          jsonSerializationContext.serialize(multimap.asMap())
-                                                      })
+                    com.google.gson.GsonBuilder()
                         .registerTypeAdapter(Multimap::class.java,
-                                             JsonDeserializer<Multimap<*, *>> { jsonElement, type, jsonDeserializationContext ->
+                                             com.google.gson.JsonSerializer<Multimap<*, *>> { multimap, type, jsonSerializationContext ->
+                                                 jsonSerializationContext.serialize(multimap.asMap())
+                                             })
+                        .registerTypeAdapter(Multimap::class.java,
+                                             com.google.gson.JsonDeserializer<Multimap<*, *>> { jsonElement, type, jsonDeserializationContext ->
                                                  val map = Multimap<String, String>()
-                                                 for ((key, value) in (jsonElement as JsonObject).entrySet()) {
-                                                     for (element in value as JsonArray) {
+                                                 for ((key, value) in (jsonElement as com.google.gson.JsonObject).entrySet()) {
+                                                     for (element in value as com.google.gson.JsonArray) {
                                                          map.get(key)!!.add(element.asString)
                                                      }
                                                  }

@@ -11,7 +11,7 @@ class TypeAnnotationsScanner : AbstractScanner() {
     override fun scan(cls: ClassWrapper) {
         val className = metadataAdapter.getClassName(cls)
 
-        for (annotationType in metadataAdapter.getClassAnnotationNames(cls) as List<String>) {
+        for (annotationType in metadataAdapter.getClassAnnotationNames(cls)) {
 
             if (acceptResult(annotationType) || annotationType == Inherited::class.java.name) { //as an exception, accept Inherited as well
                 store!!.put(annotationType, className)

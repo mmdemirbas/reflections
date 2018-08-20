@@ -2,11 +2,23 @@ package org.reflections
 
 import org.hamcrest.BaseMatcher
 import org.hamcrest.Description
-import org.junit.Assert.*
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertThat
+import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.reflections.TestModel.*
+import org.reflections.TestModel.AF1
+import org.reflections.TestModel.AI1
+import org.reflections.TestModel.AM1
+import org.reflections.TestModel.C3
+import org.reflections.TestModel.C4
+import org.reflections.TestModel.I1
 import org.reflections.scanners.FieldAnnotationsScanner
-import java.lang.reflect.*
+import java.lang.reflect.Constructor
+import java.lang.reflect.Field
+import java.lang.reflect.Member
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 import java.util.*
 
 /**
@@ -16,7 +28,9 @@ class ReflectionUtilsTest {
 
     @Test
     fun getAllTest() {
-        assertEquals(ReflectionUtils.getAllSuperTypes(C3::class.java, ReflectionUtils.withAnnotation(AI1::class.java)),
+        assertEquals(ReflectionUtils.getAllSuperTypes(C3::class.java,
+                                                      false,
+                                                      ReflectionUtils.withAnnotation(AI1::class.java)),
                      setOf(I1::class.java))
 
         val allMethods =

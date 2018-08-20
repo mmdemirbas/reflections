@@ -5,8 +5,13 @@ import org.junit.BeforeClass
 import org.junit.Test
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C1`
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.fields.f1
-import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.methods.*
-import org.reflections.TestModel.*
+import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.methods.`m1_int$$$$__java_lang_String$$$$`
+import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.methods.`m1_int__java_lang_String$$`
+import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.methods.m1
+import org.reflections.TestModel.AC2
+import org.reflections.TestModel.C1
+import org.reflections.TestModel.C2
+import org.reflections.TestModel.C4
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.serializers.JavaCodeSerializer
 import org.reflections.util.ClasspathHelper

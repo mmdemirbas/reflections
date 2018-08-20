@@ -1,121 +1,87 @@
 package org.reflections.adapters
 
-import javassist.bytecode.*
-import javassist.bytecode.AccessFlag.isPrivate
-import javassist.bytecode.AccessFlag.isProtected
+import javassist.bytecode.AccessFlag
+import javassist.bytecode.AnnotationsAttribute
+import javassist.bytecode.ClassFile
+import javassist.bytecode.Descriptor
 import javassist.bytecode.Descriptor.Iterator
-import javassist.bytecode.annotation.Annotation
+import javassist.bytecode.FieldInfo
+import javassist.bytecode.MethodInfo
+import javassist.bytecode.ParameterAnnotationsAttribute
 import org.reflections.JavassistClassWrapper
 import org.reflections.JavassistFieldWrapper
 import org.reflections.JavassistMethodWrapper
 import org.reflections.ReflectionsException
-import org.reflections.util.Utils
 import org.reflections.vfs.Vfs
 import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.io.IOException
-import java.io.InputStream
-import java.util.*
 
 /**
  *
  */
 class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWrapper, JavassistMethodWrapper> {
 
-    override fun getFields(cls: JavassistClassWrapper): List<JavassistFieldWrapper> {
-        return cls.delegate.fields.map { JavassistFieldWrapper(it as FieldInfo) }
-    }
+    override fun getFields(cls: JavassistClassWrapper) =
+            cls.delegate.fields.map { JavassistFieldWrapper(it as FieldInfo) }
 
-    override fun getMethods(cls: JavassistClassWrapper): List<JavassistMethodWrapper> {
-        return cls.delegate.methods.map { JavassistMethodWrapper(it as MethodInfo) }
-    }
+    override fun getMethods(cls: JavassistClassWrapper) =
+            cls.delegate.methods.map { JavassistMethodWrapper(it as MethodInfo) }
 
-    override fun getMethodName(method: JavassistMethodWrapper): String {
-        return method.delegate.name
-    }
+    override fun getMethodName(method: JavassistMethodWrapper) = method.delegate.name!!
 
-    override fun getParameterNames(method: JavassistMethodWrapper): List<String> {
-        var descriptor = method.delegate.descriptor
-        descriptor = descriptor.substring(descriptor.indexOf('(') + 1, descriptor.lastIndexOf(')'))
-        return splitDescriptorToTypeNames(descriptor)
-    }
+    override fun getParameterNames(method: JavassistMethodWrapper) =
+            method.delegate.descriptor.substringBetween('(', ')').splitDescriptorToTypeNames()
 
-    override fun getClassAnnotationNames(aClass: JavassistClassWrapper): List<String> {
-        return if (includeInvisibleTag) getAnnotationNames(aClass.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
-                                                           aClass.delegate.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?)
-        else getAnnotationNames(aClass.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute)
-    }
-
-    override fun getFieldAnnotationNames(field: JavassistFieldWrapper): List<String> {
-        return if (includeInvisibleTag) getAnnotationNames(field.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
-                                                           field.delegate.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?)
-        else getAnnotationNames(field.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute)
-    }
-
-    override fun getMethodAnnotationNames(method: JavassistMethodWrapper): List<String> {
-        return if (includeInvisibleTag) getAnnotationNames(method.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
-                                                           method.delegate.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?)
-        else getAnnotationNames(method.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute)
-    }
-
-    override fun getParameterAnnotationNames(method: JavassistMethodWrapper, parameterIndex: Int): List<String> {
-        val result = mutableListOf<String>()
-
-        val parameterAnnotationsAttributes =
-                listOf(method.delegate.getAttribute(ParameterAnnotationsAttribute.visibleTag) as ParameterAnnotationsAttribute?,
-                       method.delegate.getAttribute(ParameterAnnotationsAttribute.invisibleTag) as ParameterAnnotationsAttribute?)
-
-        if (parameterAnnotationsAttributes != null) {
-            for (parameterAnnotationsAttribute in parameterAnnotationsAttributes) {
-                if (parameterAnnotationsAttribute != null) {
-                    val annotations = parameterAnnotationsAttribute.annotations
-                    if (parameterIndex < annotations.size) {
-                        val annotation = annotations[parameterIndex]
-                        result.addAll(getAnnotationNames(annotation))
-                    }
-                }
+    override fun getClassAnnotationNames(aClass: JavassistClassWrapper) =
+            listOf(aClass.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
+                   aClass.delegate.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?).flatMap {
+                it?.annotations.orEmpty().map { it.typeName }
             }
+
+    override fun getFieldAnnotationNames(field: JavassistFieldWrapper) =
+            listOf(field.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
+                   field.delegate.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?).flatMap {
+                it?.annotations.orEmpty().map { it.typeName }
+            }
+
+    override fun getMethodAnnotationNames(method: JavassistMethodWrapper) =
+            listOf(method.delegate.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
+                   method.delegate.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?).flatMap {
+                it?.annotations.orEmpty().map { it.typeName }
+            }
+
+    override fun getParameterAnnotationNames(method: JavassistMethodWrapper, parameterIndex: Int) =
+            listOf(method.delegate.getAttribute(ParameterAnnotationsAttribute.visibleTag) as ParameterAnnotationsAttribute?,
+                   method.delegate.getAttribute(ParameterAnnotationsAttribute.invisibleTag) as ParameterAnnotationsAttribute?).flatMap {
+                it?.annotations?.getOrNull(parameterIndex).orEmpty().map { it.typeName }
+            }
+
+    override fun getReturnTypeName(method: JavassistMethodWrapper) =
+            method.delegate.descriptor.substringAfterLast(')').splitDescriptorToTypeNames()[0]!!
+
+    override fun getFieldName(field: JavassistFieldWrapper) = field.delegate.name!!
+
+    override fun getOrCreateClassObject(file: Vfs.File) = try {
+        file.openInputStream().use { stream ->
+            JavassistClassWrapper(ClassFile(DataInputStream(BufferedInputStream(stream))))
         }
-
-        return result
+    } catch (e: IOException) {
+        throw ReflectionsException("could not create class file from " + file.name, e)
     }
 
-    override fun getReturnTypeName(method: JavassistMethodWrapper): String {
-        var descriptor = method.delegate.descriptor
-        descriptor = descriptor.substring(descriptor.lastIndexOf(')') + 1)
-        return splitDescriptorToTypeNames(descriptor)[0]
+    override fun getMethodModifier(method: JavassistMethodWrapper) = when {
+        AccessFlag.isPrivate(method.delegate.accessFlags)   -> "private"
+        AccessFlag.isProtected(method.delegate.accessFlags) -> "protected"
+        AccessFlag.isPublic(method.delegate.accessFlags)    -> "public"
+        else                                                -> ""
     }
 
-    override fun getFieldName(field: JavassistFieldWrapper): String {
-        return field.delegate.name
-    }
+    override fun getMethodKey(cls: JavassistClassWrapper, method: JavassistMethodWrapper) =
+            getMethodName(method) + '('.toString() + getParameterNames(method).joinToString() + ')'.toString()
 
-    override fun getOrCreateClassObject(file: Vfs.File): JavassistClassWrapper {
-        var inputStream: InputStream? = null
-        try {
-            inputStream = file.openInputStream()
-            val dis = DataInputStream(BufferedInputStream(inputStream))
-            return JavassistClassWrapper(ClassFile(dis))
-        } catch (e: IOException) {
-            throw ReflectionsException("could not create class file from " + file.name, e)
-        } finally {
-            Utils.close(inputStream)
-        }
-    }
-
-    override fun getMethodModifier(method: JavassistMethodWrapper): String {
-        val accessFlags = method.delegate.accessFlags
-        return if (isPrivate(accessFlags)) "private"
-        else if (isProtected(accessFlags)) "protected" else if (isPublic(accessFlags)) "public" else ""
-    }
-
-    override fun getMethodKey(cls: JavassistClassWrapper, method: JavassistMethodWrapper): String {
-        return getMethodName(method) + '('.toString() + getParameterNames(method).joinToString() + ')'.toString()
-    }
-
-    override fun getMethodFullKey(cls: JavassistClassWrapper, method: JavassistMethodWrapper): String {
-        return getClassName(cls) + '.'.toString() + getMethodKey(cls, method)
-    }
+    override fun getMethodFullKey(cls: JavassistClassWrapper, method: JavassistMethodWrapper) =
+            getClassName(cls) + '.'.toString() + getMethodKey(cls, method)
 
     override fun isPublic(o: Any?): Boolean {
         val accessFlags =
@@ -126,77 +92,29 @@ class JavassistAdapter : MetadataAdapter<JavassistClassWrapper, JavassistFieldWr
         return accessFlags != null && AccessFlag.isPublic(accessFlags)
     }
 
-    //
-    override fun getClassName(cls: JavassistClassWrapper): String {
-        return cls.delegate.name
-    }
+    override fun getClassName(cls: JavassistClassWrapper) = cls.delegate.name!!
 
-    override fun getSuperclassName(cls: JavassistClassWrapper): String {
-        return cls.delegate.superclass
-    }
+    override fun getSuperclassName(cls: JavassistClassWrapper) = cls.delegate.superclass!!
 
-    override fun getInterfacesNames(cls: JavassistClassWrapper): List<String> {
-        return Arrays.asList(*cls.delegate.interfaces)
-    }
+    override fun getInterfacesNames(cls: JavassistClassWrapper) = cls.delegate.interfaces.map { it!! }
 
-    override fun acceptsInput(file: String): Boolean {
-        return file.endsWith(".class")
-    }
+    override fun acceptsInput(file: String) = file.endsWith(".class")
 
-    companion object {
-
-        /**
-         * setting this to false will result in returning only visible annotations from the relevant methods here (only [java.lang.annotation.RetentionPolicy.RUNTIME])
-         */
-        val includeInvisibleTag = true
-
-        //
-        private fun getAnnotationNames(vararg annotationsAttributes: AnnotationsAttribute?): List<String> {
-            val result = mutableListOf<String>()
-
-            if (annotationsAttributes != null) {
-                for (annotationsAttribute in annotationsAttributes) {
-                    if (annotationsAttribute != null) {
-                        for (annotation in annotationsAttribute.annotations) {
-                            result.add(annotation.typeName)
-                        }
-                    }
-                }
+    private fun String.splitDescriptorToTypeNames() = when {
+        isEmpty() -> listOf()
+        else      -> {
+            val indices = mutableListOf<Int>()
+            val iterator = Iterator(this)
+            while (iterator.hasNext()) {
+                indices.add(iterator.next())
             }
-
-            return result
-        }
-
-        private fun getAnnotationNames(annotations: Array<Annotation>): List<String> {
-            val result = mutableListOf<String>()
-
-            for (annotation in annotations) {
-                result.add(annotation.typeName)
+            indices.add(length)
+            (0 until indices.size - 1).map {
+                Descriptor.toString(substring(indices[it], indices[it + 1]))
             }
-
-            return result
-        }
-
-        private fun splitDescriptorToTypeNames(descriptors: String?): List<String> {
-            val result = mutableListOf<String>()
-
-            if (descriptors != null && !descriptors.isEmpty()) {
-
-                val indices = mutableListOf<Int>()
-                val iterator = Iterator(descriptors)
-                while (iterator.hasNext()) {
-                    indices.add(iterator.next())
-                }
-                indices.add(descriptors.length)
-
-                for (i in 0 until indices.size - 1) {
-                    val s1 = Descriptor.toString(descriptors.substring(indices[i], indices[i + 1]))
-                    result.add(s1)
-                }
-
-            }
-
-            return result
         }
     }
+
+    private fun String.substringBetween(first: Char, last: Char): String =
+            substring(indexOf(first) + 1, lastIndexOf(last))
 }

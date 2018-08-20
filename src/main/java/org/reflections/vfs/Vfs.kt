@@ -1,9 +1,9 @@
 package org.reflections.vfs
 
-import org.reflections.Reflections
 import org.reflections.ReflectionsException
+import org.reflections.logError
+import org.reflections.logWarn
 import org.reflections.util.ClasspathHelper
-import org.reflections.util.Utils
 import org.reflections.vfs.Vfs.DefaultUrlTypes
 import org.reflections.vfs.Vfs.Dir
 import org.reflections.vfs.Vfs.File
@@ -15,14 +15,13 @@ import java.net.JarURLConnection
 import java.net.URISyntaxException
 import java.net.URL
 import java.net.URLDecoder
-import java.util.*
 import java.util.jar.JarFile
 
 /**
  * a simple virtual file system bridge
  *
  * use the [org.reflections.vfs.Vfs.fromURL] to get a [Dir],
- * then use [Dir.getFiles] to iterate over the [File]
+ * then use [Dir.files] to iterate over the [File]
  *
  * for example:
  * <pre>
@@ -36,7 +35,7 @@ import java.util.jar.JarFile
  * [org.reflections.vfs.Vfs.fromURL] uses static [DefaultUrlTypes] to resolve URLs.
  * It contains VfsTypes for handling for common resources such as local jar file, local directory, jar url, jar input stream and more.
  *
- * It can be plugged in with other [UrlType] using [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.setDefaultURLTypes].
+ * It can be plugged in with other [UrlType] using [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.defaultUrlTypes].
  *
  * for example:
  * <pre>
@@ -57,7 +56,10 @@ import java.util.jar.JarFile
  */
 object Vfs {
 
-    private var defaultUrlTypes: MutableList<UrlType> = DefaultUrlTypes.values().toMutableList()
+    /**
+     * the default url types that will be used when issuing [org.reflections.vfs.Vfs.fromURL]
+     */
+    var defaultUrlTypes: MutableList<UrlType> = DefaultUrlTypes.values().toMutableList()
 
     /**
      * an abstract vfs dir
@@ -96,20 +98,6 @@ object Vfs {
     }
 
     /**
-     * the default url types that will be used when issuing [org.reflections.vfs.Vfs.fromURL]
-     */
-    fun getDefaultUrlTypes(): List<UrlType> {
-        return defaultUrlTypes
-    }
-
-    /**
-     * sets the static default url types. can be used to statically plug in urlTypes
-     */
-    fun setDefaultURLTypes(urlTypes: MutableList<UrlType>) {
-        defaultUrlTypes = urlTypes
-    }
-
-    /**
      * add a static default url types to the beginning of the default url types list. can be used to statically plug in urlTypes
      */
     fun addDefaultURLTypes(urlType: UrlType) {
@@ -131,10 +119,7 @@ object Vfs {
                     }
                 }
             } catch (e: Throwable) {
-                if (Reflections.log != null) {
-                    Reflections.log.warn("could not create Dir using " + type + " from url " + url.toExternalForm() + ". skipping.",
-                                         e)
-                }
+                logWarn("could not create Dir using " + type + " from url " + url.toExternalForm() + ". skipping.", e)
             }
 
         }
@@ -157,7 +142,7 @@ object Vfs {
             val path = file.relativePath ?: ""
             if (path.startsWith(packagePrefix)) {
                 val filename = path.substring(path.indexOf(packagePrefix) + packagePrefix.length)
-                !Utils.isEmpty(filename) && nameFilter(filename.substring(1))
+                !filename.isEmpty() && nameFilter(filename.substring(1))
             } else {
                 false
             }
@@ -170,19 +155,15 @@ object Vfs {
      * return an iterable of all [File] in given urls, matching filePredicate
      */
     fun findFiles(inUrls: Collection<URL>, filePredicate: (File) -> Boolean): Iterable<File> {
-        var result: Iterable<File> = ArrayList()
+        val result = mutableListOf<File>()
 
         for (url in inUrls) {
             try {
-                result += fromURL(url).files.filter(filePredicate)
+                result.addAll(fromURL(url).files.filter(filePredicate))
             } catch (e: Throwable) {
-                if (Reflections.log != null) {
-                    Reflections.log.error("could not findFiles for url. continuing. [" + url + ']'.toString(), e)
-                }
+                logError("could not findFiles for url. continuing. [" + url + ']'.toString(), e)
             }
-
         }
-
         return result
     }
 
@@ -249,9 +230,7 @@ object Vfs {
         return null
     }
 
-    private fun hasJarFileInPath(url: URL): Boolean {
-        return url.toExternalForm().matches(".*\\.jar(\\!.*|$)".toRegex())
-    }
+    private fun hasJarFileInPath(url: URL) = url.toExternalForm().matches(".*\\.jar(!.*|$)".toRegex())
 
     /**
      * default url types used by [org.reflections.vfs.Vfs.fromURL]
@@ -275,20 +254,14 @@ object Vfs {
     enum class DefaultUrlTypes : UrlType {
 
         jarFile {
-            override fun matches(url: URL): Boolean {
-                return url.protocol == "file" && hasJarFileInPath(url)
-            }
+            override fun matches(url: URL) = url.protocol == "file" && hasJarFileInPath(url)
 
             @Throws(Exception::class)
-            override fun createDir(url: URL): Dir? {
-                return ZipDir(JarFile(getFile(url)!!))
-            }
+            override fun createDir(url: URL) = ZipDir(JarFile(getFile(url)!!))
         },
 
         jarUrl {
-            override fun matches(url: URL): Boolean {
-                return ("jar" == url.protocol || "zip" == url.protocol || "wsjar" == url.protocol)
-            }
+            override fun matches(url: URL) = ("jar" == url.protocol || "zip" == url.protocol || "wsjar" == url.protocol)
 
             @Throws(Exception::class)
             override fun createDir(url: URL): Dir? {
@@ -309,13 +282,11 @@ object Vfs {
         },
 
         directory {
-            override fun matches(url: URL): Boolean {
-                if (url.protocol == "file" && !hasJarFileInPath(url)) {
-                    val file = getFile(url)
-                    return file != null && file.isDirectory
-                } else {
-                    return false
-                }
+            override fun matches(url: URL) = if (url.protocol == "file" && !hasJarFileInPath(url)) {
+                val file = getFile(url)
+                file != null && file.isDirectory
+            } else {
+                false
             }
 
             override fun createDir(url: URL): Dir? {
@@ -324,14 +295,12 @@ object Vfs {
         },
 
         jboss_vfs {
-            override fun matches(url: URL): Boolean {
-                return url.protocol == "vfs"
-            }
+            override fun matches(url: URL) = url.protocol == "vfs"
 
             @Throws(Exception::class)
             override fun createDir(url: URL): Dir? {
                 val content = url.openConnection().content
-                val virtualFile = ClasspathHelper.contextClassLoader()!!.loadClass("org.jboss.vfs.VirtualFile")
+                val virtualFile = ClasspathHelper.contextClassLoader().loadClass("org.jboss.vfs.VirtualFile")
                 val physicalFile = virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File
                 val name = virtualFile.getMethod("getName").invoke(content) as String
                 var file = java.io.File(physicalFile.parentFile, name)
@@ -343,39 +312,25 @@ object Vfs {
         },
 
         jboss_vfsfile {
-            override fun matches(url: URL): Boolean {
-                return "vfszip" == url.protocol || "vfsfile" == url.protocol
-            }
+            override fun matches(url: URL) = "vfszip" == url.protocol || "vfsfile" == url.protocol
 
-            override fun createDir(url: URL): Dir? {
-                return UrlTypeVFS().createDir(url)
-            }
+            override fun createDir(url: URL) = UrlTypeVFS().createDir(url)
         },
 
         bundle {
-            override fun matches(url: URL): Boolean {
-                return url.protocol.startsWith("bundle")
-            }
+            override fun matches(url: URL) = url.protocol.startsWith("bundle")
 
             @Throws(Exception::class)
-            override fun createDir(url: URL): Dir? {
-                return fromURL(ClasspathHelper.contextClassLoader().loadClass("org.eclipse.core.runtime.FileLocator").getMethod(
-                        "resolve",
-                        URL::class.java).invoke(null, url) as URL)
-            }
+            override fun createDir(url: URL) =
+                    fromURL(ClasspathHelper.contextClassLoader().loadClass("org.eclipse.core.runtime.FileLocator").getMethod(
+                            "resolve",
+                            URL::class.java).invoke(null, url) as URL)
         },
 
         jarInputStream {
-            override fun matches(url: URL): Boolean {
-                return url.toExternalForm().contains(".jar")
-            }
+            override fun matches(url: URL) = url.toExternalForm().contains(".jar")
 
-            override fun createDir(url: URL): Dir? {
-                return JarInputDir(url)
-            }
+            override fun createDir(url: URL) = JarInputDir(url)
         }
     }
 }
-/**
- * tries to create a Dir from the given url, using the defaultUrlTypes
- */

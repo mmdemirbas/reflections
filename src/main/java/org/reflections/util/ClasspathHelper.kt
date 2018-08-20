@@ -1,6 +1,8 @@
 package org.reflections.util
 
 import org.reflections.Reflections
+import org.reflections.logError
+import org.reflections.logWarn
 import java.io.File
 import java.io.IOException
 import java.io.UnsupportedEncodingException
@@ -11,7 +13,6 @@ import java.net.URLDecoder
 import java.util.*
 import java.util.jar.Attributes.Name
 import java.util.jar.JarFile
-import javax.servlet.ServletContext
 
 /**
  * Helper methods for working with the classpath.
@@ -46,17 +47,13 @@ object ClasspathHelper {
      *
      * @return the array of class loaders, not null
      */
-    fun classLoaders(vararg classLoaders: ClassLoader?): Array<out ClassLoader> {
-        if (classLoaders != null && classLoaders.size != 0) {
-            return classLoaders.filterNotNull().toTypedArray()
-        } else {
+    fun classLoaders(vararg classLoaders: ClassLoader?) = when {
+        classLoaders.isNotEmpty() -> classLoaders.filterNotNull().toTypedArray()
+        else                      -> {
             val contextClassLoader = contextClassLoader()
             val staticClassLoader = staticClassLoader()
-            return if (contextClassLoader != null) if (staticClassLoader != null && contextClassLoader !== staticClassLoader) arrayOf(
-                    contextClassLoader,
-                    staticClassLoader)
+            if (contextClassLoader !== staticClassLoader) arrayOf(contextClassLoader, staticClassLoader)
             else arrayOf(contextClassLoader)
-            else arrayOf()
 
         }
     }
@@ -99,8 +96,8 @@ object ClasspathHelper {
      *
      * @return the collection of URLs, not null
      */
-    fun forResource(resourceName: String?, vararg classLoaders: ClassLoader): Collection<URL> {
-        val result = ArrayList<URL>()
+    private fun forResource(resourceName: String?, vararg classLoaders: ClassLoader): Collection<URL> {
+        val result = mutableListOf<URL>()
         val loaders = classLoaders(*classLoaders)
         for (classLoader in loaders) {
             try {
@@ -116,9 +113,7 @@ object ClasspathHelper {
                     }
                 }
             } catch (e: IOException) {
-                if (Reflections.log != null) {
-                    Reflections.log.error("error getting resources for " + resourceName!!, e)
-                }
+                logError("error getting resources for " + resourceName!!, e)
             }
 
         }
@@ -151,11 +146,8 @@ object ClasspathHelper {
                     return URL(normalizedUrl)
                 }
             } catch (e: MalformedURLException) {
-                if (Reflections.log != null) {
-                    Reflections.log.warn("Could not get URL", e)
-                }
+                logWarn("Could not get URL", e)
             }
-
         }
         return null
     }
@@ -178,7 +170,7 @@ object ClasspathHelper {
      */
     @JvmOverloads
     fun forClassLoader(vararg classLoaders: ClassLoader? = classLoaders()): Collection<URL> {
-        val result = ArrayList<URL>()
+        val result = mutableListOf<URL>()
         val loaders = classLoaders(*classLoaders)
         for (loader in loaders) {
             var classLoader: ClassLoader? = loader
@@ -207,18 +199,15 @@ object ClasspathHelper {
      * @return the collection of URLs, not null
      */
     fun forJavaClassPath(): Collection<URL> {
-        val urls = ArrayList<URL>()
+        val urls = mutableListOf<URL>()
         val javaClassPath = System.getProperty("java.class.path")
         if (javaClassPath != null) {
             for (path in javaClassPath.split(File.pathSeparator.toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()) {
                 try {
                     urls.add(File(path).toURI().toURL())
                 } catch (e: Exception) {
-                    if (Reflections.log != null) {
-                        Reflections.log.warn("Could not get URL", e)
-                    }
+                    logWarn("Could not get URL", e)
                 }
-
             }
         }
         return distinctUrls(urls)
@@ -228,15 +217,15 @@ object ClasspathHelper {
      * Returns a distinct collection of URLs based on the `WEB-INF/lib` folder.
      *
      *
-     * This finds the URLs using the [ServletContext].
+     * This finds the URLs using the [javax.servlet.ServletContext].
      *
      *
      * The returned URLs retains the order of the given `classLoaders`.
      *
      * @return the collection of URLs, not null
      */
-    fun forWebInfLib(servletContext: ServletContext): Collection<URL> {
-        val urls = ArrayList<URL>()
+    fun forWebInfLib(servletContext: javax.servlet.ServletContext): Collection<URL> {
+        val urls = mutableListOf<URL>()
         val resourcePaths = servletContext.getResourcePaths("/WEB-INF/lib") ?: return urls
         for (urlString in resourcePaths) {
             try {
@@ -252,11 +241,11 @@ object ClasspathHelper {
      * Returns the URL of the `WEB-INF/classes` folder.
      *
      *
-     * This finds the URLs using the [ServletContext].
+     * This finds the URLs using the [javax.servlet.ServletContext].
      *
      * @return the collection of URLs, not null
      */
-    fun forWebInfClasses(servletContext: ServletContext): URL? {
+    fun forWebInfClasses(servletContext: javax.servlet.ServletContext): URL? {
         try {
             val path = servletContext.getRealPath("/WEB-INF/classes")
             if (path != null) {
@@ -284,8 +273,8 @@ object ClasspathHelper {
      *
      * @return the collection of URLs, not null
      */
-    fun forManifest(url: URL): Collection<URL> {
-        val result = ArrayList<URL>()
+    private fun forManifest(url: URL): Collection<URL> {
+        val result = mutableListOf<URL>()
         result.add(url)
         try {
             val part = cleanPath(url)
@@ -330,7 +319,7 @@ object ClasspathHelper {
      */
     @JvmOverloads
     fun forManifest(urls: Iterable<URL> = forClassLoader()): Collection<URL> {
-        val result = ArrayList<URL>()
+        val result = mutableListOf<URL>()
         // determine if any of the URLs are JARs, and get any dependencies
         for (url in urls) {
             result.addAll(forManifest(url))
@@ -339,7 +328,7 @@ object ClasspathHelper {
     }
 
     //a little bit cryptic...
-    internal fun tryToGetValidUrl(workingDir: String, path: String, filename: String): URL? {
+    private fun tryToGetValidUrl(workingDir: String, path: String, filename: String): URL? {
         try {
             if (File(filename).exists()) {
                 return File(filename).toURI().toURL()
@@ -367,7 +356,7 @@ object ClasspathHelper {
      *
      * @return the path, not null
      */
-    fun cleanPath(url: URL): String {
+    private fun cleanPath(url: URL): String {
         var path = url.path
         try {
             path = URLDecoder.decode(path, "UTF-8")
@@ -407,27 +396,3 @@ object ClasspathHelper {
         return distinct.values
     }
 }
-/**
- * Returns a distinct collection of URLs based on URLs derived from class loaders.
- *
- *
- * This finds the URLs using [URLClassLoader.getURLs] using both
- * [.contextClassLoader] and [.staticClassLoader].
- *
- *
- * The returned URLs retains the order of the given `classLoaders`.
- *
- * @return the collection of URLs, not null
- */
-/**
- * Returns a distinct collection of URLs based on URLs derived from class loaders expanded with Manifest information.
- *
- *
- * The `MANIFEST.MF` file can contain a `Class-Path` entry that defines
- * additional jar files to be included on the classpath. This method finds the jar files
- * using the [.contextClassLoader] and [.staticClassLoader], before
- * searching for any additional manifest classpaths.
- *
- * @return the collection of URLs, not null
- */
-

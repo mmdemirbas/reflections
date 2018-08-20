@@ -6,7 +6,6 @@ import org.reflections.util.ClasspathHelper
 import java.net.MalformedURLException
 import java.net.URL
 import java.net.URLClassLoader
-import java.util.*
 
 /**
  * Test ClasspathHelper utility class
@@ -21,9 +20,7 @@ class ClasspathHelperTest {
                 arrayOf(URL("file", "foo", 1111, "foo"),
                         URL("file", "bar", 1111, "bar"),
                         URL("file", "baz", 1111, "baz"))
-        val urlsList2 = Arrays.asList(*urls1)
-        Collections.reverse(urlsList2)
-        val urls2 = urlsList2.toTypedArray()
+        val urls2 = urls1.reversed().toTypedArray()
 
         val urlClassLoader1 = URLClassLoader(urls1, null)
         val urlClassLoader2 = URLClassLoader(urls2, null)

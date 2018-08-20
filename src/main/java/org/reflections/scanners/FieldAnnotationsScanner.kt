@@ -9,16 +9,9 @@ class FieldAnnotationsScanner : AbstractScanner() {
 
     override fun scan(cls: ClassWrapper) {
         val className = metadataAdapter.getClassName(cls)
-        val fields = metadataAdapter.getFields(cls)
-        for (field in fields) {
-            val fieldAnnotations = metadataAdapter.getFieldAnnotationNames(field)
-            for (fieldAnnotation in fieldAnnotations) {
-
-                if (acceptResult(fieldAnnotation)) {
-                    val fieldName = metadataAdapter.getFieldName(field)
-                    store?.put(fieldAnnotation, String.format("%s.%s", className, fieldName))
-                }
-            }
+        metadataAdapter.getFields(cls).forEach { field ->
+            metadataAdapter.getFieldAnnotationNames(field).filter { acceptResult(it) }
+                .forEach { store?.put(it, String.format("%s.%s", className, metadataAdapter.getFieldName(field))) }
         }
     }
 }

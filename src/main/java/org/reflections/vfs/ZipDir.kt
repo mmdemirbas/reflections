@@ -1,6 +1,6 @@
 package org.reflections.vfs
 
-import org.reflections.Reflections
+import org.reflections.logWarn
 import org.reflections.vfs.Vfs.Dir
 import java.io.IOException
 import java.util.jar.JarFile
@@ -28,9 +28,7 @@ class ZipDir(jarFile: JarFile) : Dir {
         try {
             jarFile.close()
         } catch (e: IOException) {
-            if (Reflections.log != null) {
-                Reflections.log.warn("Could not close JarFile", e)
-            }
+            logWarn("Could not close JarFile", e)
         }
 
     }

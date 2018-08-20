@@ -49,6 +49,7 @@ class ReflectionsExpandSupertypesTest {
 
     companion object {
 
-        private val packagePrefix = "org.reflections.ReflectionsExpandSupertypesTest\\\$TestModel\\\$ScannedScope\\$.*"
+        private const val packagePrefix =
+                "org.reflections.ReflectionsExpandSupertypesTest\\\$TestModel\\\$ScannedScope\\$.*"
     }
 }

@@ -1,7 +1,6 @@
 package org.reflections.util
 
 import org.reflections.ReflectionsException
-import java.util.*
 import java.util.function.Predicate
 import java.util.regex.Pattern
 
@@ -96,7 +95,7 @@ class FilterBuilder : Predicate<String> {
                 if (!accept && filter is Exclude) {
                     continue
                 }
-                accept = filter.test(regex!!)
+                accept = filter.test(regex)
                 if (!accept && filter is Exclude) {
                     break
                 } //break on first exclusion
@@ -111,11 +110,7 @@ class FilterBuilder : Predicate<String> {
 
     abstract class Matcher(regex: String) : Predicate<String> {
 
-        internal val pattern: Pattern
-
-        init {
-            pattern = Pattern.compile(regex)
-        }
+        internal val pattern: Pattern = Pattern.compile(regex)
 
         abstract override fun test(regex: String): Boolean
 
@@ -127,7 +122,7 @@ class FilterBuilder : Predicate<String> {
     class Include(patternString: String) : Matcher(patternString) {
 
         override fun test(regex: String): Boolean {
-            return pattern.matcher(regex!!).matches()
+            return pattern.matcher(regex).matches()
         }
 
         override fun toString(): String {
@@ -138,7 +133,7 @@ class FilterBuilder : Predicate<String> {
     class Exclude(patternString: String) : Matcher(patternString) {
 
         override fun test(regex: String): Boolean {
-            return !pattern.matcher(regex!!).matches()
+            return !pattern.matcher(regex).matches()
         }
 
         override fun toString(): String {
@@ -173,20 +168,20 @@ class FilterBuilder : Predicate<String> {
          */
         fun parse(includeExcludeString: String): FilterBuilder {
 
-            if (Utils.isEmpty(includeExcludeString)) {
+            if (includeExcludeString.isEmpty()) {
                 return FilterBuilder()
             }
 
-            val filters = ArrayList<Predicate<String>>()
+            val filters = mutableListOf<Predicate<String>>()
             for (string in includeExcludeString.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()) {
                 val trimmed = string.trim { it <= ' ' }
                 val prefix = trimmed[0]
                 val pattern = trimmed.substring(1)
 
                 val filter: Predicate<String>
-                when (prefix) {
-                    '+'  -> filter = Include(pattern)
-                    '-'  -> filter = Exclude(pattern)
+                filter = when (prefix) {
+                    '+'  -> Include(pattern)
+                    '-'  -> Exclude(pattern)
                     else -> throw ReflectionsException("includeExclude should start with either + or -")
                 }
 
@@ -212,11 +207,11 @@ class FilterBuilder : Predicate<String> {
          */
         fun parsePackages(includeExcludeString: String): FilterBuilder {
 
-            if (Utils.isEmpty(includeExcludeString)) {
+            if (includeExcludeString.isEmpty()) {
                 return FilterBuilder()
             }
 
-            val filters = ArrayList<Predicate<String>>()
+            val filters = mutableListOf<Predicate<String>>()
             for (string in includeExcludeString.split(",".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()) {
                 val trimmed = string.trim { it <= ' ' }
                 val prefix = trimmed[0]
@@ -227,9 +222,9 @@ class FilterBuilder : Predicate<String> {
                 pattern = prefix(pattern)
 
                 val filter: Predicate<String>
-                when (prefix) {
-                    '+'  -> filter = Include(pattern)
-                    '-'  -> filter = Exclude(pattern)
+                filter = when (prefix) {
+                    '+'  -> Include(pattern)
+                    '-'  -> Exclude(pattern)
                     else -> throw ReflectionsException("includeExclude should start with either + or -")
                 }
 

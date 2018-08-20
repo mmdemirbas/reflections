@@ -9,18 +9,14 @@ import java.io.File
 class SystemDir(private val file: File?) : Dir {
 
     init {
-        if ((file != null) && (!file!!.isDirectory || !file!!.canRead())) {
-            throw RuntimeException("cannot use dir " + file!!)
+        if ((file != null) && (!file.isDirectory || !file.canRead())) {
+            throw RuntimeException("cannot use dir $file")
         }
     }
 
     override val path: String
-        get() {
-            if (file == null) {
-                return "/NO-SUCH-DIRECTORY/"
-            }
-            return file.path.replace("\\", "/")
-        }
+        get() = file?.path?.replace("\\", "/") ?: "/NO-SUCH-DIRECTORY/"
+
     override val files
         get() = when {
             file == null || !file.exists() -> emptySequence()
@@ -29,7 +25,5 @@ class SystemDir(private val file: File?) : Dir {
 
     override fun close() {}
 
-    override fun toString(): String {
-        return path
-    }
+    override fun toString() = path
 }

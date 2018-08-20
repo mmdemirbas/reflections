@@ -1,6 +1,11 @@
 package org.reflections.scanners
 
-import org.reflections.*
+import org.reflections.ClassWrapper
+import org.reflections.Configuration
+import org.reflections.FieldWrapper
+import org.reflections.MethodWrapper
+import org.reflections.Multimap
+import org.reflections.ReflectionsException
 import org.reflections.adapters.MetadataAdapter
 import org.reflections.vfs.Vfs.File
 
@@ -9,16 +14,14 @@ import org.reflections.vfs.Vfs.File
  */
 abstract class AbstractScanner : Scanner {
 
-    private var configuration: Configuration? = null
+    override var configuration: Configuration? = null
     override var store: Multimap<String, String>? = null
     var resultFilter = { it: String -> true }
 
     protected val metadataAdapter: MetadataAdapter<ClassWrapper, FieldWrapper, MethodWrapper>
         get() = configuration!!.metadataAdapter
 
-    override fun acceptsInput(file: String): Boolean {
-        return metadataAdapter.acceptsInput(file)
-    }
+    override fun acceptsInput(file: String) = metadataAdapter.acceptsInput(file)
 
     override fun scan(file: File, classObject: ClassWrapper?): ClassWrapper? {
         var classObject = classObject
@@ -36,31 +39,14 @@ abstract class AbstractScanner : Scanner {
 
     abstract fun scan(cls: ClassWrapper)
 
-    //
-    fun getConfiguration(): Configuration? {
-        return configuration
-    }
-
-    override fun setConfiguration(configuration: Configuration) {
-        this.configuration = configuration
-    }
-
     override fun filterResultsBy(filter: (String) -> Boolean): Scanner {
         resultFilter = filter
         return this
     }
 
-    //
-    override fun acceptResult(fqn: String): Boolean {
-        return fqn != null && resultFilter(fqn)
-    }
+    override fun acceptResult(fqn: String) = resultFilter(fqn)
 
-    //
-    override fun equals(o: Any?): Boolean {
-        return this === o || o != null && javaClass == o.javaClass
-    }
+    override fun equals(o: Any?) = this === o || o != null && javaClass == o.javaClass
 
-    override fun hashCode(): Int {
-        return javaClass.hashCode()
-    }
+    override fun hashCode() = javaClass.hashCode()
 }
