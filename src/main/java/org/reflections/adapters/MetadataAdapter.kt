@@ -1,8 +1,15 @@
 package org.reflections.adapters
 
-import org.reflections.vfs.Vfs
+import org.reflections.util.IndexKey
+import org.reflections.util.logWarn
 
-typealias  ClassAdapterFactory = (file: Vfs.File) -> ClassAdapter?
+val CreateClassAdapter = try {
+    // the CreateJavassistClassAdapter is preferred in terms of performance and class loading.
+    CreateJavassistClassAdapter
+} catch (e: Throwable) {
+    logWarn("could not create CreateJavassistClassAdapter, using CreateJavaReflectionClassAdapter", e)
+    CreateJavaReflectionClassAdapter
+}
 
 interface ClassAdapter {
     val name: String
@@ -29,5 +36,5 @@ interface MethodAdapter {
     val returnType: String
     val modifier: String
 
-    fun getMethodFullKey(cls: ClassAdapter): String = "${cls.name}.${name}(${parameters.joinToString()})"
+    fun getMethodFullKey(cls: ClassAdapter): IndexKey = IndexKey("${cls.name}.${name}(${parameters.joinToString()})")
 }

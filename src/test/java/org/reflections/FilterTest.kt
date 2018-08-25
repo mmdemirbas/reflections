@@ -3,16 +3,16 @@ package org.reflections
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-import org.reflections.util.FilterBuilder
+import org.reflections.Filter.Exclude
+import org.reflections.Filter.Include
 
 /**
  * Test filtering
  */
-class FilterBuilderTest {
-
+class FilterTest {
     @Test
     fun test_include() {
-        val filter = FilterBuilder().include("org\\.reflections.*")
+        val filter = Include("org\\.reflections.*")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -20,7 +20,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_includePackage() {
-        val filter = FilterBuilder().includePackage("org.reflections")
+        val filter = Include("org.reflections".toPrefixRegex())
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -28,7 +28,9 @@ class FilterBuilderTest {
 
     @Test
     fun test_includePackageMultiple() {
-        val filter = FilterBuilder().includePackage("org.reflections", "org.foo")
+        val filter = Filter.Composite(listOf("org.reflections", "org.foo").map { prefix ->
+            Include(prefix.toPrefixRegex())
+        })
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foo.Reflections"))
@@ -38,7 +40,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_includePackagebyClass() {
-        val filter = FilterBuilder().includePackage(Reflections::class.java)
+        val filter = Include(Reflections::class.java.toPackageNameRegex())
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -47,7 +49,7 @@ class FilterBuilderTest {
     //-----------------------------------------------------------------------
     @Test
     fun test_exclude() {
-        val filter = FilterBuilder().exclude("org\\.reflections.*")
+        val filter = Exclude("org\\.reflections.*")
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -55,7 +57,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_excludePackage() {
-        val filter = FilterBuilder().excludePackage("org.reflections")
+        val filter = Exclude("org.reflections".toPrefixRegex())
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -63,7 +65,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_excludePackageByClass() {
-        val filter = FilterBuilder().excludePackage(Reflections::class.java)
+        val filter = Exclude(Reflections::class.java.toPackageNameRegex())
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -72,7 +74,7 @@ class FilterBuilderTest {
     //-----------------------------------------------------------------------
     @Test
     fun test_parse_include() {
-        val filter = FilterBuilder.parse("+org.reflections.*")
+        val filter = Filter.parse("+org.reflections.*")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -81,7 +83,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parse_include_notRegex() {
-        val filter = FilterBuilder.parse("+org.reflections")
+        val filter = Filter.parse("+org.reflections")
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -90,7 +92,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parse_exclude() {
-        val filter = FilterBuilder.parse("-org.reflections.*")
+        val filter = Filter.parse("-org.reflections.*")
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -99,7 +101,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parse_exclude_notRegex() {
-        val filter = FilterBuilder.parse("-org.reflections")
+        val filter = Filter.parse("-org.reflections")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -108,7 +110,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parse_include_exclude() {
-        val filter = FilterBuilder.parse("+org.reflections.*, -org.reflections.foo.*")
+        val filter = Filter.parse("+org.reflections.*, -org.reflections.foo.*")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -117,7 +119,7 @@ class FilterBuilderTest {
     //-----------------------------------------------------------------------
     @Test
     fun test_parsePackages_include() {
-        val filter = FilterBuilder.parsePackages("+org.reflections")
+        val filter = Filter.parsePackages("+org.reflections")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -126,7 +128,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parsePackages_include_trailingDot() {
-        val filter = FilterBuilder.parsePackages("+org.reflections.")
+        val filter = Filter.parsePackages("+org.reflections.")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertTrue(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
@@ -135,7 +137,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parsePackages_exclude() {
-        val filter = FilterBuilder.parsePackages("-org.reflections")
+        val filter = Filter.parsePackages("-org.reflections")
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -144,7 +146,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parsePackages_exclude_trailingDot() {
-        val filter = FilterBuilder.parsePackages("-org.reflections.")
+        val filter = Filter.parsePackages("-org.reflections.")
         assertFalse(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertTrue(filter.test("org.foobar.Reflections"))
@@ -153,7 +155,7 @@ class FilterBuilderTest {
 
     @Test
     fun test_parsePackages_include_exclude() {
-        val filter = FilterBuilder.parsePackages("+org.reflections, -org.reflections.foo")
+        val filter = Filter.parsePackages("+org.reflections, -org.reflections.foo")
         assertTrue(filter.test("org.reflections.Reflections"))
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))

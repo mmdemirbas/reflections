@@ -1,170 +1,106 @@
 package org.reflections.vfs
 
+import org.reflections.Filter
 import org.reflections.ReflectionsException
-import org.reflections.logError
-import org.reflections.logWarn
-import org.reflections.util.ClasspathHelper
-import org.reflections.vfs.Vfs.DefaultUrlTypes
-import org.reflections.vfs.Vfs.Dir
-import org.reflections.vfs.Vfs.File
-import org.reflections.vfs.Vfs.UrlType
+import org.reflections.util.logError
+import org.reflections.util.logWarn
+import org.reflections.util.tryOrThrow
+import org.reflections.util.whileNotNull
+import java.io.Closeable
 import java.io.IOException
 import java.io.InputStream
 import java.io.UnsupportedEncodingException
-import java.net.JarURLConnection
 import java.net.URISyntaxException
 import java.net.URL
 import java.net.URLDecoder
 import java.util.jar.JarFile
+import java.util.jar.JarInputStream
+import java.util.zip.ZipEntry
 
 /**
  * a simple virtual file system bridge
  *
- * use the [org.reflections.vfs.Vfs.fromURL] to get a [Dir],
- * then use [Dir.files] to iterate over the [File]
+ * use the [org.reflections.vfs.Vfs.fromURL] to get a [VfsDir],
+ * then use [VfsDir.files] to iterate over the [VfsFile]
  *
  * for example:
- * <pre>
- * Vfs.Dir dir = Vfs.fromURL(url);
- * Iterable<Vfs.File> files = dir.getFiles();
- * for (Vfs.File file : files) {
- * InputStream is = file.openInputStream();
+ * ```
+ * VfsDir dir = Vfs.fromURL(url);
+ * Iterable<Vfs.VfsFile> files = dir.getFiles();
+ * for (Vfs.VfsFile file : files) {
+ *   InputStream is = file.openInputStream();
  * }
-</Vfs.File></pre> *
+ * ```
  *
- * [org.reflections.vfs.Vfs.fromURL] uses static [DefaultUrlTypes] to resolve URLs.
+ * [org.reflections.vfs.Vfs.fromURL] uses static [BuiltinVfsUrlTypes] to resolve URLs.
  * It contains VfsTypes for handling for common resources such as local jar file, local directory, jar url, jar input stream and more.
  *
- * It can be plugged in with other [UrlType] using [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.defaultUrlTypes].
+ * It can be plugged in with other [VfsUrlType] using [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.defaultUrlTypes].
  *
  * for example:
- * <pre>
- * Vfs.addDefaultURLTypes(new Vfs.UrlType() {
- * public boolean matches(URL url)         {
- * return url.getProtocol().equals("http");
- * }
- * public Vfs.Dir createDir(final URL url) {
- * return new HttpDir(url); //implement this type... (check out a naive implementation on VfsTest)
- * }
+ * ```
+ * Vfs.addDefaultURLTypes(new Vfs.VfsUrlType() {
+ *   public boolean matches(URL url)         {
+ *     return url.getProtocol().equals("http");
+ *   }
+ *   public VfsDir createDir(final URL url) {
+ *     return new HttpDir(url); //implement this type... (check out a naive implementation on VfsTest)
+ *   }
  * });
  *
- * Vfs.Dir dir = Vfs.fromURL(new URL("http://mirrors.ibiblio.org/pub/mirrors/maven2/org/slf4j/slf4j-api/1.5.6/slf4j-api-1.5.6.jar"));
-</pre> *
+ * VfsDir dir = Vfs.fromURL(new URL("http://mirrors.ibiblio.org/pub/mirrors/maven2/org/slf4j/slf4j-api/1.5.6/slf4j-api-1.5.6.jar"));
+ * ```
  *
  * use [org.reflections.vfs.Vfs.findFiles] to get an
  * iteration of files matching given name predicate over given list of urls
  */
 object Vfs {
-
     /**
      * the default url types that will be used when issuing [org.reflections.vfs.Vfs.fromURL]
      */
-    var defaultUrlTypes: MutableList<UrlType> = DefaultUrlTypes.values().toMutableList()
+    var defaultUrlTypes: MutableList<VfsUrlType> = BuiltinVfsUrlTypes.values().toMutableList()
 
     /**
-     * an abstract vfs dir
+     * tries to create a VfsDir from the given url, using the given urlTypes
      */
-    interface Dir {
-
-        val path: String
-
-        val files: Sequence<File>
-
-        fun close()
-    }
+    fun fromURL(url: URL, urlTypes: List<VfsUrlType> = defaultUrlTypes) = urlTypes.mapNotNull { type ->
+        try {
+            when {
+                type.matches(url) -> type.createDir(url)
+                else              -> null
+            }
+        } catch (e: Throwable) {
+            logWarn("could not create VfsDir using $type from url ${url.toExternalForm()}. skipping.", e)
+            null
+        }
+    }.firstOrNull()
+                                                                          ?: throw ReflectionsException("could not create VfsDir from url, no matching VfsUrlType was found [${url.toExternalForm()}]\neither use fromURL(final URL url, final List<VfsUrlType> urlTypes) or use the static setDefaultURLTypes(final List<VfsUrlType> urlTypes) or addDefaultURLTypes(VfsUrlType urlType) with your specialized VfsUrlType.")
 
     /**
-     * an abstract vfs file
+     * return an iterable of all [VfsFile] in given urls, starting with given packagePrefix and matching nameFilter
      */
-    interface File {
-
-        val name: String
-
-        val relativePath: String?
-
-        @Throws(IOException::class)
-        fun openInputStream(): InputStream
-    }
-
-    /**
-     * a matcher and factory for a url
-     */
-    interface UrlType {
-
-        fun matches(url: URL): Boolean
-
-        @Throws(Exception::class)
-        fun createDir(url: URL): Dir?
-    }
-
-    /**
-     * add a static default url types to the beginning of the default url types list. can be used to statically plug in urlTypes
-     */
-    fun addDefaultURLTypes(urlType: UrlType) {
-        defaultUrlTypes.add(0, urlType)
-    }
-
-    /**
-     * tries to create a Dir from the given url, using the given urlTypes
-     */
-    @JvmOverloads
-    @JvmStatic
-    fun fromURL(url: URL, urlTypes: List<UrlType> = defaultUrlTypes): Dir {
-        for (type in urlTypes) {
-            try {
-                if (type.matches(url)) {
-                    val dir = type.createDir(url)
-                    if (dir != null) {
-                        return dir
+    fun findFiles(inUrls: Collection<URL>, packagePrefix: String, nameFilter: Filter) =
+            findFiles(inUrls) { vfsFile: VfsFile ->
+                val path = vfsFile.relativePath ?: ""
+                when {
+                    path.startsWith(packagePrefix) -> {
+                        val filename = path.substring(path.indexOf(packagePrefix) + packagePrefix.length)
+                        !filename.isEmpty() && nameFilter.test(filename.substring(1))
                     }
+                    else                           -> false
                 }
-            } catch (e: Throwable) {
-                logWarn("could not create Dir using " + type + " from url " + url.toExternalForm() + ". skipping.", e)
             }
 
-        }
-
-        throw ReflectionsException("could not create Vfs.Dir from url, no matching UrlType was found [" + url.toExternalForm() + "]\n" + "either use fromURL(final URL url, final List<UrlType> urlTypes) or " + "use the static setDefaultURLTypes(final List<UrlType> urlTypes) or addDefaultURLTypes(UrlType urlType) " + "with your specialized UrlType.")
-    }
-
     /**
-     * tries to create a Dir from the given url, using the given urlTypes
+     * return an iterable of all [VfsFile] in given urls, matching filePredicate
      */
-    fun fromURL(url: URL, vararg urlTypes: UrlType): Dir {
-        return fromURL(url, listOf(*urlTypes))
-    }
-
-    /**
-     * return an iterable of all [File] in given urls, starting with given packagePrefix and matching nameFilter
-     */
-    fun findFiles(inUrls: Collection<URL>, packagePrefix: String, nameFilter: (String) -> Boolean): Iterable<File> {
-        val fileNamePredicate = { file: File ->
-            val path = file.relativePath ?: ""
-            if (path.startsWith(packagePrefix)) {
-                val filename = path.substring(path.indexOf(packagePrefix) + packagePrefix.length)
-                !filename.isEmpty() && nameFilter(filename.substring(1))
-            } else {
-                false
-            }
+    fun findFiles(inUrls: Collection<URL>, filePredicate: (VfsFile) -> Boolean) = inUrls.flatMap { url ->
+        try {
+            fromURL(url).files.filter(filePredicate).toList()
+        } catch (e: Throwable) {
+            logError("could not findFiles for url. continuing. [$url]", e)
+            emptyList<VfsFile>()
         }
-
-        return findFiles(inUrls, fileNamePredicate)
-    }
-
-    /**
-     * return an iterable of all [File] in given urls, matching filePredicate
-     */
-    fun findFiles(inUrls: Collection<URL>, filePredicate: (File) -> Boolean): Iterable<File> {
-        val result = mutableListOf<File>()
-
-        for (url in inUrls) {
-            try {
-                result.addAll(fromURL(url).files.filter(filePredicate))
-            } catch (e: Throwable) {
-                logError("could not findFiles for url. continuing. [" + url + ']'.toString(), e)
-            }
-        }
-        return result
     }
 
     /**
@@ -177,9 +113,7 @@ object Vfs {
         try {
             path = url.toURI().schemeSpecificPart
             file = java.io.File(path)
-            if (file.exists()) {
-                return file
-            }
+            if (file.exists()) return file
         } catch (e: URISyntaxException) {
         }
 
@@ -189,148 +123,145 @@ object Vfs {
                 path = path.substring(0, path.lastIndexOf(".jar!") + ".jar".length)
             }
             file = java.io.File(path)
-            if (file.exists()) {
-                return file
-            }
-
+            if (file.exists()) return file
         } catch (e: UnsupportedEncodingException) {
         }
 
         try {
             path = url.toExternalForm()
-            if (path.startsWith("jar:")) {
-                path = path.substring("jar:".length)
-            }
-            if (path.startsWith("wsjar:")) {
-                path = path.substring("wsjar:".length)
-            }
-            if (path.startsWith("file:")) {
-                path = path.substring("file:".length)
-            }
-            if (path.contains(".jar!")) {
-                path = path.substring(0, path.indexOf(".jar!") + ".jar".length)
-            }
-            if (path.contains(".war!")) {
-                path = path.substring(0, path.indexOf(".war!") + ".war".length)
-            }
+            if (path.startsWith("jar:")) path = path.substring("jar:".length)
+            if (path.startsWith("wsjar:")) path = path.substring("wsjar:".length)
+            if (path.startsWith("file:")) path = path.substring("file:".length)
+            if (path.contains(".jar!")) path = path.substring(0, path.indexOf(".jar!") + ".jar".length)
+            if (path.contains(".war!")) path = path.substring(0, path.indexOf(".war!") + ".war".length)
             file = java.io.File(path)
-            if (file.exists()) {
-                return file
-            }
+            if (file.exists()) return file
 
             path = path.replace("%20", " ")
             file = java.io.File(path)
-            if (file.exists()) {
-                return file
-            }
+            if (file.exists()) return file
 
         } catch (e: Exception) {
         }
 
         return null
     }
+}
 
-    private fun hasJarFileInPath(url: URL) = url.toExternalForm().matches(".*\\.jar(!.*|$)".toRegex())
+interface VfsDir : Closeable {
+    val path: String
+    val files: Sequence<VfsFile>
+}
 
-    /**
-     * default url types used by [org.reflections.vfs.Vfs.fromURL]
-     *
-     *
-     *
-     * jarFile - creates a [org.reflections.vfs.ZipDir] over jar file
-     *
-     * jarUrl - creates a [org.reflections.vfs.ZipDir] over a jar url (contains ".jar!/" in it's name), using Java's [JarURLConnection]
-     *
-     * directory - creates a [org.reflections.vfs.SystemDir] over a file system directory
-     *
-     * jboss vfs - for protocols vfs, using jboss vfs (should be provided in classpath)
-     *
-     * jboss vfsfile - creates a [UrlTypeVFS] for protocols vfszip and vfsfile.
-     *
-     * bundle - for bundle protocol, using eclipse FileLocator (should be provided in classpath)
-     *
-     * jarInputStream - creates a [JarInputDir] over jar files, using Java's JarInputStream
-     */
-    enum class DefaultUrlTypes : UrlType {
+interface VfsFile {
+    val name: String
+    val relativePath: String?
+    fun openInputStream(): InputStream
+}
 
-        jarFile {
-            override fun matches(url: URL) = url.protocol == "file" && hasJarFileInPath(url)
+class JarInputDir(private val url: URL) : VfsDir {
+    var jarInputStream: JarInputStream? = null
+    var cursor: Long = 0
+    var nextCursor: Long = 0
+    override val path = url.path
 
-            @Throws(Exception::class)
-            override fun createDir(url: URL) = ZipDir(JarFile(getFile(url)!!))
-        },
-
-        jarUrl {
-            override fun matches(url: URL) = ("jar" == url.protocol || "zip" == url.protocol || "wsjar" == url.protocol)
-
-            @Throws(Exception::class)
-            override fun createDir(url: URL): Dir? {
-                try {
-                    val urlConnection = url.openConnection()
-                    if (urlConnection is JarURLConnection) {
-                        urlConnection.setUseCaches(false)
-                        return ZipDir(urlConnection.jarFile)
-                    }
-                } catch (e: Throwable) { /*fallback*/
+    override val files: Sequence<VfsFile>
+        get() {
+            jarInputStream =
+                    tryOrThrow("Could not open url connection") { JarInputStream(url.openConnection().getInputStream()) }
+            return whileNotNull { jarInputStream?.nextJarEntry }.mapNotNull {
+                val size = when {
+                    it.size < 0 -> it.size + 0xffffffffL //JDK-6916399
+                    else        -> it.size
                 }
-
-                val file = getFile(url)
-                return if (file != null) {
-                    ZipDir(JarFile(file))
-                } else null
-            }
-        },
-
-        directory {
-            override fun matches(url: URL) = if (url.protocol == "file" && !hasJarFileInPath(url)) {
-                val file = getFile(url)
-                file != null && file.isDirectory
-            } else {
-                false
-            }
-
-            override fun createDir(url: URL): Dir? {
-                return SystemDir(getFile(url))
-            }
-        },
-
-        jboss_vfs {
-            override fun matches(url: URL) = url.protocol == "vfs"
-
-            @Throws(Exception::class)
-            override fun createDir(url: URL): Dir? {
-                val content = url.openConnection().content
-                val virtualFile = ClasspathHelper.contextClassLoader().loadClass("org.jboss.vfs.VirtualFile")
-                val physicalFile = virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File
-                val name = virtualFile.getMethod("getName").invoke(content) as String
-                var file = java.io.File(physicalFile.parentFile, name)
-                if (!file.exists() || !file.canRead()) {
-                    file = physicalFile
+                nextCursor += size
+                when {
+                    it.isDirectory -> null
+                    else           -> JarInputFile(it, this, cursor, nextCursor)
                 }
-                return if (file.isDirectory) SystemDir(file) else ZipDir(JarFile(file))
             }
-        },
+        }
 
-        jboss_vfsfile {
-            override fun matches(url: URL) = "vfszip" == url.protocol || "vfsfile" == url.protocol
-
-            override fun createDir(url: URL) = UrlTypeVFS().createDir(url)
-        },
-
-        bundle {
-            override fun matches(url: URL) = url.protocol.startsWith("bundle")
-
-            @Throws(Exception::class)
-            override fun createDir(url: URL) =
-                    fromURL(ClasspathHelper.contextClassLoader().loadClass("org.eclipse.core.runtime.FileLocator").getMethod(
-                            "resolve",
-                            URL::class.java).invoke(null, url) as URL)
-        },
-
-        jarInputStream {
-            override fun matches(url: URL) = url.toExternalForm().contains(".jar")
-
-            override fun createDir(url: URL) = JarInputDir(url)
+    override fun close() {
+        try {
+            jarInputStream?.close()
+        } catch (e: IOException) {
+            logWarn("Could not close InputStream", e)
         }
     }
+}
+
+class JarInputFile(entry: ZipEntry, private val dir: JarInputDir, private val from: Long, private val to: Long) :
+        VfsFile {
+    override val name = entry.name.substring(entry.name.lastIndexOf('/') + 1)
+    override val relativePath = entry.name
+
+    override fun openInputStream() = object : InputStream() {
+        override fun read() = when {
+            dir.cursor in from..to -> {
+                val read = dir.jarInputStream!!.read()
+                dir.cursor++
+                read
+            }
+            else                   -> -1
+        }
+    }
+}
+
+class SystemDir(private val file: java.io.File?) : VfsDir {
+    init {
+        if ((file != null) && (!file.isDirectory || !file.canRead())) {
+            throw RuntimeException("cannot use dir $file")
+        }
+    }
+
+    override val path = file?.path?.replace("\\", "/") ?: "/NO-SUCH-DIRECTORY/"
+
+    override val files
+        get() = when {
+            file == null || !file.exists() -> emptySequence()
+            else                           -> file.walkTopDown().filter { !it.isDirectory }.map {
+                SystemFile(this, it)
+            }
+        }
+
+    override fun close() {}
+    override fun toString() = path
+}
+
+class SystemFile(private val root: SystemDir, private val file: java.io.File) : VfsFile {
+    override val name = file.name
+
+    override val relativePath by lazy {
+        val filepath = file.path.replace("\\", "/")
+        when {
+            filepath.startsWith(root.path) -> filepath.substring(root.path.length + 1)
+            else                           -> null
+        }
+    }
+
+    override fun openInputStream() = file.inputStream()
+    override fun toString() = file.toString()
+}
+
+class ZipDir(val jarFile: JarFile) : VfsDir {
+    override val path = jarFile.name
+
+    override val files
+        get() = jarFile.entries().asSequence().filter { !it.isDirectory }.map { ZipFile(this, it) }
+
+    override fun close() = try {
+        jarFile.close()
+    } catch (e: IOException) {
+        logWarn("Could not close JarFile", e)
+    }
+
+    override fun toString() = jarFile.name
+}
+
+class ZipFile(private val root: ZipDir, private val entry: ZipEntry) : VfsFile {
+    override val name = entry.name.substring(entry.name.lastIndexOf('/') + 1)
+    override val relativePath = entry.name
+    override fun openInputStream() = root.jarFile.getInputStream(entry)
+    override fun toString() = "${root.path}!${java.io.File.separatorChar}$entry"
 }

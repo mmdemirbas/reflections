@@ -3,6 +3,7 @@ package org.reflections
 import org.junit.Assert.assertEquals
 import org.junit.BeforeClass
 import org.junit.Test
+import org.reflections.Filter.Include
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C1`
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.fields.f1
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.methods.`m1_int$$$$__java_lang_String$$$$`
@@ -12,17 +13,13 @@ import org.reflections.TestModel.AC2
 import org.reflections.TestModel.C1
 import org.reflections.TestModel.C2
 import org.reflections.TestModel.C4
+import org.reflections.scanners.Scanner
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.serializers.JavaCodeSerializer
-import org.reflections.util.ClasspathHelper
-import org.reflections.util.ConfigurationBuilder
-import org.reflections.util.FilterBuilder
+import org.reflections.util.urlForClass
 
-/**  */
 class JavaCodeSerializerTest {
-
     @Test
-    @Throws(NoSuchMethodException::class, NoSuchFieldException::class)
     fun resolve() {
         //class
         assertEquals(C1::class.java, JavaCodeSerializer.resolveClass(`TestModel$C1`::class.java))
@@ -49,18 +46,17 @@ class JavaCodeSerializerTest {
     }
 
     companion object {
-
         @BeforeClass
         fun generateAndSave() {
-            val filter = FilterBuilder().include("org.reflections.TestModel\\$.*").asPredicate()
-
-            val reflections =
-                    Reflections(ConfigurationBuilder().filterInputsBy(filter).setScanners(TypeElementsScanner().includeFields().publicOnly(
-                            false)).setUrls(listOfNotNull(ClasspathHelper.forClass(TestModel::class.java))))
+            val configuration = Configuration()
+            configuration.filter = Include("org.reflections.TestModel\\$.*")
+            configuration.scanners = arrayOf<Scanner>(TypeElementsScanner(publicOnly = false)).toSet()
+            configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
+            val reflections = Reflections(configuration)
 
             //save
-            val filename = ReflectionsTest.userDir + "/src/test/java/org.reflections.MyTestModelStore"
-            reflections.save(filename, JavaCodeSerializer())
+            val filename = "${ReflectionsTest.userDir}/src/test/java/org.reflections.MyTestModelStore"
+            reflections.save(filename, JavaCodeSerializer)
         }
     }
 }

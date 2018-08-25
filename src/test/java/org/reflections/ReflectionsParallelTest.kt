@@ -6,27 +6,30 @@ import org.reflections.scanners.MemberUsageScanner
 import org.reflections.scanners.MethodAnnotationsScanner
 import org.reflections.scanners.MethodParameterNamesScanner
 import org.reflections.scanners.MethodParameterScanner
+import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
-import org.reflections.util.ClasspathHelper
-import org.reflections.util.ConfigurationBuilder
+import org.reflections.util.executorService
+import org.reflections.util.urlForClass
 
-/**  */
 class ReflectionsParallelTest : ReflectionsTest() {
-
     companion object {
-
         @BeforeClass
+        @JvmStatic
         fun init() {
-            ReflectionsTest.reflections =
-                    Reflections(ConfigurationBuilder().setUrls(listOfNotNull(ClasspathHelper.forClass(TestModel::class.java))).filterInputsBy(
-                            ReflectionsTest.TestModelFilter.asPredicate()).setScanners(SubTypesScanner(false),
-                                                                                       TypeAnnotationsScanner(),
-                                                                                       FieldAnnotationsScanner(),
-                                                                                       MethodAnnotationsScanner(),
-                                                                                       MethodParameterScanner(),
-                                                                                       MethodParameterNamesScanner(),
-                                                                                       MemberUsageScanner()).useParallelExecutor())
+            val configuration = Configuration()
+            configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
+            configuration.filter = ReflectionsTest.TestModelFilter
+            configuration.scanners =
+                    arrayOf<Scanner>(SubTypesScanner(false),
+                                     TypeAnnotationsScanner(),
+                                     FieldAnnotationsScanner(),
+                                     MethodAnnotationsScanner(),
+                                     MethodParameterScanner(),
+                                     MethodParameterNamesScanner(),
+                                     MemberUsageScanner()).toSet()
+            configuration.executorService = executorService()
+            ReflectionsTest.reflections = Reflections(configuration)
         }
     }
 }

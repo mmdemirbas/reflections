@@ -1,115 +1,85 @@
 package org.reflections.serializers
 
+import org.dom4j.io.OutputFormat
+import org.dom4j.io.SAXReader
+import org.dom4j.io.XMLWriter
 import org.reflections.Reflections
-import org.reflections.ReflectionsException
-import org.reflections.util.ConfigurationBuilder
-import org.reflections.util.Utils
+import org.reflections.util.IndexKey
+import org.reflections.util.indexName
+import org.reflections.util.makeParents
+import org.reflections.util.tryOrThrow
 import java.io.File
-import java.io.FileOutputStream
-import java.io.IOException
+import java.io.FileWriter
 import java.io.InputStream
 import java.io.StringWriter
+import java.io.Writer
 
 /**
  * serialization of Reflections to xml
  *
  *
  * an example of produced xml:
- * <pre>
- * &#60?xml version="1.0" encoding="UTF-8"?>
+ * ```
+ * <?xml version="1.0" encoding="UTF-8"?>
  *
- * &#60Reflections>
- * &#60SubTypesScanner>
- * &#60entry>
- * &#60key>com.google.inject.Module&#60/key>
- * &#60values>
- * &#60value>fully.qualified.name.1&#60/value>
- * &#60value>fully.qualified.name.2&#60/value>
+ * <Reflections>
+ * <SubTypesScanner>
+ * <entry>
+ * <key>com.google.inject.Module</key>
+ * <values>
+ * <value>fully.qualified.name.1</value>
+ * <value>fully.qualified.name.2</value>
  * ...
-</pre> *
+ * ```
  */
-class XmlSerializer : Serializer {
-
+object XmlSerializer : Serializer {
     override fun read(inputStream: InputStream): Reflections {
-        var reflections: Reflections
-        try {
-            val constructor = Reflections::class.java.getDeclaredConstructor()
-            constructor.isAccessible = true
-            reflections = constructor.newInstance()
-        } catch (e: Exception) {
-            reflections = Reflections(ConfigurationBuilder())
-        }
-
-        try {
-            val document = org.dom4j.io.SAXReader().read(inputStream)
-            for (e1 in document.rootElement.elements()) {
+        val reflections = Reflections()
+        tryOrThrow("could not read.") {
+            SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
                 val index = e1 as org.dom4j.Element
-                for (e2 in index.elements()) {
+                index.elements().forEach { e2 ->
                     val entry = e2 as org.dom4j.Element
                     val key = entry.element("key")
-                    val values = entry.element("values")
-                    for (o3 in values.elements()) {
-                        val value = o3 as org.dom4j.Node
-                        reflections.store.getOrCreate(index.name).put(key.text, value.text)
+                    entry.element("values").elements().map { it as org.dom4j.Node }.forEach {
+                        reflections.stores.getOrCreate(index.name).put(IndexKey(key.text), IndexKey(it.text))
                     }
                 }
             }
-        } catch (e: org.dom4j.DocumentException) {
-            throw ReflectionsException("could not read.", e)
-        } catch (e: Throwable) {
-            throw RuntimeException("Could not read. Make sure relevant dependencies exist on classpath.", e)
         }
-
         return reflections
     }
 
-    override fun save(reflections: Reflections, filename: String): File {
-        val file = Utils.prepareFile(filename)
-
-
-        try {
-            val document = createDocument(reflections)
-            val xmlWriter =
-                    org.dom4j.io.XMLWriter(FileOutputStream(file), org.dom4j.io.OutputFormat.createPrettyPrint())
-            xmlWriter.write(document)
-            xmlWriter.close()
-        } catch (e: IOException) {
-            throw ReflectionsException("could not save to file $filename", e)
-        } catch (e: Throwable) {
-            throw RuntimeException("Could not save to file $filename. Make sure relevant dependencies exist on classpath.",
-                                   e)
+    override fun save(reflections: Reflections, filename: String) = tryOrThrow("could not save to file $filename") {
+        val file = File(filename).makeParents()
+        FileWriter(file).use { writer ->
+            writeTo(writer, reflections)
         }
-
-        return file
+        file
     }
 
-    override fun toString(reflections: Reflections): String {
-        val document = createDocument(reflections)
+    override fun toString(reflections: Reflections) = StringWriter().use { writer ->
+        writeTo(writer, reflections)
+        writer.toString()
+    }
 
-        try {
-            val writer = StringWriter()
-            val xmlWriter = org.dom4j.io.XMLWriter(writer, org.dom4j.io.OutputFormat.createPrettyPrint())
-            xmlWriter.write(document)
-            xmlWriter.close()
-            return writer.toString()
-        } catch (e: IOException) {
-            throw RuntimeException()
-        }
-
+    private fun writeTo(fileWriter: Writer, reflections: Reflections) {
+        val xmlWriter = XMLWriter(fileWriter, OutputFormat.createPrettyPrint())
+        xmlWriter.write(createDocument(reflections))
+        xmlWriter.close()
     }
 
     private fun createDocument(reflections: Reflections): org.dom4j.Document {
-        val map = reflections.store
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
-        for (indexName in map.keySet()) {
-            val indexElement = root.addElement(indexName)
-            for (key in map[indexName].keySet()) {
+        reflections.stores.entries().forEach { (indexKey, index) ->
+            val indexElement = root.addElement(indexKey.indexName())
+            index.entriesGrouped().forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")
-                entryElement.addElement("key").text = key
+                entryElement.addElement("key").text = key.value
                 val valuesElement = entryElement.addElement("values")
-                for (value in map[indexName].get(key)!!) {
-                    valuesElement.addElement("value").text = value
+                values.forEach { value ->
+                    valuesElement.addElement("value").text = value.value
                 }
             }
         }

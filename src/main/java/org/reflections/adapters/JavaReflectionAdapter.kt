@@ -1,8 +1,9 @@
 package org.reflections.adapters
 
-import org.reflections.ReflectionUtils
-import org.reflections.util.Utils
-import org.reflections.vfs.Vfs
+import org.reflections.util.classForName
+import org.reflections.util.generateWhileNotNull
+import org.reflections.util.tryOrDefault
+import org.reflections.vfs.VfsFile
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
 import java.lang.reflect.Field
@@ -10,62 +11,52 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
-val JavaReflectionFactory = { file: Vfs.File ->
-    JavaReflectionClassAdapter(ReflectionUtils.forName(file.relativePath!!.replace("/", ".").replace(".class", ""))!!)
+val CreateJavaReflectionClassAdapter = { vfsFile: VfsFile ->
+    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
 }
 
-data class JavaReflectionClassAdapter(val delegate: Class<*>) : ClassAdapter {
-    override val fields get() = delegate.declaredFields.map { JavaReflectionFieldAdapter(it) }
-    override val methods
-        get() = (delegate.declaredMethods.asList() + delegate.declaredConstructors).map {
-            JavaReflectionMethodAdapter(it)
-        }
+data class JavaReflectionClassAdapter(val cls: Class<*>) : ClassAdapter {
+    override val fields = cls.declaredFields.map { JavaReflectionFieldAdapter(it) }
+    override val methods = (cls.declaredMethods.asList() + cls.declaredConstructors).map {
+        JavaReflectionMethodAdapter(it)
+    }
 
-    override val annotations get() = delegate.declaredAnnotations.map { it.annotationClass.java.name }
-    override val name get() = delegate.name!!
-    override val superclass get() = delegate.superclass?.name.orEmpty()
-    override val interfaces get() = delegate.interfaces?.map { it.name }.orEmpty()
-    override val isPublic get() = Modifier.isPublic(delegate.modifiers)
+    override val annotations = cls.declaredAnnotations.map { it.annotationClass.java.name }
+    override val name = cls.name!!
+    override val superclass = cls.superclass?.name.orEmpty()
+    override val interfaces = cls.interfaces?.map { it.name }.orEmpty()
+    override val isPublic = Modifier.isPublic(cls.modifiers)
 }
 
-data class JavaReflectionFieldAdapter(val delegate: Field) : FieldAdapter {
-    override val annotations get() = delegate.declaredAnnotations.map { it.annotationClass.java.name }
-    override val name get() = delegate.name!!
-    override val isPublic get() = Modifier.isPublic(delegate.modifiers)
+data class JavaReflectionFieldAdapter(val field: Field) : FieldAdapter {
+    override val annotations = field.declaredAnnotations.map { it.annotationClass.java.name }
+    override val name = field.name!!
+    override val isPublic = Modifier.isPublic(field.modifiers)
 }
 
-data class JavaReflectionMethodAdapter(val delegate: Member) : MethodAdapter {
-    override val name
-        get() = when (delegate) {
-            is Method         -> delegate.getName()
-            is Constructor<*> -> "<init>"
-            else              -> null
-        }
+data class JavaReflectionMethodAdapter(val method: Member) : MethodAdapter {
+    override val name = when (method) {
+        is Method         -> method.getName()
+        is Constructor<*> -> "<init>"
+        else              -> null
+    }
 
-    override val parameters
-        get() = (delegate as? Executable)?.parameterTypes?.map {
-            when {
-                it.isArray -> try {
-                    var cl: Class<*> = it
-                    var dim = 0
-                    while (cl.isArray) {
-                        dim++
-                        cl = cl.componentType
-                    }
-                    cl.name + Utils.repeat("[]", dim)
-                } catch (e: Throwable) {
-                    it.name
-                }
-                else       -> it.name
+    override val parameters = (method as? Executable)?.parameterTypes?.map { cls ->
+        when {
+            cls.isArray -> tryOrDefault(cls.name) {
+                val componentTypes = cls.generateWhileNotNull { componentType }
+                componentTypes.last().name + "[]".repeat(componentTypes.size - 1)
             }
-        }.orEmpty()
+            else        -> cls.name
+        }
+    }.orEmpty()
 
-    override val annotations get() = (delegate as Executable).declaredAnnotations!!.map { it.annotationClass.java.name }
+    override val annotations = (method as Executable).declaredAnnotations!!.map { it.annotationClass.java.name }
 
     override fun parameterAnnotations(parameterIndex: Int) =
-            (delegate as Executable).parameterAnnotations[parameterIndex].map { it.annotationClass.java.name }
+            (method as Executable).parameterAnnotations[parameterIndex].map { it.annotationClass.java.name }
 
-    override val returnType get() = (delegate as Method).returnType.name!!
-    override val modifier get() = Modifier.toString(delegate.modifiers)!!
-    override val isPublic get() = Modifier.isPublic(delegate.modifiers)
+    override val returnType = (method as Method).returnType.name!!
+    override val modifier = Modifier.toString(method.modifiers)!!
+    override val isPublic = Modifier.isPublic(method.modifiers)
 }
