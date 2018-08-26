@@ -1,7 +1,8 @@
 package org.reflections
 
-import junit.framework.Assert
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
 import org.reflections.Filter.Include
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.A
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.B
@@ -29,10 +30,10 @@ class ReflectionsExpandSupertypesTest {
         configuration.urls = setOf(urlForClass(C::class.java)!!)
         configuration.filter = inputsFilter
         val refExpand = Reflections(configuration)
-        Assert.assertTrue(refExpand.configuration.expandSuperTypes)
+        assertTrue(refExpand.configuration.expandSuperTypes)
         val subTypesOf = refExpand.getSubTypesOf(A::class.java)
-        Assert.assertTrue("expanded", subTypesOf.contains(B::class.java))
-        Assert.assertTrue("transitivity", subTypesOf.containsAll(refExpand.getSubTypesOf(B::class.java)))
+        assertTrue(subTypesOf.contains(B::class.java), "expanded")
+        assertTrue(subTypesOf.containsAll(refExpand.getSubTypesOf(B::class.java)), "transitivity")
     }
 
     @Test
@@ -42,9 +43,9 @@ class ReflectionsExpandSupertypesTest {
         configuration.filter = inputsFilter
         configuration.expandSuperTypes = false
         val refDontExpand = Reflections(configuration)
-        Assert.assertFalse(refDontExpand.configuration.expandSuperTypes)
+        assertFalse(refDontExpand.configuration.expandSuperTypes)
         val subTypesOf1 = refDontExpand.getSubTypesOf(A::class.java)
-        Assert.assertFalse(subTypesOf1.contains(B::class.java))
+        assertFalse(subTypesOf1.contains(B::class.java))
     }
 
     companion object {

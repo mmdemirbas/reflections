@@ -1,8 +1,8 @@
 package org.reflections
 
-import org.junit.Assert.assertEquals
-import org.junit.BeforeClass
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
 import org.reflections.Filter.Include
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C1`
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.fields.f1
@@ -46,7 +46,8 @@ class JavaCodeSerializerTest {
     }
 
     companion object {
-        @BeforeClass
+        @BeforeAll
+        @JvmStatic
         fun generateAndSave() {
             val configuration = Configuration()
             configuration.filter = Include("org.reflections.TestModel\\$.*")

@@ -1,8 +1,8 @@
 package org.reflections
 
-import org.junit.Assert.assertThat
-import org.junit.BeforeClass
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
 import org.reflections.Filter.Include
 import org.reflections.scanners.MemberUsageScanner
 import org.reflections.scanners.MethodAnnotationsScanner
@@ -29,18 +29,17 @@ class ReflectionsCollectTest : ReflectionsTest() {
         val reflections = Reflections(configuration)
 
         val resolved = reflections.getResources(Pattern.compile(".*resource1-reflections\\.xml"))
-        assertThat(resolved, ReflectionsTest.are(IndexKey("META-INF/reflections/resource1-reflections.xml")))
+        assertEquals(setOf(IndexKey("META-INF/reflections/resource1-reflections.xml")), resolved)
 
         val resources = reflections.stores.getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.toSet()
-        assertThat(resources,
-                   ReflectionsTest.are(IndexKey("resource1-reflections.xml"),
-                                       IndexKey("resource2-reflections.xml"),
-                                       IndexKey("testModel-reflections.xml"),
-                                       IndexKey("testModel-reflections.json")))
+        assertEquals(setOf(IndexKey("resource1-reflections.xml"),
+                           IndexKey("resource2-reflections.xml"),
+                           IndexKey("testModel-reflections.xml"),
+                           IndexKey("testModel-reflections.json")), resources)
     }
 
     companion object {
-        @BeforeClass
+        @BeforeAll
         @JvmStatic
         fun init() {
             val configuration = Configuration()

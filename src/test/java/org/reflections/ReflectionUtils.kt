@@ -1,5 +1,6 @@
-package org.reflections.util
+package org.reflections
 
+import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import java.lang.reflect.AnnotatedElement
 import java.lang.reflect.Executable
 import java.lang.reflect.Field

@@ -1,7 +1,7 @@
 package org.reflections
 
-import org.junit.Assert.assertEquals
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Test
 import org.reflections.util.urlForClassLoader
 import java.net.URL
 import java.net.URLClassLoader
@@ -24,11 +24,11 @@ class UrlsTest {
         val resultUrls1 = urlForClassLoader(listOf(urlClassLoader1))
         val resultUrls2 = urlForClassLoader(listOf(urlClassLoader2))
 
-        assertEquals("URLs returned from urlForClassLoader should be in the same order as source URLs",
-                     urls1,
-                     resultUrls1.toList())
-        assertEquals("URLs returned from urlForClassLoader should be in the same order as source URLs",
-                     urls2,
-                     resultUrls2.toList())
+        assertEquals(urls1,
+                     resultUrls1.toList(),
+                     "URLs returned from urlForClassLoader should be in the same order as source URLs")
+        assertEquals(urls2,
+                     resultUrls2.toList(),
+                     "URLs returned from urlForClassLoader should be in the same order as source URLs")
     }
 }

@@ -1,14 +1,11 @@
 package org.reflections
 
-import org.hamcrest.BaseMatcher
-import org.hamcrest.Description
-import org.hamcrest.Matcher
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThat
-import org.junit.Assert.fail
-import org.junit.BeforeClass
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.fail
+import org.junit.jupiter.api.BeforeAll
+import org.junit.jupiter.api.Test
 import org.reflections.Filter.Exclude
 import org.reflections.Filter.Include
 import org.reflections.TestModel.AC1
@@ -48,208 +45,185 @@ import org.reflections.util.urlForClass
 import java.io.File
 import java.lang.reflect.Constructor
 import java.lang.reflect.Field
-import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.util.regex.Pattern
 
-/**
- *
- */
 open class ReflectionsTest {
-    private val isEmpty = object : BaseMatcher<Set<Class<*>>>() {
-        override fun matches(o: Any) = (o as Collection<*>).isEmpty()
-
-        override fun describeTo(description: Description) {
-            description.appendText("empty collection")
-        }
-    }
-
     @Test
     fun testSubTypesOf() {
-        assertEquals(reflections.getSubTypesOf(I1::class.java),
-                     setOf(I2::class.java, C1::class.java, C2::class.java, C3::class.java, C5::class.java))
-        assertThat(reflections.getSubTypesOf(C1::class.java), are(C2::class.java, C3::class.java, C5::class.java))
-
-        assertFalse("getAllTypes should not be empty when Reflections is configured with SubTypesScanner(false)",
-                    reflections.allTypes.isEmpty())
+        assertEquals(setOf(I2::class.java, C1::class.java, C2::class.java, C3::class.java, C5::class.java),
+                     reflections.getSubTypesOf(I1::class.java))
+        assertEquals(setOf(C2::class.java, C3::class.java, C5::class.java), reflections.getSubTypesOf(C1::class.java))
+        assertFalse(reflections.allTypes.isEmpty(),
+                    "getAllTypes should not be empty when Reflections is configured with SubTypesScanner(false)")
     }
 
     @Test
     fun testTypesAnnotatedWith() {
-        assertEquals(reflections.getTypesAnnotatedWith(MAI1::class.java, true), setOf(AI1::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(MAI1::class.java, true), annotatedWith(MAI1::class.java))
+        assertEquals(setOf(AI1::class.java), reflections.getTypesAnnotatedWith(MAI1::class.java, true))
+        assertAnnotatedWith(MAI1::class.java, reflections.getTypesAnnotatedWith(MAI1::class.java, true))
 
-        assertEquals(reflections.getTypesAnnotatedWith(AI2::class.java, true), setOf(I2::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(AI2::class.java, true), annotatedWith(AI2::class.java))
+        assertEquals(setOf(I2::class.java), reflections.getTypesAnnotatedWith(AI2::class.java, true))
+        assertAnnotatedWith(AI2::class.java, reflections.getTypesAnnotatedWith(AI2::class.java, true))
 
-        assertEquals(reflections.getTypesAnnotatedWith(AC1::class.java, true),
-                     setOf(C1::class.java, C2::class.java, C3::class.java, C5::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(AC1::class.java, true), annotatedWith(AC1::class.java))
+        assertEquals(setOf(C1::class.java, C2::class.java, C3::class.java, C5::class.java),
+                     reflections.getTypesAnnotatedWith(AC1::class.java, true))
+        assertAnnotatedWith(AC1::class.java, reflections.getTypesAnnotatedWith(AC1::class.java, true))
 
-        assertEquals(reflections.getTypesAnnotatedWith(AC1n::class.java, true), setOf(C1::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(AC1n::class.java, true), annotatedWith(AC1n::class.java))
+        assertEquals(setOf(C1::class.java), reflections.getTypesAnnotatedWith(AC1n::class.java, true))
+        assertAnnotatedWith(AC1n::class.java, reflections.getTypesAnnotatedWith(AC1n::class.java, true))
 
-        assertThat(reflections.getTypesAnnotatedWith(MAI1::class.java),
-                   are(AI1::class.java,
-                       I1::class.java,
-                       I2::class.java,
-                       C1::class.java,
-                       C2::class.java,
-                       C3::class.java,
-                       C5::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(MAI1::class.java), metaAnnotatedWith(MAI1::class.java))
-
-        assertEquals(reflections.getTypesAnnotatedWith(AI1::class.java),
-                     setOf(I1::class.java,
+        assertEquals(setOf(AI1::class.java,
+                           I1::class.java,
                            I2::class.java,
                            C1::class.java,
                            C2::class.java,
                            C3::class.java,
-                           C5::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(AI1::class.java), metaAnnotatedWith(AI1::class.java))
+                           C5::class.java), reflections.getTypesAnnotatedWith(MAI1::class.java))
+        assertMetaAnnotatedWith(MAI1::class.java, reflections.getTypesAnnotatedWith(MAI1::class.java))
 
-        assertEquals(reflections.getTypesAnnotatedWith(AI2::class.java),
-                     setOf(I2::class.java, C1::class.java, C2::class.java, C3::class.java, C5::class.java))
-        assertThat(reflections.getTypesAnnotatedWith(AI2::class.java), metaAnnotatedWith(AI2::class.java))
+        assertEquals(setOf(I1::class.java,
+                           I2::class.java,
+                           C1::class.java,
+                           C2::class.java,
+                           C3::class.java,
+                           C5::class.java), reflections.getTypesAnnotatedWith(AI1::class.java))
+        assertMetaAnnotatedWith(AI1::class.java, reflections.getTypesAnnotatedWith(AI1::class.java))
 
-        assertThat(reflections.getTypesAnnotatedWith(AM1::class.java), isEmpty)
+        assertEquals(setOf(I2::class.java, C1::class.java, C2::class.java, C3::class.java, C5::class.java),
+                     reflections.getTypesAnnotatedWith(AI2::class.java))
+        assertMetaAnnotatedWith(AI2::class.java, reflections.getTypesAnnotatedWith(AI2::class.java))
+
+        assertEquals(emptySet<Class<*>>(), reflections.getTypesAnnotatedWith(AM1::class.java))
 
         //annotation member value matching
         val ac2 = JavaSpecific.newAC2("ugh?!")
 
-        assertThat(reflections.getTypesAnnotatedWith(ac2),
-                   are(C3::class.java, C5::class.java, I3::class.java, C6::class.java, AC3::class.java, C7::class.java))
+        assertEquals(setOf(C3::class.java,
+                           C5::class.java,
+                           I3::class.java,
+                           C6::class.java,
+                           AC3::class.java,
+                           C7::class.java), reflections.getTypesAnnotatedWith(ac2))
 
-        assertThat(reflections.getTypesAnnotatedWith(ac2, true), are(C3::class.java, I3::class.java, AC3::class.java))
+        assertEquals(setOf(C3::class.java, I3::class.java, AC3::class.java),
+                     reflections.getTypesAnnotatedWith(ac2, true))
     }
 
     @Test
     fun testMethodsAnnotatedWith() {
-        try {
-            assertThat(reflections.getMethodsAnnotatedWith(AM1::class.java),
-                       are<Method>(C4::class.java.getDeclaredMethod("m1"),
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m1"),
                                    C4::class.java.getDeclaredMethod("m1",
                                                                     Int::class.javaPrimitiveType,
                                                                     Array<String>::class.java),
                                    C4::class.java.getDeclaredMethod("m1",
                                                                     Array<IntArray>::class.java,
                                                                     Array<Array<String>>::class.java),
-                                   C4::class.java.getDeclaredMethod("m3")))
+                                   C4::class.java.getDeclaredMethod("m3")),
+                     reflections.getMethodsAnnotatedWith(AM1::class.java))
 
-            val am1 = JavaSpecific.newAM1("1")
-            assertThat(reflections.getMethodsAnnotatedWith(am1),
-                       are<Method>(C4::class.java.getDeclaredMethod("m1"),
+        val am1 = JavaSpecific.newAM1("1")
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m1"),
                                    C4::class.java.getDeclaredMethod("m1",
                                                                     Int::class.javaPrimitiveType,
                                                                     Array<String>::class.java),
                                    C4::class.java.getDeclaredMethod("m1",
                                                                     Array<IntArray>::class.java,
-                                                                    Array<Array<String>>::class.java)))
-        } catch (e: NoSuchMethodException) {
-            fail()
-        }
+                                                                    Array<Array<String>>::class.java)),
+                     reflections.getMethodsAnnotatedWith(am1))
     }
 
     @Test
     fun testConstructorsAnnotatedWith() {
-        try {
-            assertThat<Set<Constructor<*>>>(reflections.getConstructorsAnnotatedWith(AM1::class.java),
-                                            are(C4::class.java.getDeclaredConstructor(String::class.java)))
+        assertEquals(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
+                     reflections.getConstructorsAnnotatedWith(AM1::class.java))
 
-            val am1 = JavaSpecific.newAM1("1")
-            assertThat<Set<Constructor<*>>>(reflections.getConstructorsAnnotatedWith(am1),
-                                            are(C4::class.java.getDeclaredConstructor(String::class.java)))
-        } catch (e: NoSuchMethodException) {
-            fail()
-        }
+        val am1 = JavaSpecific.newAM1("1")
+        assertEquals(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
+                     reflections.getConstructorsAnnotatedWith(am1))
     }
 
     @Test
     fun testFieldsAnnotatedWith() {
-        try {
-            assertThat<Set<Field>>(reflections.getFieldsAnnotatedWith(AF1::class.java),
-                                   are<Field>(C4::class.java.getDeclaredField("f1"),
-                                              C4::class.java.getDeclaredField("f2")))
+        assertEquals(setOf<Field>(C4::class.java.getDeclaredField("f1"), C4::class.java.getDeclaredField("f2")),
+                     reflections.getFieldsAnnotatedWith(AF1::class.java))
 
-            assertThat<Set<Field>>(reflections.getFieldsAnnotatedWith(JavaSpecific.newAF1("2")),
-                                   are<Field>(C4::class.java.getDeclaredField("f2")))
-        } catch (e: NoSuchFieldException) {
-            fail()
-        }
+        assertEquals(setOf<Field>(C4::class.java.getDeclaredField("f2")),
+                     reflections.getFieldsAnnotatedWith(JavaSpecific.newAF1("2")))
     }
 
     @Test
     fun testMethodParameter() {
-        assertThat(reflections.getMethodsMatchParams(String::class.java),
-                   are<Method>(C4::class.java.getDeclaredMethod("m4", String::class.java),
-                               Usage.C1::class.java.getDeclaredMethod("method", String::class.java)))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m4", String::class.java),
+                                   Usage.C1::class.java.getDeclaredMethod("method", String::class.java)),
+                     reflections.getMethodsMatchParams(String::class.java))
 
-        assertThat(reflections.getMethodsMatchParams(),
-                   are<Method>(C4::class.java.getDeclaredMethod("m1"),
-                               C4::class.java.getDeclaredMethod("m3"),
-                               AC2::class.java.getMethod("value"),
-                               AF1::class.java.getMethod("value"),
-                               AM1::class.java.getMethod("value"),
-                               Usage.C1::class.java.getDeclaredMethod("method"),
-                               Usage.C2::class.java.getDeclaredMethod("method")))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m1"),
+                                   C4::class.java.getDeclaredMethod("m3"),
+                                   AC2::class.java.getMethod("value"),
+                                   AF1::class.java.getMethod("value"),
+                                   AM1::class.java.getMethod("value"),
+                                   Usage.C1::class.java.getDeclaredMethod("method"),
+                                   Usage.C2::class.java.getDeclaredMethod("method")),
+                     reflections.getMethodsMatchParams())
 
-        assertThat(reflections.getMethodsMatchParams(Array<IntArray>::class.java, Array<Array<String>>::class.java),
-                   are<Method>(C4::class.java.getDeclaredMethod("m1",
-                                                                Array<IntArray>::class.java,
-                                                                Array<Array<String>>::class.java)))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m1",
+                                                                    Array<IntArray>::class.java,
+                                                                    Array<Array<String>>::class.java)),
+                     reflections.getMethodsMatchParams(Array<IntArray>::class.java, Array<Array<String>>::class.java))
 
-        assertThat(reflections.getMethodsReturn(Int::class.javaPrimitiveType!!),
-                   are<Method>(C4::class.java.getDeclaredMethod("add",
-                                                                Int::class.javaPrimitiveType,
-                                                                Int::class.javaPrimitiveType)))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("add",
+                                                                    Int::class.javaPrimitiveType,
+                                                                    Int::class.javaPrimitiveType)),
+                     reflections.getMethodsReturn(Int::class.javaPrimitiveType!!))
 
-        assertThat(reflections.getMethodsReturn(String::class.java),
-                   are<Method>(C4::class.java.getDeclaredMethod("m3"),
-                               C4::class.java.getDeclaredMethod("m4", String::class.java),
-                               AC2::class.java.getMethod("value"),
-                               AF1::class.java.getMethod("value"),
-                               AM1::class.java.getMethod("value")))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m3"),
+                                   C4::class.java.getDeclaredMethod("m4", String::class.java),
+                                   AC2::class.java.getMethod("value"),
+                                   AF1::class.java.getMethod("value"),
+                                   AM1::class.java.getMethod("value")),
+                     reflections.getMethodsReturn(String::class.java))
 
-        assertThat(reflections.getMethodsReturn(Void.TYPE),
-                   are<Method>(C4::class.java.getDeclaredMethod("m1"),
-                               C4::class.java.getDeclaredMethod("m1",
-                                                                Int::class.javaPrimitiveType,
-                                                                Array<String>::class.java),
-                               C4::class.java.getDeclaredMethod("m1",
-                                                                Array<IntArray>::class.java,
-                                                                Array<Array<String>>::class.java),
-                               Usage.C1::class.java.getDeclaredMethod("method"),
-                               Usage.C1::class.java.getDeclaredMethod("method", String::class.java),
-                               Usage.C2::class.java.getDeclaredMethod("method")))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m1"),
+                                   C4::class.java.getDeclaredMethod("m1",
+                                                                    Int::class.javaPrimitiveType,
+                                                                    Array<String>::class.java),
+                                   C4::class.java.getDeclaredMethod("m1",
+                                                                    Array<IntArray>::class.java,
+                                                                    Array<Array<String>>::class.java),
+                                   Usage.C1::class.java.getDeclaredMethod("method"),
+                                   Usage.C1::class.java.getDeclaredMethod("method", String::class.java),
+                                   Usage.C2::class.java.getDeclaredMethod("method")),
+                     reflections.getMethodsReturn(Void.TYPE))
 
-        assertThat(reflections.getMethodsWithAnyParamAnnotated(AM1::class.java),
-                   are<Method>(C4::class.java.getDeclaredMethod("m4", String::class.java)))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m4", String::class.java)),
+                     reflections.getMethodsWithAnyParamAnnotated(AM1::class.java))
 
-        assertThat(reflections.getMethodsWithAnyParamAnnotated(JavaSpecific.newAM1("2")),
-                   are<Method>(C4::class.java.getDeclaredMethod("m4", String::class.java)))
+        assertEquals(setOf<Method>(C4::class.java.getDeclaredMethod("m4", String::class.java)),
+                     reflections.getMethodsWithAnyParamAnnotated(JavaSpecific.newAM1("2")))
     }
 
     @Test
     fun testConstructorParameter() {
-        assertThat<Set<Constructor<*>>>(reflections.getConstructorsMatchParams(String::class.java),
-                                        are(C4::class.java.getDeclaredConstructor(String::class.java)))
+        assertEquals(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
+                     reflections.getConstructorsMatchParams(String::class.java))
 
-        assertThat<Set<Constructor<*>>>(reflections.getConstructorsMatchParams(),
-                                        are<Constructor<out Any>>(C1::class.java.getDeclaredConstructor(),
-                                                                  C2::class.java.getDeclaredConstructor(),
-                                                                  C3::class.java.getDeclaredConstructor(),
-                                                                  C4::class.java.getDeclaredConstructor(),
-                                                                  C5::class.java.getDeclaredConstructor(),
-                                                                  C6::class.java.getDeclaredConstructor(),
-                                                                  C7::class.java.getDeclaredConstructor(),
-                                                                  Usage.C1::class.java.getDeclaredConstructor(),
-                                                                  Usage.C2::class.java.getDeclaredConstructor()))
+        assertEquals(setOf<Constructor<out Any>>(C1::class.java.getDeclaredConstructor(),
+                                                 C2::class.java.getDeclaredConstructor(),
+                                                 C3::class.java.getDeclaredConstructor(),
+                                                 C4::class.java.getDeclaredConstructor(),
+                                                 C5::class.java.getDeclaredConstructor(),
+                                                 C6::class.java.getDeclaredConstructor(),
+                                                 C7::class.java.getDeclaredConstructor(),
+                                                 Usage.C1::class.java.getDeclaredConstructor(),
+                                                 Usage.C2::class.java.getDeclaredConstructor()),
+                     reflections.getConstructorsMatchParams())
 
-        assertThat<Set<Constructor<*>>>(reflections.getConstructorsWithAnyParamAnnotated(AM1::class.java),
-                                        are(C4::class.java.getDeclaredConstructor(String::class.java)))
+        assertEquals(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
+                     reflections.getConstructorsWithAnyParamAnnotated(AM1::class.java))
 
-        assertThat<Set<Constructor<*>>>(reflections.getConstructorsWithAnyParamAnnotated(JavaSpecific.newAM1("1")),
-                                        are(C4::class.java.getDeclaredConstructor(String::class.java)))
+        assertEquals(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
+                     reflections.getConstructorsWithAnyParamAnnotated(JavaSpecific.newAM1("1")))
     }
 
     @Test
@@ -262,51 +236,50 @@ open class ReflectionsTest {
         val reflections = Reflections(configuration)
 
         val resolved = reflections.getResources(Pattern.compile(".*resource1-reflections\\.xml"))
-        assertThat(resolved, are(IndexKey("META-INF/reflections/resource1-reflections.xml")))
+        assertEquals(setOf(IndexKey("META-INF/reflections/resource1-reflections.xml")), resolved)
 
         val resources = (reflections.stores).getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.toSet()
-        assertThat(resources, are(IndexKey("resource1-reflections.xml"), IndexKey("resource2-reflections.xml")))
+        assertEquals(setOf(IndexKey("resource1-reflections.xml"), IndexKey("resource2-reflections.xml")), resources)
     }
 
     @Test
     fun testMethodParameterNames() {
-        assertEquals(reflections.getParamNames(C4::class.java.getDeclaredMethod("m3")), listOf<Any>())
+        assertEquals(emptyList<Any>(), reflections.getParamNames(C4::class.java.getDeclaredMethod("m3")))
 
-        assertEquals(reflections.getParamNames(C4::class.java.getDeclaredMethod("m4", String::class.java)),
-                     listOf("string"))
+        assertEquals(listOf("string"),
+                     reflections.getParamNames(C4::class.java.getDeclaredMethod("m4", String::class.java)))
 
-        assertEquals(reflections.getParamNames(C4::class.java.getDeclaredMethod("add",
+        assertEquals(listOf("i1", "i2"),
+                     reflections.getParamNames(C4::class.java.getDeclaredMethod("add",
                                                                                 Int::class.javaPrimitiveType,
-                                                                                Int::class.javaPrimitiveType)),
-                     listOf("i1", "i2"))
+                                                                                Int::class.javaPrimitiveType)))
 
-        assertEquals(reflections.getParamNames(C4::class.java.getDeclaredConstructor(String::class.java)), listOf("f1"))
+        assertEquals(listOf("f1"), reflections.getParamNames(C4::class.java.getDeclaredConstructor(String::class.java)))
     }
 
     @Test
     fun testMemberUsageScanner() {
         //field usage
-        assertThat<Set<Member>>(reflections.getUsage(Usage.C1::class.java.getDeclaredField("c2")),
-                                are(Usage.C1::class.java.getDeclaredConstructor(),
-                                    Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java),
-                                    Usage.C1::class.java.getDeclaredMethod("method"),
-                                    Usage.C1::class.java.getDeclaredMethod("method", String::class.java)))
+        assertEquals(setOf(Usage.C1::class.java.getDeclaredConstructor(),
+                           Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java),
+                           Usage.C1::class.java.getDeclaredMethod("method"),
+                           Usage.C1::class.java.getDeclaredMethod("method", String::class.java)),
+                     reflections.getUsage(Usage.C1::class.java.getDeclaredField("c2")))
 
         //method usage
-        assertThat<Set<Member>>(reflections.getUsage(Usage.C1::class.java.getDeclaredMethod("method")),
-                                are(Usage.C2::class.java.getDeclaredMethod("method")))
+        assertEquals(setOf(Usage.C2::class.java.getDeclaredMethod("method")),
+                     reflections.getUsage(Usage.C1::class.java.getDeclaredMethod("method")))
 
-        assertThat<Set<Member>>(reflections.getUsage(Usage.C1::class.java.getDeclaredMethod("method",
-                                                                                            String::class.java)),
-                                are(Usage.C2::class.java.getDeclaredMethod("method")))
+        assertEquals(setOf(Usage.C2::class.java.getDeclaredMethod("method")),
+                     reflections.getUsage(Usage.C1::class.java.getDeclaredMethod("method", String::class.java)))
 
         //constructor usage
-        assertThat<Set<Member>>(reflections.getUsage(Usage.C1::class.java.getDeclaredConstructor()),
-                                are(Usage.C2::class.java.getDeclaredConstructor(),
-                                    Usage.C2::class.java.getDeclaredMethod("method")))
+        assertEquals(setOf(Usage.C2::class.java.getDeclaredConstructor(),
+                           Usage.C2::class.java.getDeclaredMethod("method")),
+                     reflections.getUsage(Usage.C1::class.java.getDeclaredConstructor()))
 
-        assertThat<Set<Member>>(reflections.getUsage(Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java)),
-                                are(Usage.C2::class.java.getDeclaredMethod("method")))
+        assertEquals(setOf(Usage.C2::class.java.getDeclaredMethod("method")),
+                     reflections.getUsage(Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java)))
     }
 
     @Test
@@ -316,64 +289,38 @@ open class ReflectionsTest {
                                                                        Filter.Include(TestModel::class.java.toPackageNameRegex()))),
                                       urls = listOfNotNull(urlForClass(TestModel::class.java)).toSet())).getMethodsAnnotatedWith(
                     AC1::class.java)
-            fail()
+            fail<Any>()
         } catch (e: RuntimeException) {
-            assertEquals(e.message, "Scanner ${MethodAnnotationsScanner::class.java.simpleName} was not configured")
+            assertEquals("Scanner ${MethodAnnotationsScanner::class.java.simpleName} was not configured", e.message)
         }
     }
 
-    private abstract class Match<T> : BaseMatcher<T>() {
-        override fun describeTo(description: Description) {}
-    }
+    private fun assertAnnotatedWith(annotation: Class<out Annotation>, classes: Iterable<Class<*>>) =
+            assertTrue(classes.all { annotationTypes(it.annotations.asList()).contains(annotation) })
 
-    private fun annotatedWith(annotation: Class<out Annotation>): Matcher<Set<Class<*>>> {
-        return object : Match<Set<Class<*>>>() {
-            override fun matches(o: Any): Boolean {
-                for (c in o as Iterable<Class<*>>) {
-                    if (!annotationTypes(c.annotations.asList()).contains(annotation)) {
-                        return false
-                    }
-                }
-                return true
-            }
-        }
-    }
-
-    private fun metaAnnotatedWith(annotation: Class<out Annotation>): Matcher<Set<Class<*>>> {
-        return object : Match<Set<Class<*>>>() {
-            override fun matches(o: Any): Boolean {
-                for (c in o as Iterable<Class<*>>) {
-                    val result = mutableSetOf<Class<*>>()
-                    val stack = c.classAndInterfaceHieararchyExceptObject().toMutableList()
-                    while (!stack.isEmpty()) {
-                        val next = stack.removeAt(0)
-                        if (result.add(next)) {
-                            for (ac in annotationTypes(next.declaredAnnotations.asList())) {
-                                if (!result.contains(ac) && !stack.contains(ac)) {
-                                    stack.add(ac)
-                                }
-                            }
+    private fun assertMetaAnnotatedWith(annotation: Class<out Annotation>, classes: Iterable<Class<*>>) =
+            assertTrue(classes.all {
+                val result = mutableSetOf<Class<*>>()
+                val stack = it.classAndInterfaceHieararchyExceptObject().toMutableList()
+                while (!stack.isEmpty()) {
+                    val next = stack.removeAt(0)
+                    if (result.add(next)) {
+                        stack += annotationTypes(next.declaredAnnotations.asList()).filter {
+                            !result.contains(it) && !stack.contains(it)
                         }
                     }
-                    if (!result.contains(annotation)) {
-                        return false
-                    }
                 }
-                return true
-            }
-        }
-    }
+                result.contains(annotation)
+            })
 
-    private fun annotationTypes(annotations: Iterable<Annotation>): Iterable<Class<out Annotation>> {
-        return annotations.map { input -> input.annotationType() }
-    }
+    private fun annotationTypes(annotations: Iterable<Annotation>) = annotations.map { input -> input.annotationType() }
 
     companion object {
         val TestModelFilter = Include("org.reflections.TestModel\\$.*")
 
         @JvmStatic lateinit var reflections: Reflections
 
-        @BeforeClass
+        @BeforeAll
         @JvmStatic
         fun init() {
             val configuration = Configuration()
@@ -400,15 +347,5 @@ open class ReflectionsTest {
                 }
                 return file.absolutePath
             }
-
-        fun <T> are(vararg ts: T): Matcher<Set<T>> {
-            val c1 = ts.asList()
-            return object : Match<Set<T>>() {
-                override fun matches(o: Any): Boolean {
-                    val c2 = o as Collection<*>
-                    return c1.containsAll(c2) && c2.containsAll(c1)
-                }
-            }
-        }
     }
 }

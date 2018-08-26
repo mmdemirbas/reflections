@@ -1,6 +1,6 @@
 package org.reflections
 
-import org.junit.BeforeClass
+import org.junit.jupiter.api.BeforeAll
 import org.reflections.scanners.FieldAnnotationsScanner
 import org.reflections.scanners.MemberUsageScanner
 import org.reflections.scanners.MethodAnnotationsScanner
@@ -14,7 +14,7 @@ import org.reflections.util.urlForClass
 
 class ReflectionsParallelTest : ReflectionsTest() {
     companion object {
-        @BeforeClass
+        @BeforeAll
         @JvmStatic
         fun init() {
             val configuration = Configuration()

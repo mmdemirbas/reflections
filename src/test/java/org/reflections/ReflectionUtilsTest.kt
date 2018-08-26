@@ -1,12 +1,14 @@
 package org.reflections
 
-import org.hamcrest.BaseMatcher
-import org.hamcrest.Description
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertThat
-import org.junit.Assert.assertTrue
-import org.junit.Test
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.reflections.ReflectionUtils.getAllMethods
+import org.reflections.ReflectionUtils.withModifier
+import org.reflections.ReflectionUtils.withParameters
+import org.reflections.ReflectionUtils.withParametersAssignableFrom
+import org.reflections.ReflectionUtils.withParametersAssignableTo
 import org.reflections.TestModel.AF1
 import org.reflections.TestModel.AI1
 import org.reflections.TestModel.AM1
@@ -14,12 +16,6 @@ import org.reflections.TestModel.C3
 import org.reflections.TestModel.C4
 import org.reflections.TestModel.I1
 import org.reflections.scanners.FieldAnnotationsScanner
-import org.reflections.util.ReflectionUtils
-import org.reflections.util.ReflectionUtils.getAllMethods
-import org.reflections.util.ReflectionUtils.withModifier
-import org.reflections.util.ReflectionUtils.withParameters
-import org.reflections.util.ReflectionUtils.withParametersAssignableFrom
-import org.reflections.util.ReflectionUtils.withParametersAssignableTo
 import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import org.reflections.util.urlForClass
 import org.reflections.util.withAnnotation
@@ -48,22 +44,22 @@ class ReflectionUtilsTest {
         }.toSet()
 
         assertTrue(allMethods.containsAll(allMethods1) && allMethods1.containsAll(allMethods))
-        assertThat<Set<Method>>(allMethods1, names("m1"))
+        assertHasNames(listOf("m1", "m1"), allMethods1)
 
-        assertThat<Set<Method>>(getAllMethods(C4::class.java).filter { it: Method ->
+        assertHasNames(listOf("m4"), getAllMethods(C4::class.java).filter { it: Method ->
             withAnyParameterAnnotation(it, AM1::class.java)
-        }.toSet(), names("m4"))
+        }.toSet())
 
-        assertThat<Set<Field>>(ReflectionUtils.getAllFields(C4::class.java) { it.isAnnotationPresent(AF1::class.java) },
-                               names("f1", "f2"))
+        assertHasNames(listOf("f1", "f2"),
+                       ReflectionUtils.getAllFields(C4::class.java) { it.isAnnotationPresent(AF1::class.java) })
 
-        assertThat<Set<Field>>(ReflectionUtils.getAllFields(C4::class.java) {
+        assertHasNames(listOf("f2"), ReflectionUtils.getAllFields(C4::class.java) {
             withAnnotation(it, JavaSpecific.newAF1("2"))
-        }, names("f2"))
+        })
 
-        assertThat<Set<Field>>(ReflectionUtils.getAllFields(C4::class.java) {
+        assertHasNames(listOf("f1", "f2", "f3"), ReflectionUtils.getAllFields(C4::class.java) {
             String::class.java.isAssignableFrom(it.type)
-        }, names("f1", "f2", "f3"))
+        })
 
         assertEquals(ReflectionUtils.getAllAnnotations(C3::class.java).size.toLong(), 5)
 
@@ -150,24 +146,11 @@ class ReflectionUtilsTest {
                 reflections.getFieldsAnnotatedWith(AF1::class.java).filter { withModifier(it, Modifier.PROTECTED) }
                     .toSet()
         assertEquals(1, allFields.size.toLong())
-        assertThat<Set<Field>>(allFields, names("f2"))
+        assertHasNames(listOf("f2"), allFields)
     }
 
-    private fun names(o: Set<Member>): Set<String> {
-        return o.map { it.name }.toSet()
-    }
-
-    private fun names(vararg namesArray: String): BaseMatcher<Set<Member>> {
-        return object : BaseMatcher<Set<Member>>() {
-            override fun matches(o: Any): Boolean {
-                val transform = names(o as Set<Member>)
-                val names = namesArray.asList()
-                return transform.containsAll(names) && names.containsAll(transform)
-            }
-
-            override fun describeTo(description: Description) {}
-        }
-    }
+    private fun assertHasNames(expected: List<String>, members: Iterable<Member>) =
+            assertEquals(expected, members.map { it.name })
 
     private fun <T> andPredicate(vararg predicates: (T) -> Boolean): (T) -> Boolean =
             { input -> predicates.all { predicate -> predicate(input) } }
