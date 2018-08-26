@@ -56,8 +56,8 @@ class JavaCodeSerializerTest {
             val reflections = Reflections(configuration)
 
             //save
-            val filename = "${ReflectionsTest.userDir}/src/test/java/org.reflections.MyTestModelStore"
-            reflections.save(filename, JavaCodeSerializer)
+            val file =ReflectionsTest.userDir.resolve("src/test/java/org.reflections.MyTestModelStore")
+            reflections.save(file, JavaCodeSerializer)
         }
     }
 }

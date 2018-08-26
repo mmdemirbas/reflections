@@ -56,8 +56,8 @@ object JsonSerializer : Serializer {
     override fun read(inputStream: InputStream) =
             gson.fromJson(InputStreamReader(inputStream), Reflections::class.java)!!
 
-    override fun save(reflections: Reflections, filename: String) = File(filename).makeParents().also { file ->
-        write(file.toPath(), toString(reflections).toByteArray(Charset.defaultCharset()))
+    override fun save(reflections: Reflections, file: File) {
+        write(file.makeParents().toPath(), toString(reflections).toByteArray(Charset.defaultCharset()))
     }
 
     override fun toString(reflections: Reflections) = gson.toJson(reflections)!!

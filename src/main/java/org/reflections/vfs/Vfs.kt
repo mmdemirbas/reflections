@@ -83,7 +83,7 @@ object Vfs {
                 val path = vfsFile.relativePath ?: ""
                 when {
                     path.startsWith(packagePrefix) -> {
-                        val filename = path.substring(path.indexOf(packagePrefix) + packagePrefix.length)
+                        val filename = path.substringAfter(packagePrefix)
                         !filename.isEmpty() && nameFilter.test(filename.substring(1))
                     }
                     else                           -> false
@@ -107,39 +107,31 @@ object Vfs {
      */
     fun getFile(url: URL): java.io.File? {
         var file: java.io.File
-        var path: String
 
         try {
-            path = url.toURI().schemeSpecificPart
-            file = java.io.File(path)
+            file = java.io.File(url.toURI().schemeSpecificPart)
             if (file.exists()) return file
         } catch (e: URISyntaxException) {
         }
 
         try {
-            path = URLDecoder.decode(url.path, "UTF-8")
-            if (path.contains(".jar!")) {
-                path = path.substring(0, path.lastIndexOf(".jar!") + ".jar".length)
-            }
+            var path = URLDecoder.decode(url.path, "UTF-8")
+            if (path.contains(".jar!")) path = path.substringBeforeLast(".jar!") + ".jar"
             file = java.io.File(path)
             if (file.exists()) return file
         } catch (e: UnsupportedEncodingException) {
         }
 
         try {
-            path = url.toExternalForm()
-            if (path.startsWith("jar:")) path = path.substring("jar:".length)
-            if (path.startsWith("wsjar:")) path = path.substring("wsjar:".length)
-            if (path.startsWith("file:")) path = path.substring("file:".length)
-            if (path.contains(".jar!")) path = path.substring(0, path.indexOf(".jar!") + ".jar".length)
-            if (path.contains(".war!")) path = path.substring(0, path.indexOf(".war!") + ".war".length)
+            var path = url.toExternalForm().removePrefix("jar:").removePrefix("wsjar:").removePrefix("file:")
+            if (path.contains(".jar!")) path = path.substringBefore(".jar!") + ".jar"
+            if (path.contains(".war!")) path = path.substringBefore(".war!") + ".war"
             file = java.io.File(path)
             if (file.exists()) return file
 
             path = path.replace("%20", " ")
             file = java.io.File(path)
             if (file.exists()) return file
-
         } catch (e: Exception) {
         }
 
@@ -148,11 +140,13 @@ object Vfs {
 }
 
 interface VfsDir : Closeable {
+    // todo: use Path instead of String
     val path: String
     val files: Sequence<VfsFile>
 }
 
 interface VfsFile {
+    // todo: use Path instead of String
     val name: String
     val relativePath: String?
     fun openInputStream(): InputStream
@@ -192,7 +186,7 @@ class JarInputDir(private val url: URL) : VfsDir {
 
 class JarInputFile(entry: ZipEntry, private val dir: JarInputDir, private val from: Long, private val to: Long) :
         VfsFile {
-    override val name = entry.name.substring(entry.name.lastIndexOf('/') + 1)
+    override val name = entry.name.substringAfterLast('/')
     override val relativePath = entry.name
 
     override fun openInputStream() = object : InputStream() {
@@ -228,17 +222,9 @@ class SystemDir(private val file: java.io.File?) : VfsDir {
     override fun toString() = path
 }
 
-class SystemFile(private val root: SystemDir, private val file: java.io.File) : VfsFile {
+class SystemFile(root: SystemDir, private val file: java.io.File) : VfsFile {
     override val name = file.name
-
-    override val relativePath by lazy {
-        val filepath = file.path.replace("\\", "/")
-        when {
-            filepath.startsWith(root.path) -> filepath.substring(root.path.length + 1)
-            else                           -> null
-        }
-    }
-
+    override val relativePath = file.path.replace("\\", "/").removePrefix("${root.path}/")
     override fun openInputStream() = file.inputStream()
     override fun toString() = file.toString()
 }
@@ -259,7 +245,7 @@ class ZipDir(val jarFile: JarFile) : VfsDir {
 }
 
 class ZipFile(private val root: ZipDir, private val entry: ZipEntry) : VfsFile {
-    override val name = entry.name.substring(entry.name.lastIndexOf('/') + 1)
+    override val name = entry.name.substringAfterLast('/')
     override val relativePath = entry.name
     override fun openInputStream() = root.jarFile.getInputStream(entry)
     override fun toString() = "${root.path}!${java.io.File.separatorChar}$entry"

@@ -32,6 +32,7 @@ import org.reflections.util.urlForPackage
 import org.reflections.util.withAnnotation
 import org.reflections.util.withAnyParameterAnnotation
 import org.reflections.vfs.Vfs
+import java.io.File
 import java.lang.annotation.Inherited
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Constructor
@@ -214,7 +215,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
             val inputsFilter = configuration.filter
             val path = file.relativePath
             val fqn = path!!.replace('/', '.')
-            if (inputsFilter == null || inputsFilter.test(path) || inputsFilter.test(fqn)) {
+            if (inputsFilter.test(path) || inputsFilter.test(fqn)) {
                 var classObject: ClassAdapter? = null
                 configuration.scanners.forEach { scanner ->
                     try {
@@ -270,12 +271,12 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
             Reflections(Configuration(scanners = (listOf(this) + others).flatMap { it.stores }.toSet()))
 
     /**
-     * serialize to a given directory and filename using given serializer
+     * serialize to a given directory and file using given serializer
      *
      * * it is preferred to specify a designated directory (for example META-INF/reflections),
      * so that it could be found later much faster using the load method
      */
-    fun save(filename: String, serializer: Serializer = XmlSerializer) = serializer.save(this, filename).also { file ->
+    fun save(file: File, serializer: Serializer = XmlSerializer) = serializer.save(this, file).also {
         logInfo("Reflections successfully saved in ${file.absolutePath} using ${serializer.javaClass.simpleName}")
     }
 

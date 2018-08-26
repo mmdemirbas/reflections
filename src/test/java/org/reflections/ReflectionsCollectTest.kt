@@ -53,7 +53,7 @@ class ReflectionsCollectTest : ReflectionsTest() {
                                      MemberUsageScanner()).toSet()
             var ref = Reflections(configuration)
 
-            ref.save("${ReflectionsTest.userDir}/target/test-classes/META-INF/reflections/testModel-reflections.xml")
+            ref.save(ReflectionsTest.userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.xml"))
 
             val configuration1 = Configuration()
             configuration1.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
@@ -62,7 +62,7 @@ class ReflectionsCollectTest : ReflectionsTest() {
             ref = Reflections(configuration1)
 
             val serializer = JsonSerializer
-            ref.save("${ReflectionsTest.userDir}/target/test-classes/META-INF/reflections/testModel-reflections.json",
+            ref.save(ReflectionsTest.userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
                      serializer)
 
             ReflectionsTest.reflections =

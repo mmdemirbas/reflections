@@ -37,8 +37,8 @@ class ReflectionUtilsTest {
                      C3::class.java.classAndInterfaceHieararchyExceptObject().filter { it.isAnnotationPresent(AI1::class.java) })
 
         val allMethods =
-                getAllMethods(C4::class.java).filter(andPredicate({ withModifier(it, Modifier.PUBLIC) },
-                                                                  { it.returnType == Void.TYPE })).toSet()
+                getAllMethods(C4::class.java).filterAnd({ withModifier(it, Modifier.PUBLIC) },
+                                                        { it.returnType == Void.TYPE }).toSet()
         val allMethods1 = getAllMethods(C4::class.java).filter { it: Method ->
             Pattern.matches("public.*.void .*", it.toString())
         }.toSet()
@@ -75,14 +75,14 @@ class ReflectionUtilsTest {
 
         val allMethods = mutableSetOf<Method>()
         for (type in arg1.javaClass.classAndInterfaceHieararchyExceptObject()) {
-            allMethods.addAll(getAllMethods(target).filter(andPredicate({ withModifier(it, Modifier.STATIC) },
-                                                                        { withParameters(it, listOf(type)) })).toSet())
+            allMethods.addAll(getAllMethods(target).filterAnd({ withModifier(it, Modifier.STATIC) }, {
+                withParameters(it, listOf(type))
+            }).toSet())
         }
 
-        val allMethods1 =
-                getAllMethods(target).filter(andPredicate({ withModifier(it, Modifier.STATIC) },
-                                                          { withParametersAssignableTo(it, listOf(arg1.javaClass)) }))
-                    .toSet()
+        val allMethods1 = getAllMethods(target).filterAnd({ withModifier(it, Modifier.STATIC) }, {
+            withParametersAssignableTo(it, listOf(arg1.javaClass))
+        }).toSet()
 
         assertEquals(allMethods1, allMethods)
 
@@ -94,22 +94,23 @@ class ReflectionUtilsTest {
     @Test
     fun withParametersAssignableFromTest() {
         //Check for null safe
-        getAllMethods(Collections::class.java).filter(andPredicate({ withModifier(it, Modifier.STATIC) },
-                                                                   { withParametersAssignableFrom(it, emptyList()) }))
-            .toSet()
+        getAllMethods(Collections::class.java).filterAnd({ withModifier(it, Modifier.STATIC) }, {
+            withParametersAssignableFrom(it, emptyList())
+        }).toSet()
 
         val target = Collections::class.java
         val arg1 = listOf(1, 2, 3)
 
         val allMethods = mutableSetOf<Method>()
         for (type in arg1.javaClass.classAndInterfaceHieararchyExceptObject()) {
-            allMethods.addAll(getAllMethods(target).filter(andPredicate({ withModifier(it, Modifier.STATIC) },
-                                                                        { withParameters(it, listOf(type)) })).toSet())
+            allMethods.addAll(getAllMethods(target).filterAnd({ withModifier(it, Modifier.STATIC) }, {
+                withParameters(it, listOf(type))
+            }).toSet())
         }
 
-        val allMethods1 = getAllMethods(target).filter(andPredicate({ withModifier(it, Modifier.STATIC) }, {
+        val allMethods1 = getAllMethods(target).filterAnd({ withModifier(it, Modifier.STATIC) }, {
             withParametersAssignableFrom(it, listOf(Iterable::class.java))
-        }, { withParametersAssignableTo(it, listOf(arg1.javaClass)) })).toSet()
+        }, { withParametersAssignableTo(it, listOf(arg1.javaClass)) }).toSet()
 
         assertEquals(allMethods, allMethods1)
 
@@ -152,6 +153,6 @@ class ReflectionUtilsTest {
     private fun assertHasNames(expected: List<String>, members: Iterable<Member>) =
             assertEquals(expected, members.map { it.name })
 
-    private fun <T> andPredicate(vararg predicates: (T) -> Boolean): (T) -> Boolean =
-            { input -> predicates.all { predicate -> predicate(input) } }
+    private fun <T> Iterable<T>.filterAnd(vararg predicates: (T) -> Boolean) =
+            filter { input -> predicates.all { predicate -> predicate(input) } }
 }

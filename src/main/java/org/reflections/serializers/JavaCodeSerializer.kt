@@ -70,8 +70,8 @@ object JavaCodeSerializer : Serializer {
      * for example ```/data/projects/my/src/main/java/org.my.project.MyStore```
      * would create class MyStore in package org.my.project in the path /data/projects/my/src/main/java
      */
-    override fun save(reflections: Reflections, name: String): File {
-        var name = name
+    override fun save(reflections: Reflections, file: File) {
+        var name = file.name
         if (name.endsWith("/")) {
             name = name.dropLast(1) //trim / at the end
         }
@@ -83,13 +83,15 @@ object JavaCodeSerializer : Serializer {
         //get package and class names
         val packageName: String
         val className: String
-        val lastDot = name.lastIndexOf('.')
-        if (lastDot == -1) {
-            packageName = ""
-            className = name.substringAfterLast('/')
-        } else {
-            packageName = name.substringBeforeLast('.').substringAfterLast('/')
-            className = name.substring(lastDot + 1)
+        when {
+            name.contains('.') -> {
+                packageName = name.substringBeforeLast('.').substringAfterLast('/')
+                className = name.substringAfterLast('.')
+            }
+            else               -> {
+                packageName = ""
+                className = name.substringAfterLast('/')
+            }
         }
 
         //generate
@@ -104,7 +106,6 @@ object JavaCodeSerializer : Serializer {
         sb.append(toString(reflections))
         sb.append("}\n")
         write(File(filename).toPath(), sb.toString().toByteArray(Charset.defaultCharset()))
-        return file
     }
 
     override fun toString(reflections: Reflections): String {
@@ -147,27 +148,26 @@ object JavaCodeSerializer : Serializer {
 
                 values.forEach { elementKey ->
                     val element = elementKey.value
-                    if (element.startsWith("@")) {
-                        annotations.add(element.substring(1))
-                    } else if (element.contains("(")) {
-                        //method
-                        if (!element.startsWith("<")) {
-                            val name = element.substringBefore('(')
-                            val params = element.substringBetween('(', ')')
+                    when {
+                        element.startsWith("@") -> annotations.add(element.substring(1))
+                        element.contains("(")   -> //method
+                            if (!element.startsWith("<")) {
+                                val name = element.substringBefore('(')
+                                val params = element.substringBetween('(', ')')
 
-                            var paramsDescriptor = ""
-                            if (!params.isEmpty()) {
-                                paramsDescriptor = tokenSeparator +
-                                        params.replace(dotSeparator, tokenSeparator).replace(", ",
-                                                                                             doubleSeparator).replace("[]",
-                                                                                                                      arrayDescriptor)
+                                var paramsDescriptor = ""
+                                if (!params.isEmpty()) {
+                                    paramsDescriptor = tokenSeparator +
+                                            params.replace(dotSeparator, tokenSeparator).replace(", ",
+                                                                                                 doubleSeparator).replace(
+                                                    "[]",
+                                                    arrayDescriptor)
+                                }
+                                val normalized = name + paramsDescriptor
+                                methods.put(name, normalized)
                             }
-                            val normalized = name + paramsDescriptor
-                            methods.put(name, normalized)
-                        }
-                    } else if (!element.isEmpty()) {
-                        //field
-                        fields.add(element)
+                        !element.isEmpty()      -> //field
+                            fields.add(element)
                     }
                 }
 

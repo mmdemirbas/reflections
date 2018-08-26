@@ -20,31 +20,29 @@ import java.util.regex.Pattern
  */
 data class Configuration(var scanners: Set<Scanner> = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
                          var urls: Set<URL> = emptySet(),
-                         var filter: Filter? = null,
+                         var filter: Filter = Filter.Composite(emptyList()),
                          var executorService: ExecutorService? = null,
                          var classLoaders: List<ClassLoader> = emptyList(),
                          var expandSuperTypes: Boolean = true)
 
 
 sealed class Filter {
-    abstract fun test(regex: String): Boolean
+    abstract fun test(s: String): Boolean
 
     data class Include(val patternString: String) : Filter() {
-        private val pattern: Pattern = Pattern.compile(patternString)
-
-        override fun test(regex: String) = pattern.matcher(regex).matches()
+        private val pattern = Pattern.compile(patternString)
+        override fun test(s: String) = pattern.matcher(s).matches()
         override fun toString() = "+$patternString"
     }
 
     data class Exclude(val patternString: String) : Filter() {
-        private val pattern: Pattern = Pattern.compile(patternString)
-
-        override fun test(regex: String) = !pattern.matcher(regex).matches()
+        private val pattern = Pattern.compile(patternString)
+        override fun test(s: String) = !pattern.matcher(s).matches()
         override fun toString() = "-$patternString"
     }
 
     data class Composite(val filters: List<Filter>) : Filter() {
-        override fun test(regex: String): Boolean {
+        override fun test(s: String): Boolean {
             var accept = filters.isEmpty() || filters[0] is Exclude
             loop@ for (filter in filters) {
                 //skip if this filter won't change
@@ -52,7 +50,7 @@ sealed class Filter {
                     accept -> if (filter is Include) continue@loop
                     else   -> if (filter is Exclude) continue@loop
                 }
-                accept = filter.test(regex)
+                accept = filter.test(s)
                 //break on first exclusion
                 if (!accept && filter is Exclude) break
             }

@@ -337,15 +337,14 @@ open class ReflectionsTest {
             reflections = Reflections(configuration)
         }
 
-        //
         //a hack to fix user.dir issue(?) in surfire
-        val userDir: String
+        val userDir: File
             get() {
                 var file = File(System.getProperty("user.dir"))
                 if (listOf(*file.list()!!).contains("reflections")) {
                     file = File(file, "reflections")
                 }
-                return file.absolutePath
+                return file
             }
     }
 }

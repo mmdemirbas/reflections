@@ -28,24 +28,19 @@ import javax.servlet.ServletContext
 // todo: biz öyle bir mekanizma sunmalıyız ki, sadece sorgulayacağımız şeyleri taramaya izin verebilmeliyiz.
 // todo: belki mevcut yapı da bu şekilde tasarlandı ama biraz da java'dan kaynaklı verbosity vardır.
 
-// todo: sadece map işlemi için kullanılan index'leri kaldır
-// todo: substringBefore ve substringAfter gibi metotlarla değiştirilebilecek kısımları değiştir
-// todo: String üzerinden yapılan işlemleri specific type üzerinden yaptır. Örneğin index olarak class ismi yerine class kullanmak gibi...
+// todo: File yerine Path kullan ki Jimfs kullanmaya yol açılsın
+
 // todo: Gereksiz nullable'ları ve null check'leri temizle
 // todo: gereksiz javadocları sil
 // todo: testleri geçir
 // todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
 // todo: optional dependency'leri değerlendir, mümkünse kaldırmaya çalış veya testlere kaydır. Nihai amaç zero or at most one (javassist) dependency
-// todo: assertThat kullanımlarını kaldırmak kodu basitleştirebilir.  zaten bazı yerlerde assertEquals, bazı yerlerde assertThat olmuş
-// todo: junit5'e geç ve uzun testleri parçala
+// todo: uzun testleri parçala
 // todo: bütün nullable collection'ları non-nullable & empty hale getir
-// todo: java functional interface'leri kotlin function type'larıyle değiştir. Mesela Predicate yerine (T) -> Boolean gibi
-// todo: gereksiz javadoc'ları sil. mesela include(regex) metodunun üsteündeki includes regex comment'i gibi...
 // todo: coverage kontrol et, eksik testleri tamamla
 // todo: builder style yazılmış metotlara kotlin sayesinde gerek kalmıyor. Onları kaldır, kullanıldığı yerleri düzelt
 // todo: guard-clause'ların if'lerinde paranteze gerek yok, tek satırlık return olarak yazılabilir
 // todo: URL yerine URI kullanmaya geç
-// todo: bunun gibi entries yerine keys + get erişimleri olan yerleri değiştir
 // todo: update urls
 // todo: configuration'da scanners'ın default'u da boş olmalı değil mi?
 // todo: regex'in string olarak verildiği yerler değiştirilsin, regex mi ne olduğu belli olsun
@@ -287,11 +282,10 @@ fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> 
             try {
                 classLoader.getResources(resourceName).toList().map { url ->
                     val externalForm = url.toExternalForm()
-                    val index = externalForm.lastIndexOf(resourceName!!)
-                    when (index) {
-                        -1   -> url
-                        else -> // Add old url as contextUrl to support exotic url handlers
-                            URL(url, externalForm.substring(0, index))
+                    when {
+                        externalForm.contains(resourceName!!) -> // Add old url as contextUrl to support exotic url handlers
+                            URL(url, externalForm.substringBeforeLast(resourceName))
+                        else                                  -> url
                     }
                 }
             } catch (e: IOException) {
@@ -314,19 +308,18 @@ fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> 
  */
 fun urlForClass(aClass: Class<*>, classLoaders: Collection<ClassLoader> = emptyList()): URL? {
     val resourceName = aClass.name.replace(".", "/") + ".class"
-    classLoaders(classLoaders).forEach { classLoader ->
+    return classLoaders(classLoaders).mapNotNull {
         try {
-            val url = classLoader.getResource(resourceName)
-            if (url != null) {
-                val externalForm = url.toExternalForm()
-                return URL(externalForm.substring(0,
-                                                  externalForm.lastIndexOf(aClass.getPackage().name.replace(".", "/"))))
+            val url = it.getResource(resourceName)
+            when (url) {
+                null -> null
+                else -> URL(url.toExternalForm().substringBeforeLast(aClass.getPackage().name.replace(".", "/")))
             }
         } catch (e: MalformedURLException) {
             logWarn("Could not get URL", e)
+            null
         }
-    }
-    return null
+    }.firstOrNull()
 }
 
 /**
@@ -382,9 +375,8 @@ fun urlForJavaClassPath() =
  *
  * @return the collection of URLs, not null
  */
-fun ServletContext.webInfLibUrls() = getResourcePaths("/WEB-INF/lib").orEmpty().mapNotNull { urlString ->
-    tryOrNull { getResource(urlString as String) }
-}.distinctUrls()
+fun ServletContext.webInfLibUrls() =
+        getResourcePaths("/WEB-INF/lib").orEmpty().mapNotNull { tryOrNull { getResource(it as String) } }.distinctUrls()
 
 /**
  * Returns the URL of the `WEB-INF/classes` folder.
@@ -434,28 +426,26 @@ fun URL.manifestUrls() = (listOf(this) + tryOrDefault(emptyList()) {
     // don't do anything on exception, we're going on the assumption it is a jar, which could be wrong
     val cleaned = cleanPath()
     val file = File(cleaned)
-    val path = file.path
-    val dir = file.parent
+    val dir = file.parentFile
     val jar = JarFile(cleaned)
-    listOfNotNull(tryToGetValidUrl(path,
+    listOfNotNull(tryToGetValidUrl(file,
                                    dir,
-                                   cleaned)) + jar.manifest?.mainAttributes?.getValue(Attributes.Name("Class-Path")).orEmpty().split(
+                                   file)) + jar.manifest?.mainAttributes?.getValue(Attributes.Name("Class-Path")).orEmpty().split(
             ' ').dropLastWhile { it.isEmpty() }.mapNotNull {
-        tryToGetValidUrl(path, dir, it)
+        tryToGetValidUrl(file, dir, File(it))
     }
 }).distinctUrls()
 
-fun tryToGetValidUrl(workingDir: String, path: String, filename: String) =
-        listOfNotNull(filename, "$path${File.separator}$filename", "$workingDir${File.separator}$filename", tryOrNull {
+fun tryToGetValidUrl(workingDir: File, path: File, filename: File) =
+        listOfNotNull(filename, path.resolve(filename), workingDir.resolve(filename), tryOrNull {
             // don't do anything, we're going on the assumption it is a jar, which could be wrong
-            URL(filename).file
-        }).map { File(it) }.firstOrNull { it.exists() }?.toURI()?.toURL()
+            filename
+            // todo: is this block necessary?
+        }).firstOrNull { it.exists() }?.toURI()?.toURL()
 
 fun URL.cleanPath(): String {
-    var path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }
-    if (path.startsWith("jar:")) path = path.substring("jar:".length)
-    if (path.startsWith("file:")) path = path.substring("file:".length)
-    if (path.endsWith("!/")) path = path.substring(0, path.lastIndexOf("!/")) + '/'
+    var path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }.removePrefix("jar:").removePrefix("file:")
+    if (path.endsWith("!/")) path = path.removeSuffix("!/") + '/'
     return path
 }
 

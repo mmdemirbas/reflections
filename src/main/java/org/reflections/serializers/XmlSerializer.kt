@@ -39,7 +39,7 @@ object XmlSerializer : Serializer {
             val scanners = mutableListOf<Scanner>()
             SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
                 val index = e1 as org.dom4j.Element
-                val scanner = indexNameToClass(index.name).newInstance() as Scanner
+                val scanner = index.name.indexNameToClass().newInstance() as Scanner
                 index.elements().forEach { e2 ->
                     val entry = e2 as org.dom4j.Element
                     val key = entry.element("key")
@@ -53,10 +53,9 @@ object XmlSerializer : Serializer {
         }
     }
 
-    override fun save(reflections: Reflections, filename: String) = tryOrThrow("could not save to file $filename") {
-        val file = File(filename).makeParents()
+    override fun save(reflections: Reflections, file: File) = tryOrThrow("could not save to file $file") {
+        file.makeParents()
         FileWriter(file).use { writer -> writeTo(writer, reflections) }
-        file
     }
 
     override fun toString(reflections: Reflections) = StringWriter().use { writer ->
@@ -74,7 +73,7 @@ object XmlSerializer : Serializer {
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
         reflections.stores.forEach { scanner ->
-            val indexElement = root.addElement(classToIndexName(scanner))
+            val indexElement = root.addElement(scanner.classToIndexName())
             scanner.store.map.entries.forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")
                 entryElement.addElement("key").text = key.value
@@ -87,8 +86,6 @@ object XmlSerializer : Serializer {
         return document
     }
 
-    private fun indexNameToClass(indexName: String?) =
-            Class.forName("${Scanner::class.java.`package`.name}.$indexName")!!
-
-    private fun classToIndexName(scanner: Scanner) = scanner.javaClass.simpleName!!
+    private fun String.indexNameToClass() = Class.forName("${Scanner::class.java.`package`.name}.${this}")!!
+    private fun Scanner.classToIndexName() = javaClass.simpleName!!
 }
