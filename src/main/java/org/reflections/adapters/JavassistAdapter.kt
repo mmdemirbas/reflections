@@ -25,11 +25,9 @@ data class JavassistClassAdapter(val cls: ClassFile) : ClassAdapter {
     override val fields = cls.fields.map { JavassistFieldAdapter(it as FieldInfo) }
     override val methods = cls.methods.map { JavassistMethodAdapter(it as MethodInfo) }
 
-    override val annotations =
-            listOf(cls.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
-                   cls.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?).flatMap {
-                it?.annotations.orEmpty().map { it.typeName }
-            }
+    override val annotations = listOf(AnnotationsAttribute.visibleTag, AnnotationsAttribute.invisibleTag).flatMap {
+        (cls.getAttribute(it) as AnnotationsAttribute?)?.annotations.orEmpty().map { it.typeName }
+    }
 
     override val isPublic = AccessFlag.isPublic(cls.accessFlags)
     override val name = cls.name!!
@@ -38,11 +36,9 @@ data class JavassistClassAdapter(val cls: ClassFile) : ClassAdapter {
 }
 
 data class JavassistFieldAdapter(val field: FieldInfo) : FieldAdapter {
-    override val annotations =
-            listOf(field.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
-                   field.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?).flatMap {
-                it?.annotations.orEmpty().map { it.typeName }
-            }
+    override val annotations = listOf(AnnotationsAttribute.visibleTag, AnnotationsAttribute.invisibleTag).flatMap {
+        (field.getAttribute(it) as AnnotationsAttribute?)?.annotations.orEmpty().map { it.typeName }
+    }
 
     override val name = field.name!!
     override val isPublic = AccessFlag.isPublic(field.accessFlags)
@@ -52,16 +48,14 @@ data class JavassistMethodAdapter(val method: MethodInfo) : MethodAdapter {
     override val name = method.name!!
     override val parameters = method.descriptor.substringBetween('(', ')').splitDescriptorToTypeNames()
 
-    override val annotations =
-            listOf(method.getAttribute(AnnotationsAttribute.visibleTag) as AnnotationsAttribute?,
-                   method.getAttribute(AnnotationsAttribute.invisibleTag) as AnnotationsAttribute?).flatMap {
-                it?.annotations.orEmpty().map { it.typeName }
-            }
+    override val annotations = listOf(AnnotationsAttribute.visibleTag, AnnotationsAttribute.invisibleTag).flatMap {
+        (method.getAttribute(it) as AnnotationsAttribute?)?.annotations.orEmpty().map { it.typeName }
+    }
 
     override fun parameterAnnotations(parameterIndex: Int) =
-            listOf(method.getAttribute(ParameterAnnotationsAttribute.visibleTag) as ParameterAnnotationsAttribute?,
-                   method.getAttribute(ParameterAnnotationsAttribute.invisibleTag) as ParameterAnnotationsAttribute?).flatMap {
-                it?.annotations?.getOrNull(parameterIndex).orEmpty().map { it.typeName }
+            listOf(ParameterAnnotationsAttribute.visibleTag, ParameterAnnotationsAttribute.invisibleTag).flatMap {
+                (method.getAttribute(it) as ParameterAnnotationsAttribute?)?.annotations?.getOrNull(parameterIndex)
+                    .orEmpty().map { it.typeName }
             }
 
     override val returnType = method.descriptor.substringAfterLast(')').splitDescriptorToTypeNames()[0]!!

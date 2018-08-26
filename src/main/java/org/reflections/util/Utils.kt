@@ -23,27 +23,37 @@ import java.util.jar.Attributes
 import java.util.jar.JarFile
 import javax.servlet.ServletContext
 
+// todo: Gereksiz nullable'ları ve null check'leri temizle
+// todo: bütün nullable collection'ları non-nullable & empty hale getir
+// todo: içinde nullable item bulunabilen collection'ları da non-nullable hale getir olabildiğince
+// todo: metot input'larında nullable olması pek mantıklı olmayan tipler non-nullable hale getirilsin
+
+// todo: File yerine Path kullan ki Jimfs kullanmaya yol açılsın
+
+// todo: query metotlarını Reflections'tan ilgili scanner'lara kaydır
+// todo: scannerlardan belli bir tipi alma kodları daha kısa ve anlaşılır hale getirilebilir mi
+
+// todo: builder style yazılmış metotlara kotlin sayesinde gerek kalmıyor. Onları kaldır, kullanıldığı yerleri düzelt
+
+// todo: testleri geçir
+// todo: uzun testleri parçala
+// todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
+// todo: coverage kontrol et, eksik testleri tamamla
+
+// todo: optional dependency'leri değerlendir, mümkünse kaldırmaya çalış veya testlere kaydır. Nihai amaç zero or at most one (javassist) dependency
+
+// todo: guard-clause'ların if'lerinde paranteze gerek yok, tek satırlık return olarak yazılabilir
+
+// todo: URL yerine URI kullanmaya geç
+
+// todo: update urls in javadocs etc
+// todo: update javadocs according to the new structure
+
+// todo: configuration'da scanners'ın default'u da boş olmalı değil mi?
 
 // todo: library'nin bizim yerimize birşeyleri nasıl tarayacağına karar vermesi yerine
 // todo: biz öyle bir mekanizma sunmalıyız ki, sadece sorgulayacağımız şeyleri taramaya izin verebilmeliyiz.
 // todo: belki mevcut yapı da bu şekilde tasarlandı ama biraz da java'dan kaynaklı verbosity vardır.
-
-// todo: File yerine Path kullan ki Jimfs kullanmaya yol açılsın
-
-// todo: Gereksiz nullable'ları ve null check'leri temizle
-// todo: gereksiz javadocları sil
-// todo: testleri geçir
-// todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
-// todo: optional dependency'leri değerlendir, mümkünse kaldırmaya çalış veya testlere kaydır. Nihai amaç zero or at most one (javassist) dependency
-// todo: uzun testleri parçala
-// todo: bütün nullable collection'ları non-nullable & empty hale getir
-// todo: coverage kontrol et, eksik testleri tamamla
-// todo: builder style yazılmış metotlara kotlin sayesinde gerek kalmıyor. Onları kaldır, kullanıldığı yerleri düzelt
-// todo: guard-clause'ların if'lerinde paranteze gerek yok, tek satırlık return olarak yazılabilir
-// todo: URL yerine URI kullanmaya geç
-// todo: update urls
-// todo: configuration'da scanners'ın default'u da boş olmalı değil mi?
-// todo: regex'in string olarak verildiği yerler değiştirilsin, regex mi ne olduğu belli olsun
 
 fun Annotation.annotationType() = annotationClass.java
 

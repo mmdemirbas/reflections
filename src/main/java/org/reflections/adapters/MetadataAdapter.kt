@@ -28,7 +28,7 @@ interface FieldAdapter {
 }
 
 interface MethodAdapter {
-    val name: String?
+    val name: String
     val isPublic: Boolean
     val annotations: List<String>
     val parameters: List<String>

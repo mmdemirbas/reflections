@@ -24,7 +24,7 @@ data class JavaReflectionClassAdapter(val cls: Class<*>) : ClassAdapter {
     override val annotations = cls.declaredAnnotations.map { it.annotationClass.java.name }
     override val name = cls.name!!
     override val superclass = cls.superclass?.name.orEmpty()
-    override val interfaces = cls.interfaces?.map { it.name }.orEmpty()
+    override val interfaces = cls.interfaces.map { it.name!! }
     override val isPublic = Modifier.isPublic(cls.modifiers)
 }
 
@@ -36,20 +36,20 @@ data class JavaReflectionFieldAdapter(val field: Field) : FieldAdapter {
 
 data class JavaReflectionMethodAdapter(val method: Member) : MethodAdapter {
     override val name = when (method) {
-        is Method         -> method.getName()
+        is Method         -> method.name
         is Constructor<*> -> "<init>"
-        else              -> null
+        else              -> TODO()
     }
 
-    override val parameters = (method as? Executable)?.parameterTypes?.map { cls ->
+    override val parameters = (method as? Executable)?.parameterTypes.orEmpty().map { cls ->
         when {
             cls.isArray -> tryOrDefault(cls.name) {
                 val componentTypes = cls.generateWhileNotNull { componentType }
                 componentTypes.last().name + "[]".repeat(componentTypes.size - 1)
             }
             else        -> cls.name
-        }
-    }.orEmpty()
+        }!!
+    }
 
     override val annotations = (method as Executable).declaredAnnotations!!.map { it.annotationClass.java.name }
 

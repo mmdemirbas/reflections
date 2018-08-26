@@ -10,6 +10,7 @@ import java.util.jar.JarFile
 import java.util.regex.Pattern
 
 interface VfsUrlType {
+    // todo: matches metodu diğerinin içine katılabilir. null dönmüşse match etmemiş demektir.
     fun matches(url: URL): Boolean
     fun createDir(url: URL): VfsDir?
 }
@@ -62,7 +63,7 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
             else                                              -> false
         }
 
-        override fun createDir(url: URL) = SystemDir(Vfs.getFile(url))
+        override fun createDir(url: URL) = SystemDir(Vfs.getFile(url)!!)
     },
 
     jboss_vfs {

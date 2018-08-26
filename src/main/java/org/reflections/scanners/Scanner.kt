@@ -32,6 +32,8 @@ abstract class Scanner {
     fun valueCount(): Int = store.valueCount()
 
     abstract fun acceptsInput(file: String): Boolean
+
+    // todo: eliminate classObject parameter and cache it elsewhere if needed.
     abstract fun scan(vfsFile: VfsFile, classObject: ClassAdapter?): ClassAdapter?
 
     override fun equals(o: Any?) = this === o || o != null && javaClass == o.javaClass

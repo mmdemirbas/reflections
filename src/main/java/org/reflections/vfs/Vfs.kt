@@ -6,6 +6,7 @@ import org.reflections.util.logWarn
 import org.reflections.util.tryOrThrow
 import org.reflections.util.whileNotNull
 import java.io.Closeable
+import java.io.File
 import java.io.IOException
 import java.io.InputStream
 import java.io.UnsupportedEncodingException
@@ -106,10 +107,8 @@ object Vfs {
      * try to get [java.io.File] from url
      */
     fun getFile(url: URL): java.io.File? {
-        var file: java.io.File
-
         try {
-            file = java.io.File(url.toURI().schemeSpecificPart)
+            val file = File(url.toURI().schemeSpecificPart)
             if (file.exists()) return file
         } catch (e: URISyntaxException) {
         }
@@ -117,7 +116,7 @@ object Vfs {
         try {
             var path = URLDecoder.decode(url.path, "UTF-8")
             if (path.contains(".jar!")) path = path.substringBeforeLast(".jar!") + ".jar"
-            file = java.io.File(path)
+            val file = java.io.File(path)
             if (file.exists()) return file
         } catch (e: UnsupportedEncodingException) {
         }
@@ -126,7 +125,7 @@ object Vfs {
             var path = url.toExternalForm().removePrefix("jar:").removePrefix("wsjar:").removePrefix("file:")
             if (path.contains(".jar!")) path = path.substringBefore(".jar!") + ".jar"
             if (path.contains(".war!")) path = path.substringBefore(".war!") + ".war"
-            file = java.io.File(path)
+            var file = java.io.File(path)
             if (file.exists()) return file
 
             path = path.replace("%20", " ")
@@ -201,24 +200,22 @@ class JarInputFile(entry: ZipEntry, private val dir: JarInputDir, private val fr
     }
 }
 
-class SystemDir(private val file: java.io.File?) : VfsDir {
+class SystemDir(private val file: java.io.File) : VfsDir {
     init {
-        if ((file != null) && (!file.isDirectory || !file.canRead())) {
-            throw RuntimeException("cannot use dir $file")
-        }
+        if (!file.isDirectory || !file.canRead()) throw RuntimeException("cannot use dir $file")
     }
 
-    override val path = file?.path?.replace("\\", "/") ?: "/NO-SUCH-DIRECTORY/"
+    override val path = file.path?.replace("\\", "/") ?: "/NO-SUCH-DIRECTORY/"
 
     override val files
         get() = when {
-            file == null || !file.exists() -> emptySequence()
-            else                           -> file.walkTopDown().filter { !it.isDirectory }.map {
+            !file.exists() -> emptySequence()
+            else           -> file.walkTopDown().filter { !it.isDirectory }.map {
                 SystemFile(this, it)
             }
         }
 
-    override fun close() {}
+    override fun close() = Unit
     override fun toString() = path
 }
 
