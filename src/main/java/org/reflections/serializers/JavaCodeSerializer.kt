@@ -2,6 +2,8 @@ package org.reflections.serializers
 
 import org.reflections.Reflections
 import org.reflections.scanners.TypeElementsScanner
+import org.reflections.scanners.getOrThrow
+import org.reflections.serializers.JavaCodeSerializer.save
 import org.reflections.util.Multimap
 import org.reflections.util.classForName
 import org.reflections.util.generateWhileNotNull
@@ -49,7 +51,7 @@ import java.util.*
  * Method method = JavaCodeSerializer.resolve(m1Ref);
  * ```
  *
- * The [.save] method filename should be in the pattern: path/path/path/package.package.classname
+ * The [save] method filename should be in the pattern: path/path/path/package.package.classname
  *
  * depends on Reflections configured with [org.reflections.scanners.TypeElementsScanner]
  */
@@ -106,7 +108,7 @@ object JavaCodeSerializer : Serializer {
     }
 
     override fun toString(reflections: Reflections): String {
-        if (reflections.stores.getOrThrow(TypeElementsScanner::class).isEmpty) {
+        if (reflections.stores.getOrThrow<TypeElementsScanner>().flatMap { it.store.map.entries }.isEmpty()) {
             logWarn("JavaCodeSerializer needs TypeElementsScanner configured")
         }
 
@@ -114,7 +116,7 @@ object JavaCodeSerializer : Serializer {
         var prevPaths: List<String> = listOf()
         var indent = 1
 
-        reflections.stores.getOrThrow(TypeElementsScanner::class).entriesGrouped().sortedBy { it.key.value }
+        reflections.stores.getOrThrow<TypeElementsScanner>().flatMap { it.store.map.entries }.sortedBy { it.key.value }
             .forEach { (fqn, values) ->
                 val typePaths = fqn.value.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }
 
@@ -184,7 +186,7 @@ object JavaCodeSerializer : Serializer {
                 }
 
                 //add methods
-                if (!methods.isEmpty) {
+                if (!methods.isEmpty()) {
                     sb.append("\t".repeat(indent++)).append("public interface methods {\n")
                     methods.entries().forEach { (simpleName, normalized) ->
                         var methodName = if (methods.get(simpleName)!!.size == 1) simpleName else normalized

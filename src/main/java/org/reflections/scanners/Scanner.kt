@@ -25,8 +25,11 @@ import java.lang.reflect.Modifier
 
 abstract class Scanner {
     lateinit var configuration: Configuration
-    lateinit var store: Multimap<IndexKey, IndexKey>
+    val store = Multimap<IndexKey, IndexKey>()
     var acceptResult: (fqn: IndexKey) -> Boolean = { true }
+
+    fun keyCount(): Int = store.keyCount()
+    fun valueCount(): Int = store.valueCount()
 
     abstract fun acceptsInput(file: String): Boolean
     abstract fun scan(vfsFile: VfsFile, classObject: ClassAdapter?): ClassAdapter?
@@ -34,6 +37,37 @@ abstract class Scanner {
     override fun equals(o: Any?) = this === o || o != null && javaClass == o.javaClass
     override fun hashCode() = javaClass.hashCode()
 }
+
+
+typealias Scanners = Collection<Scanner>
+
+inline fun <reified T : Scanner> Scanners.getOrThrowRecursively(keys: Collection<IndexKey>) =
+        keys + getOrThrowRecursivelyExceptSelf<T>(keys)
+
+inline fun <reified T : Scanner> Scanners.getOrThrowRecursivelyExceptSelf(keys: Collection<IndexKey>): List<IndexKey> {
+    val scanners = getOrThrow<T>()
+    val result = mutableListOf<IndexKey>()
+    var foundKeys = scanners.getAll(keys)
+    while (foundKeys.isNotEmpty()) {
+        result += foundKeys
+        foundKeys = scanners.getAll(foundKeys)
+    }
+    return result
+}
+
+inline fun <reified T : Scanner> Scanners.getOrThrow(key: IndexKey): List<IndexKey> = getOrThrow<T>(listOf(key))
+inline fun <reified T : Scanner> Scanners.getOrThrow(keys: Iterable<IndexKey>) = getOrThrow<T>().getAll(keys)
+
+inline fun <reified T : Scanner> Scanners.getOrThrow(): List<Scanner> {
+    val scanners = filterIsInstance<T>()
+    if (scanners.isEmpty()) throw RuntimeException("Scanner ${T::class.java.simpleName} was not configured")
+    return scanners
+}
+
+fun Scanners.getAll(keys: Iterable<IndexKey>) = keys.flatMap { key -> flatMap { it.store.get(key).orEmpty() } }
+fun Scanners.keyCount() = sumBy(Scanner::keyCount)
+fun Scanners.valueCount() = sumBy(Scanner::valueCount)
+
 
 /**
  * collects all resources that are not classes in a collection
@@ -76,8 +110,9 @@ class FieldAnnotationsScanner : BaseClassScanner() {
 class MemberUsageScanner : BaseClassScanner() {
     private val classPool by lazy {
         ClassPool().also { pool ->
-            classLoaders(configuration.classLoaders)
-                .forEach { classLoader -> pool.appendClassPath(LoaderClassPath(classLoader)) }
+            classLoaders(configuration.classLoaders).forEach { classLoader ->
+                pool.appendClassPath(LoaderClassPath(classLoader))
+            }
         }
     }
 

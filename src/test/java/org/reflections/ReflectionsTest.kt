@@ -40,6 +40,7 @@ import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
+import org.reflections.scanners.getOrThrow
 import org.reflections.util.IndexKey
 import org.reflections.util.annotationType
 import org.reflections.util.classAndInterfaceHieararchyExceptObject
@@ -263,7 +264,7 @@ open class ReflectionsTest {
         val resolved = reflections.getResources(Pattern.compile(".*resource1-reflections\\.xml"))
         assertThat(resolved, are(IndexKey("META-INF/reflections/resource1-reflections.xml")))
 
-        val resources = (reflections.stores).getOrThrow(ResourcesScanner::class).keys()
+        val resources = (reflections.stores).getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.toSet()
         assertThat(resources, are(IndexKey("resource1-reflections.xml"), IndexKey("resource2-reflections.xml")))
     }
 
@@ -316,7 +317,7 @@ open class ReflectionsTest {
                                       urls = listOfNotNull(urlForClass(TestModel::class.java)).toSet())).getMethodsAnnotatedWith(
                     AC1::class.java)
             fail()
-        } catch (e: ReflectionsException) {
+        } catch (e: RuntimeException) {
             assertEquals(e.message, "Scanner ${MethodAnnotationsScanner::class.java.simpleName} was not configured")
         }
     }

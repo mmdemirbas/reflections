@@ -2,8 +2,6 @@ package org.reflections.util
 
 import org.apache.logging.log4j.LogManager
 import org.reflections.Reflections
-import org.reflections.ReflectionsException
-import org.reflections.scanners.Scanner
 import java.io.File
 import java.io.IOException
 import java.lang.reflect.AnnotatedElement
@@ -24,7 +22,6 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.jar.Attributes
 import java.util.jar.JarFile
 import javax.servlet.ServletContext
-import kotlin.reflect.KClass
 
 
 // todo: library'nin bizim yerimize birşeyleri nasıl tarayacağına karar vermesi yerine
@@ -98,12 +95,6 @@ fun AnnotatedElement.fullName(): IndexKey = IndexKey(when (this) {
                                                          else              -> TODO()
                                                      })
 
-fun KClass<out Scanner>.indexName() = java.simpleName!!
-
-fun String.indexType(): KClass<out Scanner> =
-        (Class.forName("${Scanner::class.java.`package`.name}.${this}") as Class<out Scanner>).kotlin
-
-
 open class DefaultThreadFactory(private val namePrefix: String, private val daemon: Boolean) : ThreadFactory {
     private val group = System.getSecurityManager()?.threadGroup ?: Thread.currentThread().threadGroup
     private val threadNumber = AtomicInteger(1)
@@ -121,16 +112,15 @@ fun executorService(): ExecutorService? = Executors.newFixedThreadPool(Runtime.g
 
 class Multimap<K, V> {
     val map = mutableMapOf<K, MutableSet<V>>()
-    val isEmpty get() = map.isEmpty()
-    fun size() = map.values.map { it.size }.sum()
+    fun isEmpty() = map.isEmpty()
     fun putAll(multimap: Multimap<out K, out V>) = multimap.entries().forEach { put(it.key, it.value) }
     fun put(key: K, value: V) = map.getOrPut(key) { mutableSetOf() }.add(value)
     fun get(key: K) = map[key]
     fun keys() = map.keys
     fun values() = map.values.flatten()
-    fun entriesGrouped(): Collection<Map.Entry<K, Collection<V>>> = map.entries
-    fun entries(): Collection<Map.Entry<K, V>> =
-            map.entries.flatMap { (k, vs) -> vs.map { AbstractMap.SimpleImmutableEntry(k, it) } }
+    fun entries() = map.entries.flatMap { (k, vs) -> vs.map { AbstractMap.SimpleImmutableEntry(k, it) } }
+    fun keyCount() = map.keys.size
+    fun valueCount() = map.values.sumBy(Collection<*>::size)
 }
 
 
@@ -156,35 +146,29 @@ fun Class<*>.classAndInterfaceHieararchyExceptObject() = when {
  */
 fun <T> T.dfs(next: T.() -> Iterable<T>): List<T> = listOf(this) + next().flatMap { it.dfs(next) }
 
-fun <T : AnnotatedElement> withAnnotation(it: T, annotation: Annotation) =
-        it.isAnnotationPresent(annotation.annotationType()) && areAnnotationMembersMatching(it.getAnnotation(annotation.annotationType()),
-                                                                                            annotation)
+fun <T : AnnotatedElement> withAnnotation(element: T, expected: Annotation) =
+        element.isAnnotationPresent(expected.annotationType()) && areAnnotationMembersMatching(expected,
+                                                                                               element.getAnnotation(
+                                                                                                       expected.annotationType()))
 
-fun withAnyParameterAnnotation(it: Member, annotationClass: Class<out Annotation>): Boolean =
-        parameterAnnotations(it).map { it.annotationType() }.toSet().any { input1 -> input1 == annotationClass }
+fun withAnyParameterAnnotation(member: Member, expectedType: Class<out Annotation>) =
+        parameterAnnotations(member).map { actual -> actual.annotationType() }.toSet().any { actualType -> actualType == expectedType }
 
-fun withAnyParameterAnnotation(it: Member, annotation: Annotation) = parameterAnnotations(it).any {
-    areAnnotationMembersMatching(annotation, it)
-}
-
-fun areAnnotationMembersMatching(annotation1: Annotation, annotation2: Annotation?): Boolean {
-    if (annotation2 != null && annotation1.annotationType() == annotation2.annotationType()) {
-        annotation1.annotationType().declaredMethods.forEach { method ->
-            try {
-                if (method.invoke(annotation1) != method.invoke(annotation2)) {
-                    return false
-                }
-            } catch (e: Exception) {
-                throw ReflectionsException("could not invoke method ${method.name} on annotation ${annotation1.annotationType()}",
-                                           e)
-            }
-        }
-        return true
-    }
-    return false
+fun withAnyParameterAnnotation(member: Member, expected: Annotation) = parameterAnnotations(member).any { actual ->
+    areAnnotationMembersMatching(expected, actual)
 }
 
 fun parameterAnnotations(member: Member?) = (member as? Executable)?.parameterAnnotations?.flatten().orEmpty().toSet()
+
+fun areAnnotationMembersMatching(expected: Annotation, actual: Annotation?) = when {
+    actual == null                                       -> false
+    expected.annotationType() == actual.annotationType() -> expected.annotationType().declaredMethods.all { method ->
+        tryOrThrow("could not invoke method ${method.name} on annotation ${expected.annotationType()}") {
+            method.invoke(expected) == method.invoke(actual)
+        }
+    }
+    else                                                 -> false
+}
 
 data class Primitive(val type: Class<*>, val descriptor: Char)
 
@@ -208,19 +192,19 @@ fun classForName(typeName: String, classLoaders: List<ClassLoader> = emptyList()
     if (primitives.contains(typeName)) return primitives[typeName]!!.type
 
     val type = typeNameToTypeDescriptor(typeName)
-    val exception = ReflectionsException("could not get type for name $typeName from any class loader")
+    val exception = RuntimeException("could not get type for name $typeName from any class loader")
     classLoaders(classLoaders).forEach { classLoader ->
         if (type.contains('[')) {
             try {
                 return Class.forName(type, false, classLoader)
             } catch (e: Throwable) {
-                exception.addSuppressed(ReflectionsException("could not get type for name $typeName", e))
+                exception.addSuppressed(RuntimeException("could not get type for name $typeName", e))
             }
         }
         try {
             return classLoader.loadClass(type)
         } catch (e: Throwable) {
-            exception.addSuppressed(ReflectionsException("could not get type for name $typeName", e))
+            exception.addSuppressed(RuntimeException("could not get type for name $typeName", e))
         }
     }
 
@@ -254,7 +238,7 @@ fun staticClassLoader() = Reflections::class.java.classLoader ?: null
 /**
  * Returns class Loaders initialized from the specified array.
  *
- * If the input is null or empty, it defaults to both [.contextClassLoader] and [.staticClassLoader]
+ * If the input is null or empty, it defaults to both [contextClassLoader] and [staticClassLoader]
  */
 fun classLoaders(classLoaders: Collection<ClassLoader?>) = when {
     classLoaders.isNotEmpty() -> classLoaders.filterNotNull()
@@ -270,8 +254,8 @@ fun classLoaders(classLoaders: Collection<ClassLoader?>) = when {
  * classpath containing packages starting with `org.reflections`.
  *
  *
- * If the optional [ClassLoader]s are not specified, then both [.contextClassLoader]
- * and [.staticClassLoader] are used for [ClassLoader.getResources].
+ * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+ * and [staticClassLoader] are used for [ClassLoader.getResources].
  *
  *
  * The returned URLs retainsthe order of the given `classLoaders`.
@@ -290,8 +274,8 @@ fun urlForPackage(name: String, classLoaders: List<ClassLoader> = emptyList()) =
  * classpath containing files of that name.
  *
  *
- * If the optional [ClassLoader]s are not specified, then both [.contextClassLoader]
- * and [.staticClassLoader] are used for [ClassLoader.getResources].
+ * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+ * and [staticClassLoader] are used for [ClassLoader.getResources].
  *
  *
  * The returned URLs retains the order of the given `classLoaders`.
@@ -323,8 +307,8 @@ fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> 
  * This searches for the class using [ClassLoader.getResource].
  *
  *
- * If the optional [ClassLoader]s are not specified, then both [.contextClassLoader]
- * and [.staticClassLoader] are used for [ClassLoader.getResources].
+ * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+ * and [staticClassLoader] are used for [ClassLoader.getResources].
  *
  * @return the URL containing the class, null if not found
  */
@@ -353,8 +337,8 @@ fun urlForClass(aClass: Class<*>, classLoaders: Collection<ClassLoader> = emptyL
  * class loader, searching up the parent hierarchy.
  *
  *
- * If the optional [ClassLoader]s are not specified, then both [.contextClassLoader]
- * and [.staticClassLoader] are used for [ClassLoader.getResources].
+ * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+ * and [staticClassLoader] are used for [ClassLoader.getResources].
  *
  *
  * The returned URLs retains the order of the given `classLoaders`.
@@ -398,10 +382,9 @@ fun urlForJavaClassPath() =
  *
  * @return the collection of URLs, not null
  */
-fun ServletContext.webInfLibUrls() =
-        getResourcePaths("/WEB-INF/lib").orEmpty().mapNotNull { urlString ->
-            tryOrNull { getResource(urlString as String) }
-        }.distinctUrls()
+fun ServletContext.webInfLibUrls() = getResourcePaths("/WEB-INF/lib").orEmpty().mapNotNull { urlString ->
+    tryOrNull { getResource(urlString as String) }
+}.distinctUrls()
 
 /**
  * Returns the URL of the `WEB-INF/classes` folder.
@@ -490,9 +473,9 @@ fun <R> tryOrNull(block: () -> R) = tryCatch(block) { null }
 fun <R> tryOrDefault(default: R, block: () -> R) = tryCatch(block) { default }
 
 /**
- * Runs the given block and returns its result, or throws a [ReflectionsException] with the given [message].
+ * Runs the given block and returns its result, or throws a [RuntimeException] with the specifid [message] if an exception occurs.
  */
-fun <R> tryOrThrow(message: String, block: () -> R) = tryCatch(block) { throw ReflectionsException(message, it) }
+fun <R> tryOrThrow(message: String, block: () -> R) = tryCatch(block) { throw RuntimeException(message, it) }
 
 /**
  * Method equivalent of a try-catch block.

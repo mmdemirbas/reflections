@@ -1,7 +1,6 @@
 package org.reflections.vfs
 
 import org.reflections.Filter
-import org.reflections.ReflectionsException
 import org.reflections.util.logError
 import org.reflections.util.logWarn
 import org.reflections.util.tryOrThrow
@@ -74,7 +73,7 @@ object Vfs {
             null
         }
     }.firstOrNull()
-                                                                          ?: throw ReflectionsException("could not create VfsDir from url, no matching VfsUrlType was found [${url.toExternalForm()}]\neither use fromURL(final URL url, final List<VfsUrlType> urlTypes) or use the static setDefaultURLTypes(final List<VfsUrlType> urlTypes) or addDefaultURLTypes(VfsUrlType urlType) with your specialized VfsUrlType.")
+                                                                          ?: throw RuntimeException("could not create VfsDir from url, no matching VfsUrlType was found [${url.toExternalForm()}]\neither use fromURL(final URL url, final List<VfsUrlType> urlTypes) or use the static setDefaultURLTypes(final List<VfsUrlType> urlTypes) or addDefaultURLTypes(VfsUrlType urlType) with your specialized VfsUrlType.")
 
     /**
      * return an iterable of all [VfsFile] in given urls, starting with given packagePrefix and matching nameFilter

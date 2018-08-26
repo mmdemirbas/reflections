@@ -12,6 +12,7 @@ import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
+import org.reflections.scanners.getOrThrow
 import org.reflections.serializers.JsonSerializer
 import org.reflections.util.IndexKey
 import org.reflections.util.urlForClass
@@ -30,7 +31,7 @@ class ReflectionsCollectTest : ReflectionsTest() {
         val resolved = reflections.getResources(Pattern.compile(".*resource1-reflections\\.xml"))
         assertThat(resolved, ReflectionsTest.are(IndexKey("META-INF/reflections/resource1-reflections.xml")))
 
-        val resources = reflections.stores.getOrThrow(ResourcesScanner::class).keys()
+        val resources = reflections.stores.getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.toSet()
         assertThat(resources,
                    ReflectionsTest.are(IndexKey("resource1-reflections.xml"),
                                        IndexKey("resource2-reflections.xml"),
@@ -65,9 +66,8 @@ class ReflectionsCollectTest : ReflectionsTest() {
             ref.save("${ReflectionsTest.userDir}/target/test-classes/META-INF/reflections/testModel-reflections.json",
                      serializer)
 
-            ReflectionsTest.reflections = Reflections()
-            reflections.merge()
-            reflections.merge("META-INF/reflections", Include(".*-reflections.json"), serializer)
+            ReflectionsTest.reflections =
+                    Reflections().merged().merged("META-INF/reflections", Include(".*-reflections.json"), serializer)
         }
     }
 }

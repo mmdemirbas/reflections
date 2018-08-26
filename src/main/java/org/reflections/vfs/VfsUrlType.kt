@@ -1,6 +1,5 @@
 package org.reflections.vfs
 
-import org.reflections.ReflectionsException
 import org.reflections.util.contextClassLoader
 import org.reflections.util.logWarn
 import org.reflections.util.tryOrDefault
@@ -123,7 +122,7 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
                             }
                         }
                     }
-                    throw ReflectionsException("Unable to identify the real zip file in path '$path'.")
+                    throw RuntimeException("Unable to identify the real zip file in path '$path'.")
                 }
                 else    -> return@tryOrDefault url
             }

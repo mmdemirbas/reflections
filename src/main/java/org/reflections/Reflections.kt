@@ -11,6 +11,11 @@ import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
+import org.reflections.scanners.getOrThrow
+import org.reflections.scanners.getOrThrowRecursively
+import org.reflections.scanners.getOrThrowRecursivelyExceptSelf
+import org.reflections.scanners.keyCount
+import org.reflections.scanners.valueCount
 import org.reflections.serializers.Serializer
 import org.reflections.serializers.XmlSerializer
 import org.reflections.util.IndexKey
@@ -37,7 +42,6 @@ import java.net.URL
 import java.util.concurrent.Future
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.regex.Pattern
-import kotlin.reflect.KClass
 
 /**
  * Reflections one-stop-shop object
@@ -101,12 +105,12 @@ import kotlin.reflect.KClass
  * ResourcesScanner, MethodAnnotationsScanner, ConstructorAnnotationsScanner, FieldAnnotationsScanner,
  * MethodParameterScanner, MethodParameterNamesScanner, MemberUsageScanner or any custom scanner.
  *
- * Use [.getStore] to access and query the store directly
+ * Use [getStore] to access and query the store directly
  *
- * In order to save the store metadata, use [.save] or [.save]
+ * In order to save the store metadata, use [save] or [save]
  * for example with [org.reflections.serializers.XmlSerializer] or [org.reflections.serializers.JavaCodeSerializer]
  *
- * In order to collect pre saved metadata and avoid re-scanning, use [.collect]}
+ * In order to collect pre saved metadata and avoid re-scanning, use [collect]}
  *
  * *Make sure to scan all the transitively relevant packages.
  * <br></br>for instance, given your class C extends B extends A, and both B and A are located in another package than C,
@@ -117,36 +121,30 @@ import kotlin.reflect.KClass
  *For Javadoc, source code, and more information about Reflections Library, see http://github.com/ronmamo/reflections/
  */
 class Reflections(@Transient val configuration: Configuration = Configuration()) {
-    val stores = Stores()
+    val stores = configuration.scanners
 
     init {
-        //inject to scanners
-        configuration.scanners.forEach { scanner ->
-            scanner.configuration = configuration
-            scanner.store = stores.getOrCreate(scanner::class)
-        }
-
+        configuration.scanners.forEach { it.configuration = configuration }
         scan()
-
         if (configuration.expandSuperTypes) expandSuperTypes()
     }
 
     /**
      * get all types scanned. this is effectively similar to getting all subtypes of Object.
      *
-     * depends on SubTypesScanner configured with `SubTypesScanner(false)`, otherwise `ReflectionsException` is thrown
+     * depends on SubTypesScanner configured with `SubTypesScanner(false)`, otherwise `RuntimeException` is thrown
      *
      * *note using this might be a bad practice. it is better to get types matching some criteria,
-     * such as [.getSubTypesOf] or [.getTypesAnnotatedWith]*
+     * such as [getSubTypesOf] or [getTypesAnnotatedWith]*
      *
      * @return Set of String, and not of Class, in order to avoid definition of all types in PermGen
      */
     val allTypes by lazy {
         val allTypes =
-                stores.getOrThrowRecursively(index = SubTypesScanner::class, keys = listOf(Any::class.java.fullName()))
+                stores.getOrThrowRecursivelyExceptSelf<SubTypesScanner>(keys = listOf(Any::class.java.fullName()))
                     .toSet()
         when {
-            allTypes.isEmpty() -> throw ReflectionsException("Couldn't find subtypes of Object. Make sure SubTypesScanner initialized to include Object class - new SubTypesScanner(false)")
+            allTypes.isEmpty() -> throw RuntimeException("Couldn't find subtypes of Object. Make sure SubTypesScanner initialized to include Object class - new SubTypesScanner(false)")
             else               -> allTypes.map { it.value }.toSet()
         }
     }
@@ -189,7 +187,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
                     else                    -> scan(url)
                 }
                 scannedUrls++
-            } catch (e: ReflectionsException) {
+            } catch (e: RuntimeException) {
                 logWarn("could not create VfsDir from url. ignoring the exception and continuing", e)
             }
         }
@@ -205,8 +203,8 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
         logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values {}",
                 time,
                 scannedUrls,
-                keyCount(),
-                valueCount(),
+                stores.keyCount(),
+                stores.valueCount(),
                 if (executorService is ThreadPoolExecutor) "[using ${executorService.maximumPoolSize} cores]" else "")
     }
 
@@ -247,27 +245,29 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      *
      * @param serializer - optionally supply one serializer instance. if not specified or null, [org.reflections.serializers.XmlSerializer] will be used
      */
-    fun merge(packagePrefix: String = "META-INF/reflections/",
-              resourceNameFilter: Filter = Include(".*-reflections.xml"),
-              serializer: Serializer = XmlSerializer) {
+    fun merged(packagePrefix: String = "META-INF/reflections/",
+               resourceNameFilter: Filter = Include(".*-reflections.xml"),
+               serializer: Serializer = XmlSerializer): Reflections {
         val urls = urlForPackage(packagePrefix)
         val start = System.currentTimeMillis()
-        Vfs.findFiles(urls, packagePrefix, resourceNameFilter).forEach { file ->
+        val others = Vfs.findFiles(urls, packagePrefix, resourceNameFilter).map { file ->
             tryOrThrow("could not merge $file") {
-                file.openInputStream().use { stream ->
-                    serializer.read(stream).stores.triples().forEach { (indexName, key, string) ->
-                        stores.getOrCreate(indexName).put(key, string)
-                    }
-                }
+                file.openInputStream().use { stream -> serializer.read(stream) }
             }
         }
+        val time = System.currentTimeMillis() - start
+        val merged = merged(others)
         logInfo("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
-                System.currentTimeMillis() - start,
+                time,
                 urls.size,
-                keyCount(),
-                valueCount(),
+                merged.stores.keyCount(),
+                merged.stores.valueCount(),
                 urls.joinToString())
+        return merged
     }
+
+    fun merged(others: List<Reflections>) =
+            Reflections(Configuration(scanners = (listOf(this) + others).flatMap { it.stores }.toSet()))
 
     /**
      * serialize to a given directory and filename using given serializer
@@ -291,7 +291,8 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      *  * if expanding supertypes, B will be expanded with A (A->B in store) - then getSubTypes(A) will return C
      */
     fun expandSuperTypes() {
-        stores.getOrNull(SubTypesScanner::class)?.let { multimap ->
+        stores.filterIsInstance<SubTypesScanner>().forEach {
+            val multimap = it.store
             val expand = Multimap<IndexKey, IndexKey>()
             (multimap.keys() - multimap.values()).forEach { key ->
                 val type = classForName(key)
@@ -318,7 +319,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on SubTypesScanner configured
      */
     fun <T> getSubTypesOf(type: Class<T>) =
-            classesForNames<T>(stores.getOrThrowRecursively(SubTypesScanner::class, listOf(type.fullName()))).toSet()
+            classesForNames<T>(stores.getOrThrowRecursivelyExceptSelf<SubTypesScanner>(listOf(type.fullName()))).toSet()
 
     /**
      * get types annotated with a given annotation, both classes and annotations
@@ -335,7 +336,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on TypeAnnotationsScanner and SubTypesScanner configured
      */
     fun getTypesAnnotatedWith(annotation: Class<out Annotation>, honorInherited: Boolean = false): Set<Class<*>> {
-        val annotated = stores.getOrThrow(TypeAnnotationsScanner::class, listOf(annotation.fullName()))
+        val annotated = stores.getOrThrow<TypeAnnotationsScanner>(annotation.fullName())
         val classes = getAllAnnotated(annotated, annotation.isAnnotationPresent(Inherited::class.java), honorInherited)
         return classesForNames<Any>((annotated + classes).toSet()).toSet()
     }
@@ -348,8 +349,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on TypeAnnotationsScanner configured
      */
     fun getTypesAnnotatedWith(annotation: Annotation, honorInherited: Boolean = false): Set<Class<*>> {
-        val annotated =
-                stores.getOrThrow(TypeAnnotationsScanner::class, listOf(annotation.annotationClass.java.fullName()))
+        val annotated = stores.getOrThrow<TypeAnnotationsScanner>(annotation.annotationClass.java.fullName())
         val filter = classesForNames<Any>(annotated).filter { withAnnotation(it, annotation) }.toSet()
         val classes =
                 getAllAnnotated(filter.map { it.fullName() },
@@ -361,18 +361,16 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
     private fun getAllAnnotated(annotated: Collection<IndexKey>,
                                 inherited: Boolean,
                                 honorInherited: Boolean): Collection<IndexKey> {
-        return if (honorInherited) {
-            if (inherited) {
-                val subTypes = stores.getOrThrow(SubTypesScanner::class, annotated.filter { input ->
+        return when {
+            !honorInherited -> stores.getOrThrowRecursively<SubTypesScanner>(stores.getOrThrowRecursively<TypeAnnotationsScanner>(
+                    annotated))
+            inherited       -> {
+                val subTypes = stores.getOrThrow<SubTypesScanner>(annotated.filter { input ->
                     classForName(input)?.isInterface == false
                 }.toSet())
-                subTypes + stores.getOrThrowRecursively(SubTypesScanner::class, subTypes)
-            } else {
-                annotated
+                stores.getOrThrowRecursively<SubTypesScanner>(subTypes)
             }
-        } else {
-            val subTypes = annotated + stores.getOrThrowRecursively(TypeAnnotationsScanner::class, annotated)
-            subTypes + stores.getOrThrowRecursively(SubTypesScanner::class, subTypes)
+            else            -> annotated
         }
     }
 
@@ -432,13 +430,14 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
     fun getConstructorsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).methodParams().filterIsInstance<Constructor<*>>().toSet()
 
-    fun List<IndexKey>.methodAnnotations() = membersIn(MethodAnnotationsScanner::class)
-    fun List<IndexKey>.methodParams() = membersIn(MethodParameterScanner::class)
-    fun List<IndexKey>.membersIn(indexKey: KClass<out Scanner>) = stores.getOrThrow(indexKey, this).map { value ->
+    fun List<IndexKey>.methodAnnotations() = membersIn<MethodAnnotationsScanner>()
+    fun List<IndexKey>.methodParams() = membersIn<MethodParameterScanner>()
+
+    inline fun <reified T : Scanner> List<IndexKey>.membersIn() = stores.getOrThrow<T>(this).map { value ->
         tryOrThrow("Can't resolve member named $value") { value.descriptorToMember() }
     }
 
-    private fun IndexKey.descriptorToMember(): Member {
+    fun IndexKey.descriptorToMember(): Member {
         val descriptor = value
         val p0 = descriptor.lastIndexOf('(')
         val memberKey = if (p0 == -1) descriptor else descriptor.substringBeforeLast('(')
@@ -480,8 +479,8 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
             }
         }
         when {
-            descriptor.contains("(") -> throw ReflectionsException("Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className")
-            else                     -> throw ReflectionsException("Can't resolve $memberName field for class $className")
+            descriptor.contains("(") -> throw RuntimeException("Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className")
+            else                     -> throw RuntimeException("Can't resolve $memberName field for class $className")
         }
     }
 
@@ -517,7 +516,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on FieldAnnotationsScanner configured
      */
     fun getFieldsAnnotatedWith(annotation: Class<out Annotation>) =
-            stores.getOrThrow(FieldAnnotationsScanner::class, listOf(annotation.fullName())).map {
+            stores.getOrThrow<FieldAnnotationsScanner>(annotation.fullName()).map {
                 val field = it.value
                 val className = field.substringBeforeLast('.')
                 val fieldName = field.substringAfterLast('.')
@@ -541,7 +540,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on ResourcesScanner configured
      */
     private fun getResources(namePredicate: (String) -> Boolean) =
-            stores.getOrThrow(ResourcesScanner::class, stores.getOrThrow(ResourcesScanner::class).keys().filter {
+            stores.getOrThrow<ResourcesScanner>(stores.getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.filter {
                 namePredicate(it.value)
             }).toMutableSet()
 
@@ -559,7 +558,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on MethodParameterNamesScanner configured
      */
     fun getParamNames(executable: Executable): List<String> {
-        val names = stores.getOrThrow(MethodParameterNamesScanner::class, listOf(executable.fullName())).toList()
+        val names = stores.getOrThrow<MethodParameterNamesScanner>(executable.fullName()).toList()
         return when {
             names.isEmpty() -> emptyList()
             else            -> names.single().value.split(", ").dropLastWhile { it.isEmpty() }
@@ -571,15 +570,9 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      *
      * depends on MemberUsageScanner configured
      */
-    fun getUsage(o: AccessibleObject) = listOf(o.fullName()).membersIn(MemberUsageScanner::class).toSet()
+    fun getUsage(o: AccessibleObject) = listOf(o.fullName()).membersIn<MemberUsageScanner>().toSet()
 
-    private fun keyCount(): Int = stores.keys().sumBy { stores.getOrThrow(it).keys().size }
-    private fun valueCount(): Int = stores.keys().sumBy { stores.getOrThrow(it).size() }
-
-    fun <T> classesForNames(classes: Iterable<IndexKey>) = classes.mapNotNull {
-        classForName(it)
-    }.map { it as Class<out T> }
-
+    fun <T> classesForNames(classes: Iterable<IndexKey>) = classes.mapNotNull { classForName(it) as Class<out T>? }
     fun classForName(typeName: IndexKey) = classForName(typeName.value)
     fun classForName(typeName: String) = classForName(typeName, configuration.classLoaders)
 }

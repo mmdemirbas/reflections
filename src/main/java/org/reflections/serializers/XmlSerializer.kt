@@ -3,9 +3,10 @@ package org.reflections.serializers
 import org.dom4j.io.OutputFormat
 import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
+import org.reflections.Configuration
 import org.reflections.Reflections
+import org.reflections.scanners.Scanner
 import org.reflections.util.IndexKey
-import org.reflections.util.indexName
 import org.reflections.util.makeParents
 import org.reflections.util.tryOrThrow
 import java.io.File
@@ -34,27 +35,27 @@ import java.io.Writer
  */
 object XmlSerializer : Serializer {
     override fun read(inputStream: InputStream): Reflections {
-        val reflections = Reflections()
-        tryOrThrow("could not read.") {
+        return tryOrThrow("could not read.") {
+            val scanners = mutableListOf<Scanner>()
             SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
                 val index = e1 as org.dom4j.Element
+                val scanner = indexNameToClass(index.name).newInstance() as Scanner
                 index.elements().forEach { e2 ->
                     val entry = e2 as org.dom4j.Element
                     val key = entry.element("key")
                     entry.element("values").elements().map { it as org.dom4j.Node }.forEach {
-                        reflections.stores.getOrCreate(index.name).put(IndexKey(key.text), IndexKey(it.text))
+                        scanner.store.put(IndexKey(key.text), IndexKey(it.text))
                     }
                 }
+                scanners.add(scanner)
             }
+            Reflections(Configuration(scanners = scanners.toSet()))
         }
-        return reflections
     }
 
     override fun save(reflections: Reflections, filename: String) = tryOrThrow("could not save to file $filename") {
         val file = File(filename).makeParents()
-        FileWriter(file).use { writer ->
-            writeTo(writer, reflections)
-        }
+        FileWriter(file).use { writer -> writeTo(writer, reflections) }
         file
     }
 
@@ -72,9 +73,9 @@ object XmlSerializer : Serializer {
     private fun createDocument(reflections: Reflections): org.dom4j.Document {
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
-        reflections.stores.entries().forEach { (indexKey, index) ->
-            val indexElement = root.addElement(indexKey.indexName())
-            index.entriesGrouped().forEach { (key, values) ->
+        reflections.stores.forEach { scanner ->
+            val indexElement = root.addElement(classToIndexName(scanner))
+            scanner.store.map.entries.forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")
                 entryElement.addElement("key").text = key.value
                 val valuesElement = entryElement.addElement("values")
@@ -85,4 +86,9 @@ object XmlSerializer : Serializer {
         }
         return document
     }
+
+    private fun indexNameToClass(indexName: String?) =
+            Class.forName("${Scanner::class.java.`package`.name}.$indexName")!!
+
+    private fun classToIndexName(scanner: Scanner) = scanner.javaClass.simpleName!!
 }

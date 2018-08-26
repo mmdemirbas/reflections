@@ -9,7 +9,7 @@ import java.lang.reflect.Member
  * convenient java reflection helper methods
  *
  *
- * 1. some helper methods to get type by name: [.classForName] and [.classesForNames]
+ * 1. some helper methods to get type by name: [classForName] and [classesForNames]
  *
  *
  * 2. some helper methods to get all types/methods/fields/constructors/properties matching some predicates, generally:
@@ -17,25 +17,25 @@ import java.lang.reflect.Member
  *
  * where get methods are:
  *
- *  * [.classAndInterfaceHieararchyExceptObject]
- *  * [.getAllFields]
- *  * [.getAllMethods]
- *  * [.getAllConstructors]
+ *  * [classAndInterfaceHieararchyExceptObject]
+ *  * [getAllFields]
+ *  * [getAllMethods]
+ *  * [getAllConstructors]
  *
  *
  * and predicates included here all starts with "with", such as
  *
- *  * [.withAnnotation]
- *  * [.withModifier]
- *  * [.withName]
- *  * [.withParameters]
- *  * [.withAnyParameterAnnotation]
- *  * [.withParametersAssignableTo]
- *  * [.withParametersAssignableFrom]
- *  * [.withPrefix]
- *  * [.withReturnType]
- *  * [.withType]
- *  * [.withTypeAssignableTo]
+ *  * [withAnnotation]
+ *  * [withModifier]
+ *  * [withName]
+ *  * [withParameters]
+ *  * [withAnyParameterAnnotation]
+ *  * [withParametersAssignableTo]
+ *  * [withParametersAssignableFrom]
+ *  * [withPrefix]
+ *  * [withReturnType]
+ *  * [withType]
+ *  * [withTypeAssignableTo]
  *
  *
  *
