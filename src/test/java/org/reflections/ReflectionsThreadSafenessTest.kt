@@ -2,7 +2,6 @@ package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.util.urlForClass
 import java.util.concurrent.Executors
@@ -15,10 +14,9 @@ class ReflectionsThreadSafenessTest {
     @Test
     fun reflections_scan_is_thread_safe() {
         val callable = {
-            val configuration = Configuration()
-            configuration.urls = listOfNotNull(urlForClass(Map::class.java)).toMutableSet()
-            configuration.scanners = arrayOf<Scanner>(SubTypesScanner(false)).toSet()
-            val reflections = Reflections(configuration)
+            val reflections =
+                    Reflections(Configuration(scanners = setOf(SubTypesScanner(false)),
+                                              urls = setOf(urlForClass(Map::class.java)!!)))
 
             reflections.subTypesOf(Map::class.java)
         }

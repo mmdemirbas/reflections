@@ -48,9 +48,11 @@ open class ReflectionsTest {
     @Test
     fun testSubTypesOf() {
         assertToStringEquals(setOf(I2::class.java, C1::class.java, C2::class.java, C3::class.java, C5::class.java),
-                             reflections.subTypesOf(I1::class.java), sortBy = Any::toString)
+                             reflections.subTypesOf(I1::class.java),
+                             sortBy = Any::toString)
         assertToStringEquals(setOf(C2::class.java, C3::class.java, C5::class.java),
-                             reflections.subTypesOf(C1::class.java), sortBy = Any::toString)
+                             reflections.subTypesOf(C1::class.java),
+                             sortBy = Any::toString)
         assertFalse(reflections.allTypes().isEmpty(),
                     "allTypes should not be empty when Reflections is configured with SubTypesScanner(false)")
     }
@@ -234,11 +236,10 @@ open class ReflectionsTest {
     @Test
     open fun testResourcesScanner() {
         val filter = Filter.Composite(listOf(Include(".*\\.xml"), Exclude(".*testModel-reflections\\.xml")))
-        val configuration = Configuration()
-        configuration.filter = filter
-        configuration.scanners = arrayOf(ResourcesScanner()).toSet()
-        configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
-        val reflections = Reflections(configuration)
+        val reflections =
+                Reflections(Configuration(scanners = setOf(ResourcesScanner()),
+                                          filter = filter,
+                                          urls = setOf(urlForClass(TestModel::class.java)!!)))
 
         val resolved = reflections.resources(Pattern.compile(".*resource1-reflections\\.xml"))
         assertToStringEquals(setOf(Datum("META-INF/reflections/resource1-reflections.xml")), resolved)
@@ -331,18 +332,16 @@ open class ReflectionsTest {
         @BeforeAll
         @JvmStatic
         fun init() {
-            val configuration = Configuration()
-            configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
-            configuration.filter = TestModelFilter
-            configuration.scanners =
-                    setOf(SubTypesScanner(false),
-                          TypeAnnotationsScanner(),
-                          FieldAnnotationsScanner(),
-                          MethodAnnotationsScanner(),
-                          MethodParameterScanner(),
-                          MethodParameterNamesScanner(),
-                          MemberUsageScanner())
-            reflections = Reflections(configuration)
+            reflections =
+                    Reflections(Configuration(scanners = setOf(SubTypesScanner(false),
+                                                               TypeAnnotationsScanner(),
+                                                               FieldAnnotationsScanner(),
+                                                               MethodAnnotationsScanner(),
+                                                               MethodParameterScanner(),
+                                                               MethodParameterNamesScanner(),
+                                                               MemberUsageScanner()),
+                                              filter = TestModelFilter,
+                                              urls = setOf(urlForClass(TestModel::class.java)!!)))
             println(JsonSerializer.toString(reflections))
         }
 

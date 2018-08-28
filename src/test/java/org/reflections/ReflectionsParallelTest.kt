@@ -6,7 +6,6 @@ import org.reflections.scanners.MemberUsageScanner
 import org.reflections.scanners.MethodAnnotationsScanner
 import org.reflections.scanners.MethodParameterNamesScanner
 import org.reflections.scanners.MethodParameterScanner
-import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
 import org.reflections.serializers.JsonSerializer
@@ -18,19 +17,17 @@ class ReflectionsParallelTest : ReflectionsTest() {
         @BeforeAll
         @JvmStatic
         fun init() {
-            val configuration = Configuration()
-            configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
-            configuration.filter = ReflectionsTest.TestModelFilter
-            configuration.scanners =
-                    arrayOf<Scanner>(SubTypesScanner(false),
-                                     TypeAnnotationsScanner(),
-                                     FieldAnnotationsScanner(),
-                                     MethodAnnotationsScanner(),
-                                     MethodParameterScanner(),
-                                     MethodParameterNamesScanner(),
-                                     MemberUsageScanner()).toSet()
-            configuration.executorService = executorService()
-            reflections = Reflections(configuration)
+            reflections =
+                    Reflections(Configuration(scanners = setOf(SubTypesScanner(false),
+                                                               TypeAnnotationsScanner(),
+                                                               FieldAnnotationsScanner(),
+                                                               MethodAnnotationsScanner(),
+                                                               MethodParameterScanner(),
+                                                               MethodParameterNamesScanner(),
+                                                               MemberUsageScanner()),
+                                              filter = TestModelFilter,
+                                              urls = setOf(urlForClass(TestModel::class.java)!!),
+                                              executorService = executorService()))
             println(JsonSerializer.toString(reflections))
         }
     }

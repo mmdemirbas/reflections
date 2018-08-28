@@ -28,8 +28,6 @@ import javax.servlet.ServletContext
 
 // todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
 
-// todo: Configuration'ın create edilip sonra modifiye edildiği yerleri düzelt. Create edilirken set edilsin.
-
 // todo: uzun testleri parçala
 // todo: testleri geçir
 // todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
@@ -95,19 +93,19 @@ fun File.makeParents(): File {
 data class Datum(val value: String)
 
 fun AnnotatedElement.fullName(): Datum = Datum(when (this) {
-                                                         is Class<*>       -> this.name + when {
-                                                             this.isArray -> "[]".repeat(this.generateWhileNotNull { componentType }.size)
-                                                             else         -> ""
-                                                         }
-                                                         is Field          -> "${declaringClass.name}.$name"
-                                                         is Method         -> "${declaringClass.name}.$name(${parameterTypes.joinToString {
-                                                             it.fullName().value
-                                                         }})"
-                                                         is Constructor<*> -> "${this.declaringClass.name}.<init>(${this.parameterTypes.joinToString {
-                                                             it.fullName().value
-                                                         }})"
-                                                         else              -> TODO()
-                                                     })
+                                                   is Class<*>       -> this.name + when {
+                                                       this.isArray -> "[]".repeat(this.generateWhileNotNull { componentType }.size)
+                                                       else         -> ""
+                                                   }
+                                                   is Field          -> "${declaringClass.name}.$name"
+                                                   is Method         -> "${declaringClass.name}.$name(${parameterTypes.joinToString {
+                                                       it.fullName().value
+                                                   }})"
+                                                   is Constructor<*> -> "${this.declaringClass.name}.<init>(${this.parameterTypes.joinToString {
+                                                       it.fullName().value
+                                                   }})"
+                                                   else              -> TODO()
+                                               })
 
 open class DefaultThreadFactory(private val namePrefix: String, private val daemon: Boolean) : ThreadFactory {
     private val group = System.getSecurityManager()?.threadGroup ?: Thread.currentThread().threadGroup
@@ -451,9 +449,11 @@ fun tryToGetValidUrl(workingDir: File, path: File, filename: File) = listOf(file
                                                                             workingDir.resolve(filename)).firstOrNull { it.exists() }?.toURI()?.toURL()
 
 fun URL.cleanPath(): String {
-    var path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }.removePrefix("jar:").removePrefix("file:")
-    if (path.endsWith("!/")) path = path.removeSuffix("!/") + '/'
-    return path
+    val path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }.removePrefix("jar:").removePrefix("file:")
+    return when {
+        path.endsWith("!/") -> path.removeSuffix("!/") + '/'
+        else                -> path
+    }
 }
 
 fun Collection<URL>.distinctUrls() = associate { it.toExternalForm() to it }.values.toSet()

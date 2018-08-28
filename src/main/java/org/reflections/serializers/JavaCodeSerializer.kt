@@ -76,10 +76,6 @@ object JavaCodeSerializer : Serializer {
             name = name.dropLast(1) //trim / at the end
         }
 
-        //prepare file
-        val filename = name.replace('.', '/') + ".java"
-        val file = File(filename).makeParents()
-
         //get package and class names
         val packageName: String
         val className: String
@@ -105,7 +101,9 @@ object JavaCodeSerializer : Serializer {
         sb.append("public interface ").append(className).append(" {\n\n")
         sb.append(toString(reflections))
         sb.append("}\n")
-        write(File(filename).toPath(), sb.toString().toByteArray(Charset.defaultCharset()))
+
+        write(File(name.replace('.', '/') + ".java").makeParents().toPath(),
+              sb.toString().toByteArray(Charset.defaultCharset()))
     }
 
     override fun toString(reflections: Reflections): String {
@@ -154,15 +152,14 @@ object JavaCodeSerializer : Serializer {
                         if (!element.startsWith("<")) {
                             val name = element.substringBefore('(')
                             val params = element.substringBetween('(', ')')
-
-                            var paramsDescriptor = ""
-                            if (!params.isEmpty()) {
-                                paramsDescriptor = tokenSeparator +
-                                        params.replace(dotSeparator, tokenSeparator).replace(", ",
-                                                                                             doubleSeparator).replace("[]",
-                                                                                                                      arrayDescriptor)
+                            val normalized = when {
+                                params.isEmpty() -> name
+                                else             -> name + tokenSeparator + params.replace(dotSeparator,
+                                                                                           tokenSeparator).replace(", ",
+                                                                                                                   doubleSeparator).replace(
+                                        "[]",
+                                        arrayDescriptor)
                             }
-                            val normalized = name + paramsDescriptor
                             methods.put(name, normalized)
                         }
                     !element.isEmpty()      -> //field
@@ -188,12 +185,9 @@ object JavaCodeSerializer : Serializer {
             if (!methods.isEmpty()) {
                 sb.append("\t".repeat(indent++)).append("public interface methods {\n")
                 methods.entries().forEach { (simpleName, normalized) ->
-                    var methodName = if (methods.get(simpleName)!!.size == 1) simpleName else normalized
-
-                    methodName = getNonDuplicateName(methodName, fields)
-
+                    val methodName = if (methods.get(simpleName)!!.size == 1) simpleName else normalized
                     sb.append("\t".repeat(indent)).append("public interface ")
-                        .append(getNonDuplicateName(methodName, typePaths)).append(" {}\n")
+                        .append(getNonDuplicateName(getNonDuplicateName(methodName, fields), typePaths)).append(" {}\n")
                 }
                 sb.append("\t".repeat(--indent)).append("}\n")
             }
@@ -202,9 +196,8 @@ object JavaCodeSerializer : Serializer {
             if (!annotations.isEmpty()) {
                 sb.append("\t".repeat(indent++)).append("public interface annotations {\n")
                 annotations.forEach { annotation ->
-                    var nonDuplicateName = annotation
-                    nonDuplicateName = getNonDuplicateName(nonDuplicateName, typePaths)
-                    sb.append("\t".repeat(indent)).append("public interface ").append(nonDuplicateName).append(" {}\n")
+                    sb.append("\t".repeat(indent)).append("public interface ")
+                        .append(getNonDuplicateName(annotation, typePaths)).append(" {}\n")
                 }
                 sb.append("\t".repeat(--indent)).append("}\n")
             }

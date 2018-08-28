@@ -13,7 +13,6 @@ import org.reflections.TestModel.AC2
 import org.reflections.TestModel.C1
 import org.reflections.TestModel.C2
 import org.reflections.TestModel.C4
-import org.reflections.scanners.Scanner
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.serializers.JavaCodeSerializer
 import org.reflections.util.urlForClass
@@ -49,15 +48,12 @@ class JavaCodeSerializerTest {
         @BeforeAll
         @JvmStatic
         fun generateAndSave() {
-            val configuration = Configuration()
-            configuration.filter = Include("org.reflections.TestModel\\$.*")
-            configuration.scanners = arrayOf<Scanner>(TypeElementsScanner(publicOnly = false)).toSet()
-            configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
-            val reflections = Reflections(configuration)
-
-            //save
-            val file =ReflectionsTest.userDir.resolve("src/test/java/org.reflections.MyTestModelStore")
-            reflections.save(file, JavaCodeSerializer)
+            val reflections =
+                    Reflections(Configuration(scanners = setOf(TypeElementsScanner(publicOnly = false)),
+                                              filter = Include("org.reflections.TestModel\\$.*"),
+                                              urls = setOf(urlForClass(TestModel::class.java)!!)))
+            reflections.save(file = ReflectionsTest.userDir.resolve("src/test/java/org.reflections.MyTestModelStore"),
+                             serializer = JavaCodeSerializer)
         }
     }
 }

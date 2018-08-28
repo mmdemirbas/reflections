@@ -37,7 +37,6 @@ import java.util.regex.Pattern
 
 abstract class Scanner() {
     val store = Multimap<Datum, Datum>()
-    var acceptResult: (fqn: Datum) -> Boolean = { true }
 
     fun keys() = store.keys()
     fun entries(): MutableSet<MutableMap.MutableEntry<Datum, MutableSet<Datum>>> = store.map.entries
@@ -46,6 +45,7 @@ abstract class Scanner() {
     fun valueCount(): Int = store.valueCount()
 
     abstract fun acceptsInput(file: String): Boolean
+    open fun acceptResult(fqn: Datum) = true
 
     // todo: eliminate classObject parameter and cache it elsewhere if needed.
     abstract fun scan(vfsFile: VfsFile, classObject: ClassAdapter?): ClassAdapter?
@@ -59,10 +59,10 @@ abstract class Scanner() {
 
     fun recursiveValuesExcludingSelf(keys: Collection<Datum>): List<Datum> {
         val result = mutableListOf<Datum>()
-        var foundKeys = values(keys)
-        while (foundKeys.isNotEmpty()) {
-            result += foundKeys
-            foundKeys = values(foundKeys)
+        var values = values(keys)
+        while (values.isNotEmpty()) {
+            result += values
+            values = values(values)
         }
         return result
     }
@@ -103,8 +103,7 @@ class ResourcesScanner : Scanner() {
      *
      * depends on ResourcesScanner configured
      */
-    fun resources(namePredicate: (String) -> Boolean) =
-            values(store.keys().filter { namePredicate(it.value) }).toSet()
+    fun resources(namePredicate: (String) -> Boolean) = values(store.keys().filter { namePredicate(it.value) }).toSet()
 }
 
 abstract class BaseClassScanner : Scanner() {
@@ -266,13 +265,11 @@ class MethodParameterNamesScanner : BaseClassScanner() {
             val table =
                     (method as JavassistMethodAdapter).method.codeAttribute?.getAttribute(LocalVariableAttribute.tag) as LocalVariableAttribute?
             val length = table?.tableLength() ?: 0
-            var i = if (Modifier.isStatic(method.method.accessFlags)) 0 else 1 //skip this
-            if (i < length) {
-                val names = mutableListOf<String>()
-                while (i < length) {
-                    names.add(method.method.constPool.getUtf8Info(table!!.nameIndex(i++)))
-                }
-                store.put(key, Datum(names.joinToString()))
+            val startIndex = if (Modifier.isStatic(method.method.accessFlags)) 0 else 1 //skip this
+            if (startIndex < length) {
+                store.put(key, Datum((startIndex until length).joinToString {
+                    method.method.constPool.getUtf8Info(table!!.nameIndex(it))
+                }))
             }
         }
     }
@@ -407,12 +404,10 @@ class TypeAnnotationsScanner : BaseClassScanner() {
  */
 class SubTypesScanner(val excludeObjectClass: Boolean = true,
                       val expandSuperTypes: Boolean = true) : BaseClassScanner() {
-    init {
-        if (excludeObjectClass) {
-            //exclude direct Object subtypes
-            val exclude = Filter.Exclude(Any::class.java.name)
-            acceptResult = { exclude.test(it.value) }
-        }
+
+    override fun acceptResult(fqn: Datum) = when {
+        excludeObjectClass -> Filter.Exclude(Any::class.java.name).test(fqn.value)
+        else               -> true
     }
 
     override fun scan(cls: ClassAdapter) {

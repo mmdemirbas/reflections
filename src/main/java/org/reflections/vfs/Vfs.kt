@@ -58,7 +58,7 @@ object Vfs {
     /**
      * the default url types that will be used when issuing [org.reflections.vfs.Vfs.fromURL]
      */
-    var defaultUrlTypes: MutableList<VfsUrlType> = BuiltinVfsUrlTypes.values().toMutableList()
+    val defaultUrlTypes: MutableList<VfsUrlType> = BuiltinVfsUrlTypes.values().toMutableList()
 
     /**
      * tries to create a VfsDir from the given url, using the given urlTypes

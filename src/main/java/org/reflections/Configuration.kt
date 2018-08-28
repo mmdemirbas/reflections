@@ -18,11 +18,11 @@ import java.util.regex.Pattern
  * @property classLoaders the class loaders, might be used for resolving methods/fields
  * @constructor
  */
-data class Configuration(var scanners: Set<Scanner> = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
-                         var urls: Set<URL> = emptySet(),
-                         var filter: Filter = Filter.Composite(emptyList()),
-                         var executorService: ExecutorService? = null,
-                         var classLoaders: List<ClassLoader> = defaultClassLoaders())
+data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
+                         val urls: Set<URL> = emptySet(),
+                         val filter: Filter = Filter.Composite(emptyList()),
+                         val executorService: ExecutorService? = null,
+                         val classLoaders: List<ClassLoader> = defaultClassLoaders())
 
 
 sealed class Filter {

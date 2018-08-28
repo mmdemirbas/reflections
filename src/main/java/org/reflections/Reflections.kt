@@ -150,7 +150,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
 
         logDebug("going to scan these urls:\n{}", configuration.urls.joinToString("\n"))
 
-        var time = System.currentTimeMillis()
+        val startTime = System.currentTimeMillis()
         var scannedUrls = 0
         val executorService = configuration.executorService
         val futures = mutableListOf<Future<*>>()
@@ -175,13 +175,13 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
 
         scanners().forEach { scanner -> scanner.afterScan() }
 
-        time = System.currentTimeMillis() - time
+        val elapsedTime = System.currentTimeMillis() - startTime
 
         //gracefully shutdown the parallel scanner executor service.
         executorService?.shutdown()
 
         logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values {}",
-                time,
+                elapsedTime,
                 scannedUrls,
                 keyCount(),
                 valueCount(),
