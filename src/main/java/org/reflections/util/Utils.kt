@@ -268,7 +268,7 @@ fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(
  *
  * @return the collection of URLs, not null
  */
-fun urlForPackage(name: String, classLoaders: List<ClassLoader> = emptyList()) =
+fun urlForPackage(name: String, classLoaders: List<ClassLoader> = defaultClassLoaders()) =
         urlForResource(name.replace(".", "/").replace("\\", "/").removePrefix("/"), classLoaders)
 
 /**
@@ -291,7 +291,8 @@ fun urlForPackage(name: String, classLoaders: List<ClassLoader> = emptyList()) =
 fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> = defaultClassLoaders()) =
         classLoaders.flatMap<ClassLoader, URL> { classLoader ->
             try {
-                classLoader.getResources(resourceName).toList().map { url ->
+                val resources = classLoader.getResources(resourceName).toList()
+                resources.map { url ->
                     val externalForm = url.toExternalForm()
                     when {
                         externalForm.contains(resourceName!!) -> // Add old url as contextUrl to support exotic url handlers

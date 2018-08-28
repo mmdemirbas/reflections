@@ -33,9 +33,9 @@ class ReflectionsExpandSupertypesTest {
                 Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
                               urls = setOf(urlForClass(C::class.java)!!),
                               filter = inputsFilter).withScan()
-        val subTypesOf = refExpand.subTypesOf(A::class.java)
-        assertTrue(subTypesOf.contains(B::class.java), "expanded")
-        assertTrue(subTypesOf.containsAll(refExpand.subTypesOf(B::class.java)), "transitivity")
+        val subTypes = refExpand.subTypesOf(A::class.java)
+        assertTrue(subTypes.contains(B::class.java), "expanded")
+        assertTrue(subTypes.containsAll(refExpand.subTypesOf(B::class.java)), "transitivity")
     }
 
     @Test

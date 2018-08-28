@@ -24,6 +24,8 @@ import org.reflections.util.tryOrThrow
 import org.reflections.util.urlForPackage
 import org.reflections.util.withAnnotation
 import org.reflections.vfs.Vfs
+import org.reflections.vfs.VfsDir
+import org.reflections.vfs.VfsFile
 import java.io.File
 import java.lang.annotation.Inherited
 import java.lang.reflect.AccessibleObject
@@ -62,16 +64,17 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
      * @param prefix   package prefix, to be used with [urlForPackage] )}
      * @param scanners optionally supply scanners, otherwise defaults to [TypeAnnotationsScanner] and [SubTypesScanner]
      */
-    constructor(prefix: String, vararg scanners: Scanner) : this(filter = Filter.Include(prefix.toPrefixRegex()),
-                                                                 urls = urlForPackage(prefix),
-                                                                 scanners = scanners.toSet())
+    constructor(prefix: String, vararg scanners: Scanner = arrayOf(TypeAnnotationsScanner(), SubTypesScanner())) : this(
+            filter = Filter.Include(prefix.toPrefixRegex()),
+            urls = urlForPackage(prefix),
+            scanners = scanners.toSet())
 
     fun withScan(): Configuration {
         scan()
         return this
     }
 
-    fun scan() {
+    private fun scan() {
         if (urls.isEmpty()) {
             logWarn("given scan urls are empty. set urls in the configuration")
             return
@@ -89,10 +92,10 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
         urls.forEach { url ->
             try {
                 when (executorService) {
-                    null -> this.scan(url)
+                    null -> scanUrl(url)
                     else -> futures.add(executorService.submit {
                         logDebug("[{}] scanning {}", Thread.currentThread(), url)
-                        this.scan(url)
+                        scanUrl(url)
                     })
                 }
                 scannedUrls++
@@ -103,6 +106,8 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
 
         //todo use CompletionService
         futures.forEach { it.get() }
+
+        scanners.forEach { it.afterScan() }
 
         val elapsedTime = System.currentTimeMillis() - startTime
 
@@ -117,25 +122,26 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
                 if (executorService is ThreadPoolExecutor) "[using ${executorService.maximumPoolSize} cores]" else "")
     }
 
-    fun scan(url: URL) = Vfs.fromURL(url).use { dir ->
-        dir.files.forEach { file ->
-            val inputsFilter = filter
-            val path = file.relativePath
-            val fqn = path!!.replace('/', '.')
-            if (inputsFilter.test(path) || inputsFilter.test(fqn)) {
-                var classObject: ClassAdapter? = null
-                scanners.forEach { scanner ->
-                    try {
-                        if (scanner.acceptsInput(path) || scanner.acceptsInput(fqn)) {
-                            classObject = scanner.scan(file, classObject)
-                        }
-                    } catch (e: Exception) {
-                        logWarn("could not scan file {} in url {} with scanner {}",
-                                file.relativePath,
-                                url.toExternalForm(),
-                                scanner.javaClass.simpleName,
-                                e)
+    private fun scanUrl(url: URL) = scanFiles(Vfs.fromURL(url).use(VfsDir::files).toList())
+
+    private fun scanFiles(files: List<VfsFile>) = files.forEach { file -> scanFile(file) }
+
+    private fun scanFile(file: VfsFile) {
+        val fqn = file.relativePath!!.replace('/', '.')
+        // todo: filter belli bir forma match etsin, o da olur bu da olur olmaz. String değil belli bir tipi olsun
+        if (filter.test(file.relativePath!!) || filter.test(fqn)) {
+            // todo: bu classObject neden var? Performans ise başka şekilde halledilsin. Kodu kirletmesin.
+            var classObject: ClassAdapter? = null
+            scanners.forEach { scanner ->
+                try {
+                    if (scanner.acceptsInput(file.relativePath!!) || scanner.acceptsInput(fqn)) {
+                        classObject = scanner.scan(file, classObject)
                     }
+                } catch (e: Exception) {
+                    logWarn("could not scan file {} in with scanner {}",
+                            file.relativePath,
+                            scanner.javaClass.simpleName,
+                            e)
                 }
             }
         }
@@ -192,19 +198,17 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
         }
     }
 
-    fun getAllAnnotated(annotated: Collection<Datum>, inherited: Boolean, honorInherited: Boolean): Collection<Datum> {
+    private fun getAllAnnotated(annotated: Collection<Datum>,
+                                inherited: Boolean,
+                                honorInherited: Boolean): Collection<Datum> {
         return when {
-            !honorInherited -> ask<SubTypesScanner, Datum> {
-                recursiveValuesIncludingSelf(ask<TypeAnnotationsScanner, Datum> {
-                    recursiveValuesIncludingSelf(annotated)
-                })
+            !honorInherited -> {
+                val keys = ask<TypeAnnotationsScanner, Datum> { recursiveValuesIncludingSelf(annotated) }
+                ask<SubTypesScanner, Datum> { recursiveValuesIncludingSelf(keys) }
             }
             inherited       -> {
-                val subTypes = ask<SubTypesScanner, Datum> {
-                    values(annotated.filter { input ->
-                        classForName(input.value, classLoaders)?.isInterface == false
-                    })
-                }
+                val keys = annotated.filter { classForName(it.value, classLoaders)?.isInterface == false }
+                val subTypes = ask<SubTypesScanner, Datum> { values(keys) }
                 ask<SubTypesScanner, Datum> { recursiveValuesIncludingSelf(subTypes) }
             }
             else            -> annotated

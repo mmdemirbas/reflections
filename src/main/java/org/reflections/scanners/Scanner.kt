@@ -67,11 +67,7 @@ abstract class Scanner() {
         return result
     }
 
-    fun values(keys: Collection<Datum>): Collection<Datum> = when {
-        keys.isEmpty() -> values()
-        else           -> keys.flatMap(::values)
-    }
-
+    fun values(keys: Collection<Datum>): Collection<Datum> = keys.flatMap(::values)
     fun values(): Collection<Datum> = store.values()
     fun values(key: Datum): Collection<Datum> = store.get(key).orEmpty()
 }
@@ -235,7 +231,7 @@ class MethodAnnotationsScanner : BaseClassScanner() {
      * depends on MethodAnnotationsScanner configured
      */
     fun constructorsAnnotatedWith(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodAnnotations().filterIsInstance<Constructor<*>>().toSet()
+            listOf(annotation.fullName()).methodAnnotations<Constructor<*>>()
 
     /**
      * get all methods annotated with a given annotation, including annotation member values matching
@@ -243,7 +239,7 @@ class MethodAnnotationsScanner : BaseClassScanner() {
      * depends on MethodAnnotationsScanner configured
      */
     fun methodsAnnotatedWith(annotation: Annotation) =
-            listOf(annotation.annotationClass.java.fullName()).methodAnnotations().filterIsInstance<Method>().filter {
+            listOf(annotation.annotationClass.java.fullName()).methodAnnotations<Method>().filter {
                 withAnnotation(it, annotation)
             }.toSet()
 
@@ -253,9 +249,10 @@ class MethodAnnotationsScanner : BaseClassScanner() {
      * depends on MethodAnnotationsScanner configured
      */
     fun methodsAnnotatedWith(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodAnnotations().filterIsInstance<Method>().toSet()
+            listOf(annotation.fullName()).methodAnnotations<Method>()
 
-    private fun List<Datum>.methodAnnotations() = values(this).map { value -> descriptorToMember(value) }
+    private inline fun <reified T> List<Datum>.methodAnnotations() =
+            values(this).map { value -> descriptorToMember(value) }.filterIsInstance<T>().toSet()
 }
 
 class MethodParameterNamesScanner : BaseClassScanner() {
@@ -292,7 +289,7 @@ class MethodParameterNamesScanner : BaseClassScanner() {
  */
 class MethodParameterScanner : BaseClassScanner() {
     override fun scan(cls: ClassAdapter) = cls.methods.forEach { method ->
-        val signature = Datum(method.parameters.joinToString())
+        val signature = Datum(method.parameters.toString())
         if (acceptResult(signature)) {
             store.put(signature, method.getMethodFullKey(cls))
         }
@@ -310,14 +307,12 @@ class MethodParameterScanner : BaseClassScanner() {
     /**
      * get methods with parameter types matching given `types`
      */
-    fun methodsMatchParams(vararg types: Class<*>) =
-            types.map { it.fullName() }.methodParams().filterIsInstance<Method>().toSet()
+    fun methodsMatchParams(vararg types: Class<*>) = types.map { it.fullName() }.asMembers<Method>()
 
     /**
      * get methods with return type match given type
      */
-    fun methodsReturn(returnType: Class<*>) =
-            listOf(returnType.fullName()).methodParams().filterIsInstance<Method>().toSet()
+    fun methodsReturn(returnType: Class<*>) = listOf(returnType.fullName()).asMembers<Method>()
 
     /**
      * get methods with any parameter annotated with given annotation, including annotation member values matching
@@ -331,13 +326,12 @@ class MethodParameterScanner : BaseClassScanner() {
      * get methods with any parameter annotated with given annotation
      */
     fun methodsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodParams().filterIsInstance<Method>().toSet()
+            listOf(annotation.fullName()).asMembers<Method>()
 
     /**
      * get constructors with parameter types matching given `types`
      */
-    fun constructorsMatchParams(vararg types: Class<*>) =
-            types.map { it.fullName() }.methodParams().filterIsInstance<Constructor<*>>().toSet()
+    fun constructorsMatchParams(vararg types: Class<*>) = types.map { it.fullName() }.asMembers<Constructor<*>>()
 
     /**
      * get constructors with any parameter annotated with given annotation, including annotation member values matching
@@ -351,9 +345,10 @@ class MethodParameterScanner : BaseClassScanner() {
      * get constructors with any parameter annotated with given annotation
      */
     fun constructorsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodParams().filterIsInstance<Constructor<*>>().toSet()
+            listOf(annotation.fullName()).asMembers<Constructor<*>>()
 
-    private fun List<Datum>.methodParams() = values(this).map(::descriptorToMember)
+    private inline fun <reified T> List<Datum>.asMembers() =
+            values(this).map(::descriptorToMember).filterIsInstance<T>().toSet()
 
 }
 
@@ -420,9 +415,7 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
     }
 
     override fun afterScan() {
-        if (expandSuperTypes) {
-            expandSuperTypes()
-        }
+        if (expandSuperTypes) expandSuperTypes()
     }
 
     /**

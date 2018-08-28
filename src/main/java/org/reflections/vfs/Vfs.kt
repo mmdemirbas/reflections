@@ -144,6 +144,7 @@ interface VfsDir : Closeable {
     val files: Sequence<VfsFile>
 }
 
+// todo: convert to data class or something
 interface VfsFile {
     // todo: use Path instead of String
     val name: String
@@ -157,6 +158,7 @@ class JarInputDir(private val url: URL) : VfsDir {
     var nextCursor: Long = 0
     override val path = url.path
 
+    // todo: bunu sequence olmaktan çıkar yada sequence bitince jar input stream otomatik kapatılsın bunun bir yolunu bul
     override val files: Sequence<VfsFile>
         get() {
             jarInputStream =

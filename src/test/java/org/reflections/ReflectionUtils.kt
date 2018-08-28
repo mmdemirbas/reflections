@@ -126,6 +126,15 @@ fun <T> assertToStringEquals(expected: Iterable<T>, actual: Iterable<T>, message
  *
  * If necessary, the failure message will be retrieved lazily from the supplied [message] function.
  */
+fun <T> assertToStringEqualsSorted(expected: Iterable<T>, actual: Iterable<T>, message: () -> String? = { null }) =
+        assertToStringEquals(expected, actual, message, Any?::toString)
+
+/**
+ * Asserts that [expected] and [actual] are equal after each item transformed to string,
+ * and sorted by [sortBy] function if provided.
+ *
+ * If necessary, the failure message will be retrieved lazily from the supplied [message] function.
+ */
 fun <T, R : Comparable<R>> assertToStringEquals(expected: Iterable<T>,
                                                 actual: Iterable<T>,
                                                 message: () -> String? = { null },
