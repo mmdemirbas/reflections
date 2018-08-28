@@ -48,12 +48,12 @@ class JavaCodeSerializerTest {
         @BeforeAll
         @JvmStatic
         fun generateAndSave() {
-            val reflections =
-                    Reflections(Configuration(scanners = setOf(TypeElementsScanner(publicOnly = false)),
-                                              filter = Include("org.reflections.TestModel\\$.*"),
-                                              urls = setOf(urlForClass(TestModel::class.java)!!)))
-            reflections.save(file = ReflectionsTest.userDir.resolve("src/test/java/org.reflections.MyTestModelStore"),
-                             serializer = JavaCodeSerializer)
+            val configuration =
+                    Configuration(scanners = setOf(TypeElementsScanner(publicOnly = false)),
+                                  filter = Include("org.reflections.TestModel\\$.*"),
+                                  urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
+            configuration.save(file = ReflectionsTest.userDir.resolve("src/test/java/org.reflections.MyTestModelStore"),
+                               serializer = JavaCodeSerializer)
         }
     }
 }

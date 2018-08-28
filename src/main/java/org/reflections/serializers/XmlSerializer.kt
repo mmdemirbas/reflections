@@ -4,7 +4,6 @@ import org.dom4j.io.OutputFormat
 import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
 import org.reflections.Configuration
-import org.reflections.Reflections
 import org.reflections.scanners.Scanner
 import org.reflections.util.Datum
 import org.reflections.util.makeParents
@@ -34,7 +33,7 @@ import java.io.Writer
  * ```
  */
 object XmlSerializer : Serializer {
-    override fun read(inputStream: InputStream): Reflections {
+    override fun read(inputStream: InputStream): Configuration {
         return tryOrThrow("could not read.") {
             val scanners = mutableListOf<Scanner>()
             SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
@@ -49,30 +48,30 @@ object XmlSerializer : Serializer {
                 }
                 scanners.add(scanner)
             }
-            Reflections(Configuration(scanners = scanners.toSet()))
+            Configuration(scanners = scanners.toSet())
         }
     }
 
-    override fun save(reflections: Reflections, file: File) = tryOrThrow("could not save to file $file") {
+    override fun save(configuration: Configuration, file: File) = tryOrThrow("could not save to file $file") {
         file.makeParents()
-        FileWriter(file).use { writer -> writeTo(writer, reflections) }
+        FileWriter(file).use { writer -> writeTo(writer, configuration) }
     }
 
-    override fun toString(reflections: Reflections) = StringWriter().use { writer ->
-        writeTo(writer, reflections)
+    override fun toString(configuration: Configuration) = StringWriter().use { writer ->
+        writeTo(writer, configuration)
         writer.toString()
     }
 
-    private fun writeTo(fileWriter: Writer, reflections: Reflections) {
+    private fun writeTo(fileWriter: Writer, configuration: Configuration) {
         val xmlWriter = XMLWriter(fileWriter, OutputFormat.createPrettyPrint())
-        xmlWriter.write(createDocument(reflections))
+        xmlWriter.write(createDocument(configuration))
         xmlWriter.close()
     }
 
-    private fun createDocument(reflections: Reflections): org.dom4j.Document {
+    private fun createDocument(configuration: Configuration): org.dom4j.Document {
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
-        reflections.scanners().forEach { scanner ->
+        configuration.scanners.forEach { scanner ->
             val indexElement = root.addElement(scanner.classToIndexName())
             scanner.store.map.entries.forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")

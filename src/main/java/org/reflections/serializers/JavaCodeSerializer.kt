@@ -1,6 +1,6 @@
 package org.reflections.serializers
 
-import org.reflections.Reflections
+import org.reflections.Configuration
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.serializers.JavaCodeSerializer.save
 import org.reflections.util.Datum
@@ -70,7 +70,7 @@ object JavaCodeSerializer : Serializer {
      * for example ```/data/projects/my/src/main/java/org.my.project.MyStore```
      * would create class MyStore in package org.my.project in the path /data/projects/my/src/main/java
      */
-    override fun save(reflections: Reflections, file: File) {
+    override fun save(configuration: Configuration, file: File) {
         var name = file.name
         if (name.endsWith("/")) {
             name = name.dropLast(1) //trim / at the end
@@ -99,15 +99,15 @@ object JavaCodeSerializer : Serializer {
             sb.append('\n')
         }
         sb.append("public interface ").append(className).append(" {\n\n")
-        sb.append(toString(reflections))
+        sb.append(toString(configuration))
         sb.append("}\n")
 
         write(File(name.replace('.', '/') + ".java").makeParents().toPath(),
               sb.toString().toByteArray(Charset.defaultCharset()))
     }
 
-    override fun toString(reflections: Reflections): String {
-        val list = reflections.ask<TypeElementsScanner, Map.Entry<Datum, Set<Datum>>> { entries() }
+    override fun toString(configuration: Configuration): String {
+        val list = configuration.ask<TypeElementsScanner, Map.Entry<Datum, Set<Datum>>> { entries() }
         if (list.isEmpty()) {
             logWarn("JavaCodeSerializer needs TypeElementsScanner configured")
         }

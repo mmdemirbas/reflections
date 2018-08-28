@@ -400,7 +400,7 @@ class TypeAnnotationsScanner : BaseClassScanner() {
 
 /**
  * @property excludeObjectClass
- * @property expandSuperTypes if true (default), expand super types after scanning, for super types that were not scanned. see [org.reflections.Reflections.expandSuperTypes]
+ * @property expandSuperTypes if true (default), expand super types after scanning, for super types that were not scanned.
  */
 class SubTypesScanner(val excludeObjectClass: Boolean = true,
                       val expandSuperTypes: Boolean = true) : BaseClassScanner() {

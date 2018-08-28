@@ -1,7 +1,7 @@
 package org.reflections.util
 
 import org.apache.logging.log4j.LogManager
-import org.reflections.Reflections
+import org.reflections.Configuration
 import java.io.File
 import java.io.IOException
 import java.lang.reflect.AnnotatedElement
@@ -61,6 +61,8 @@ import javax.servlet.ServletContext
 // todo: iki farklı scanner'ı ortak kullanan metotlara bir çare düşünülmeli. Bu kadar parçalamasak mı? Yoksa daha düzgün parçalasak mı?
 
 // todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
+
+// todo: javadoc'larda gereksiz fqn'ler var, zaten import edilmişse bunları uzun yazmaya gerek yok
 
 fun Annotation.annotationType() = annotationClass.java
 
@@ -243,9 +245,9 @@ fun typeNameToTypeDescriptor(typeName: String) = when {
 fun contextClassLoader() = Thread.currentThread().contextClassLoader ?: null
 
 /**
- * Gets the class loader of this library `Reflections.class.getClassLoader()` or null.
+ * Gets the class loader of this library `Configuration.class.getClassLoader()` or null.
  */
-fun staticClassLoader() = Reflections::class.java.classLoader ?: null
+fun staticClassLoader() = Configuration::class.java.classLoader ?: null
 
 fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
 

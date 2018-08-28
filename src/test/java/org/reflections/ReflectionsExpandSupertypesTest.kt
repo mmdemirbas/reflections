@@ -30,9 +30,9 @@ class ReflectionsExpandSupertypesTest {
     @Test
     fun testExpandSupertypes() {
         val refExpand =
-                Reflections(Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
-                                          urls = setOf(urlForClass(C::class.java)!!),
-                                          filter = inputsFilter))
+                Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
+                              urls = setOf(urlForClass(C::class.java)!!),
+                              filter = inputsFilter).withScan()
         val subTypesOf = refExpand.subTypesOf(A::class.java)
         assertTrue(subTypesOf.contains(B::class.java), "expanded")
         assertTrue(subTypesOf.containsAll(refExpand.subTypesOf(B::class.java)), "transitivity")
@@ -41,10 +41,9 @@ class ReflectionsExpandSupertypesTest {
     @Test
     fun testNotExpandSupertypes() {
         val refDontExpand =
-                Reflections(Configuration(scanners = setOf(TypeAnnotationsScanner(),
-                                                           SubTypesScanner(expandSuperTypes = false)),
-                                          urls = setOf(urlForClass(C::class.java)!!),
-                                          filter = inputsFilter))
+                Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner(expandSuperTypes = false)),
+                              urls = setOf(urlForClass(C::class.java)!!),
+                              filter = inputsFilter).withScan()
         val subTypesOf1 = refDontExpand.subTypesOf(A::class.java)
         assertFalse(subTypesOf1.contains(B::class.java))
     }

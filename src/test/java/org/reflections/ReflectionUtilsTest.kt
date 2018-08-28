@@ -138,13 +138,13 @@ class ReflectionUtilsTest {
 
     @Test
     fun getAllAndReflections() {
-        val reflections =
-                Reflections(Configuration(filter = Filter.Include(TestModel::class.java.toPackageNameRegex()),
-                                          urls = listOfNotNull(urlForClass(TestModel::class.java)).toSet(),
-                                          scanners = setOf(FieldAnnotationsScanner())))
+        val configuration =
+                Configuration(filter = Filter.Include(TestModel::class.java.toPackageNameRegex()),
+                              urls = listOfNotNull(urlForClass(TestModel::class.java)).toSet(),
+                              scanners = setOf(FieldAnnotationsScanner())).withScan()
 
         val allFields =
-                reflections.fieldsAnnotatedWith(AF1::class.java).filter { withModifier(it, Modifier.PROTECTED) }
+                configuration.fieldsAnnotatedWith(AF1::class.java).filter { withModifier(it, Modifier.PROTECTED) }
                     .toSet()
         assertEquals(1, allFields.size.toLong())
         assertHasNames(listOf("f2"), allFields)

@@ -17,18 +17,18 @@ class ReflectionsParallelTest : ReflectionsTest() {
         @BeforeAll
         @JvmStatic
         fun init() {
-            reflections =
-                    Reflections(Configuration(scanners = setOf(SubTypesScanner(false),
-                                                               TypeAnnotationsScanner(),
-                                                               FieldAnnotationsScanner(),
-                                                               MethodAnnotationsScanner(),
-                                                               MethodParameterScanner(),
-                                                               MethodParameterNamesScanner(),
-                                                               MemberUsageScanner()),
-                                              filter = TestModelFilter,
-                                              urls = setOf(urlForClass(TestModel::class.java)!!),
-                                              executorService = executorService()))
-            println(JsonSerializer.toString(reflections))
+            configuration =
+                    Configuration(scanners = setOf(SubTypesScanner(false),
+                                                   TypeAnnotationsScanner(),
+                                                   FieldAnnotationsScanner(),
+                                                   MethodAnnotationsScanner(),
+                                                   MethodParameterScanner(),
+                                                   MethodParameterNamesScanner(),
+                                                   MemberUsageScanner()),
+                                  filter = TestModelFilter,
+                                  urls = setOf(urlForClass(TestModel::class.java)!!),
+                                  executorService = executorService()).withScan()
+            println(JsonSerializer.toString(configuration))
         }
     }
 }

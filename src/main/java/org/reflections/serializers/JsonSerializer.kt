@@ -1,7 +1,6 @@
 package org.reflections.serializers
 
 import org.reflections.Configuration
-import org.reflections.Reflections
 import org.reflections.scanners.Scanner
 import org.reflections.util.Datum
 import org.reflections.util.makeParents
@@ -27,16 +26,16 @@ import java.nio.file.Files.write
 object JsonSerializer : Serializer {
     private val gson: com.google.gson.Gson by lazy {
         com.google.gson.GsonBuilder()
-            .registerTypeAdapter(Reflections::class.java,
-                                 com.google.gson.JsonSerializer<Reflections> { reflections, type, context ->
-                                     context.serialize(reflections.scanners().associate { scanner ->
+            .registerTypeAdapter(Configuration::class.java,
+                                 com.google.gson.JsonSerializer<Configuration> { configuration, type, context ->
+                                     context.serialize(configuration.scanners.associate { scanner ->
                                          scanner.javaClass.name to scanner.store.map.entries.associate { (key, values) ->
                                              key.value to values.map { it.value }
                                          }
                                      })
                                  })
-            .registerTypeAdapter(Reflections::class.java,
-                                 com.google.gson.JsonDeserializer<Reflections> { jsonElement, type, context ->
+            .registerTypeAdapter(Configuration::class.java,
+                                 com.google.gson.JsonDeserializer<Configuration> { jsonElement, type, context ->
                                      val scanners = mutableListOf<Scanner>()
                                      (jsonElement as com.google.gson.JsonObject).entrySet()
                                          .forEach { (scannerType, multimap) ->
@@ -49,16 +48,16 @@ object JsonSerializer : Serializer {
                                                  }
                                              scanners.add(scanner)
                                          }
-                                     Reflections(Configuration(scanners = scanners.toSet()))
+                                     Configuration(scanners = scanners.toSet())
                                  }).setPrettyPrinting().create()
     }
 
     override fun read(inputStream: InputStream) =
-            gson.fromJson(InputStreamReader(inputStream), Reflections::class.java)!!
+            gson.fromJson(InputStreamReader(inputStream), Configuration::class.java)!!
 
-    override fun save(reflections: Reflections, file: File) {
-        write(file.makeParents().toPath(), toString(reflections).toByteArray(Charset.defaultCharset()))
+    override fun save(configuration: Configuration, file: File) {
+        write(file.makeParents().toPath(), toString(configuration).toByteArray(Charset.defaultCharset()))
     }
 
-    override fun toString(reflections: Reflections) = gson.toJson(reflections)!!
+    override fun toString(configuration: Configuration) = gson.toJson(configuration)!!
 }

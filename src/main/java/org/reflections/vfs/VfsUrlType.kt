@@ -12,6 +12,7 @@ import java.util.regex.Pattern
 interface VfsUrlType {
     // todo: matches metodu diğerinin içine katılabilir. null dönmüşse match etmemiş demektir.
     fun matches(url: URL): Boolean
+
     fun createDir(url: URL): VfsDir?
 }
 
