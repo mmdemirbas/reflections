@@ -3,7 +3,7 @@ package org.reflections.serializers
 import org.reflections.Configuration
 import org.reflections.Reflections
 import org.reflections.scanners.Scanner
-import org.reflections.util.IndexKey
+import org.reflections.util.Datum
 import org.reflections.util.makeParents
 import java.io.File
 import java.io.InputStream
@@ -29,7 +29,7 @@ object JsonSerializer : Serializer {
         com.google.gson.GsonBuilder()
             .registerTypeAdapter(Reflections::class.java,
                                  com.google.gson.JsonSerializer<Reflections> { reflections, type, context ->
-                                     context.serialize(reflections.stores.associate { scanner ->
+                                     context.serialize(reflections.scanners().associate { scanner ->
                                          scanner.javaClass.name to scanner.store.map.entries.associate { (key, values) ->
                                              key.value to values.map { it.value }
                                          }
@@ -44,7 +44,7 @@ object JsonSerializer : Serializer {
                                              (multimap as com.google.gson.JsonObject).entrySet()
                                                  .forEach { (key, value) ->
                                                      (value as com.google.gson.JsonArray).forEach { element ->
-                                                         scanner.store.put(IndexKey(key), IndexKey(element.asString))
+                                                         scanner.store.put(Datum(key), Datum(element.asString))
                                                      }
                                                  }
                                              scanners.add(scanner)

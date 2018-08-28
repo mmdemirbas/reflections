@@ -42,11 +42,11 @@ class VfsTest {
             assertTrue(jar1.toString().startsWith("file:"))
             assertTrue(jar1.toString().contains(".jar"))
 
-            assertTrue(BuiltinVfsUrlTypes.jarFile.matches(jar1))
-            assertFalse(BuiltinVfsUrlTypes.jarUrl.matches(jar1))
-            assertFalse(BuiltinVfsUrlTypes.directory.matches(jar1))
+            assertTrue(BuiltinVfsUrlTypes.JAR_FILE.matches(jar1))
+            assertFalse(BuiltinVfsUrlTypes.JAR_URL.matches(jar1))
+            assertFalse(BuiltinVfsUrlTypes.DIRECTORY.matches(jar1))
 
-            val dir = BuiltinVfsUrlTypes.jarFile.createDir(jar1)
+            val dir = BuiltinVfsUrlTypes.JAR_FILE.createDir(jar1)
             var vfsFile: VfsFile? = null
             for (f in dir!!.files) {
                 if (f.relativePath!!.endsWith(".class")) {
@@ -64,11 +64,11 @@ class VfsTest {
             assertTrue(rtJarUrl!!.toString().startsWith("jar:file:"))
             assertTrue(rtJarUrl.toString().contains(".jar!"))
 
-            assertFalse(BuiltinVfsUrlTypes.jarFile.matches(rtJarUrl))
-            assertTrue(BuiltinVfsUrlTypes.jarUrl.matches(rtJarUrl))
-            assertFalse(BuiltinVfsUrlTypes.directory.matches(rtJarUrl))
+            assertFalse(BuiltinVfsUrlTypes.JAR_FILE.matches(rtJarUrl))
+            assertTrue(BuiltinVfsUrlTypes.JAR_URL.matches(rtJarUrl))
+            assertFalse(BuiltinVfsUrlTypes.DIRECTORY.matches(rtJarUrl))
 
-            val dir = BuiltinVfsUrlTypes.jarUrl.createDir(rtJarUrl)
+            val dir = BuiltinVfsUrlTypes.JAR_URL.createDir(rtJarUrl)
             var vfsFile: VfsFile? = null
             for (f in dir!!.files) {
                 if (f.relativePath == "java/lang/String.class") {
@@ -87,11 +87,11 @@ class VfsTest {
             assertTrue(thisUrl!!.toString().startsWith("file:"))
             assertFalse(thisUrl.toString().contains(".jar"))
 
-            assertFalse(BuiltinVfsUrlTypes.jarFile.matches(thisUrl))
-            assertFalse(BuiltinVfsUrlTypes.jarUrl.matches(thisUrl))
-            assertTrue(BuiltinVfsUrlTypes.directory.matches(thisUrl))
+            assertFalse(BuiltinVfsUrlTypes.JAR_FILE.matches(thisUrl))
+            assertFalse(BuiltinVfsUrlTypes.JAR_URL.matches(thisUrl))
+            assertTrue(BuiltinVfsUrlTypes.DIRECTORY.matches(thisUrl))
 
-            val dir = BuiltinVfsUrlTypes.directory.createDir(thisUrl)
+            val dir = BuiltinVfsUrlTypes.DIRECTORY.createDir(thisUrl)
             var vfsFile: VfsFile? = null
             for (f in dir!!.files) {
                 if (f.relativePath == "org/reflections/VfsTest.class") {
@@ -108,7 +108,7 @@ class VfsTest {
         val tempFile = File.createTempFile("nosuch", "dir")
         tempFile.delete()
         assertFalse(tempFile.exists())
-        BuiltinVfsUrlTypes.directory.createDir(tempFile.toURL())!!.use { dir ->
+        BuiltinVfsUrlTypes.DIRECTORY.createDir(tempFile.toURL())!!.use { dir ->
             assertNotNull(dir)
             assertFalse(dir.files.iterator().hasNext())
             assertNotNull(dir.path)

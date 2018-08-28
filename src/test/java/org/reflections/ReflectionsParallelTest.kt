@@ -9,6 +9,7 @@ import org.reflections.scanners.MethodParameterScanner
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
+import org.reflections.serializers.JsonSerializer
 import org.reflections.util.executorService
 import org.reflections.util.urlForClass
 
@@ -29,7 +30,8 @@ class ReflectionsParallelTest : ReflectionsTest() {
                                      MethodParameterNamesScanner(),
                                      MemberUsageScanner()).toSet()
             configuration.executorService = executorService()
-            ReflectionsTest.reflections = Reflections(configuration)
+            reflections = Reflections(configuration)
+            println(JsonSerializer.toString(reflections))
         }
     }
 }

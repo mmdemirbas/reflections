@@ -12,9 +12,8 @@ import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
-import org.reflections.scanners.getOrThrow
 import org.reflections.serializers.JsonSerializer
-import org.reflections.util.IndexKey
+import org.reflections.util.Datum
 import org.reflections.util.urlForClass
 import java.util.regex.Pattern
 
@@ -28,14 +27,14 @@ class ReflectionsCollectTest : ReflectionsTest() {
         configuration.urls = listOfNotNull(urlForClass(TestModel::class.java)).toMutableSet()
         val reflections = Reflections(configuration)
 
-        val resolved = reflections.getResources(Pattern.compile(".*resource1-reflections\\.xml"))
-        assertEquals(setOf(IndexKey("META-INF/reflections/resource1-reflections.xml")), resolved)
+        val resolved = reflections.resources(Pattern.compile(".*resource1-reflections\\.xml"))
+        assertEquals(setOf(Datum("META-INF/reflections/resource1-reflections.xml")), resolved)
 
-        val resources = reflections.stores.getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.toSet()
-        assertEquals(setOf(IndexKey("resource1-reflections.xml"),
-                           IndexKey("resource2-reflections.xml"),
-                           IndexKey("testModel-reflections.xml"),
-                           IndexKey("testModel-reflections.json")), resources)
+        val resources = reflections.ask<ResourcesScanner, Datum> { keys() }
+        assertEquals(setOf(Datum("resource1-reflections.xml"),
+                           Datum("resource2-reflections.xml"),
+                           Datum("testModel-reflections.xml"),
+                           Datum("testModel-reflections.json")), resources)
     }
 
     companion object {
@@ -65,8 +64,9 @@ class ReflectionsCollectTest : ReflectionsTest() {
             ref.save(ReflectionsTest.userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
                      serializer)
 
-            ReflectionsTest.reflections =
+            reflections =
                     Reflections().merged().merged("META-INF/reflections", Include(".*-reflections.json"), serializer)
+            println(JsonSerializer.toString(reflections))
         }
     }
 }

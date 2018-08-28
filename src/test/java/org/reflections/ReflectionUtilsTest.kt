@@ -144,7 +144,7 @@ class ReflectionUtilsTest {
                                           scanners = setOf(FieldAnnotationsScanner())))
 
         val allFields =
-                reflections.getFieldsAnnotatedWith(AF1::class.java).filter { withModifier(it, Modifier.PROTECTED) }
+                reflections.fieldsAnnotatedWith(AF1::class.java).filter { withModifier(it, Modifier.PROTECTED) }
                     .toSet()
         assertEquals(1, allFields.size.toLong())
         assertHasNames(listOf("f2"), allFields)

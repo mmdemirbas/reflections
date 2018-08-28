@@ -23,6 +23,18 @@ import java.util.jar.Attributes
 import java.util.jar.JarFile
 import javax.servlet.ServletContext
 
+
+// todo: Scanner'ların kendilerine has configuration'ları olabilsin. Ctor'da verilsin. Configuration nesnesinden kaldırılsın. Örnek: expandSupertypes
+
+// todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
+
+// todo: Configuration'ın create edilip sonra modifiye edildiği yerleri düzelt. Create edilirken set edilsin.
+
+// todo: uzun testleri parçala
+// todo: testleri geçir
+// todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
+// todo: coverage kontrol et, eksik testleri tamamla
+
 // todo: Gereksiz nullable'ları ve null check'leri temizle
 // todo: bütün nullable collection'ları non-nullable & empty hale getir
 // todo: içinde nullable item bulunabilen collection'ları da non-nullable hale getir olabildiğince
@@ -32,13 +44,6 @@ import javax.servlet.ServletContext
 
 // todo: query metotlarını Reflections'tan ilgili scanner'lara kaydır
 // todo: scannerlardan belli bir tipi alma kodları daha kısa ve anlaşılır hale getirilebilir mi
-
-// todo: builder style yazılmış metotlara kotlin sayesinde gerek kalmıyor. Onları kaldır, kullanıldığı yerleri düzelt
-
-// todo: testleri geçir
-// todo: uzun testleri parçala
-// todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
-// todo: coverage kontrol et, eksik testleri tamamla
 
 // todo: optional dependency'leri değerlendir, mümkünse kaldırmaya çalış veya testlere kaydır. Nihai amaç zero or at most one (javassist) dependency
 
@@ -54,6 +59,10 @@ import javax.servlet.ServletContext
 // todo: library'nin bizim yerimize birşeyleri nasıl tarayacağına karar vermesi yerine
 // todo: biz öyle bir mekanizma sunmalıyız ki, sadece sorgulayacağımız şeyleri taramaya izin verebilmeliyiz.
 // todo: belki mevcut yapı da bu şekilde tasarlandı ama biraz da java'dan kaynaklı verbosity vardır.
+
+// todo: iki farklı scanner'ı ortak kullanan metotlara bir çare düşünülmeli. Bu kadar parçalamasak mı? Yoksa daha düzgün parçalasak mı?
+
+// todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
 
 fun Annotation.annotationType() = annotationClass.java
 
@@ -83,9 +92,9 @@ fun File.makeParents(): File {
     return this
 }
 
-data class IndexKey(val value: String)
+data class Datum(val value: String)
 
-fun AnnotatedElement.fullName(): IndexKey = IndexKey(when (this) {
+fun AnnotatedElement.fullName(): Datum = Datum(when (this) {
                                                          is Class<*>       -> this.name + when {
                                                              this.isArray -> "[]".repeat(this.generateWhileNotNull { componentType }.size)
                                                              else         -> ""
@@ -193,12 +202,12 @@ val primitives =
  *
  * if optional [ClassLoader]s are not specified, then both [org.reflections.util.contextClassLoader] and [org.reflections.util.staticClassLoader] are used
  */
-fun classForName(typeName: String, classLoaders: List<ClassLoader> = emptyList()): Class<*>? {
+fun classForName(typeName: String, classLoaders: List<ClassLoader> = defaultClassLoaders()): Class<*>? {
     if (primitives.contains(typeName)) return primitives[typeName]!!.type
 
     val type = typeNameToTypeDescriptor(typeName)
     val exception = RuntimeException("could not get type for name $typeName from any class loader")
-    classLoaders(classLoaders).forEach { classLoader ->
+    classLoaders.forEach { classLoader ->
         if (type.contains('[')) {
             try {
                 return Class.forName(type, false, classLoader)
@@ -240,15 +249,7 @@ fun contextClassLoader() = Thread.currentThread().contextClassLoader ?: null
  */
 fun staticClassLoader() = Reflections::class.java.classLoader ?: null
 
-/**
- * Returns class Loaders initialized from the specified array.
- *
- * If the input is null or empty, it defaults to both [contextClassLoader] and [staticClassLoader]
- */
-fun classLoaders(classLoaders: Collection<ClassLoader?>) = when {
-    classLoaders.isNotEmpty() -> classLoaders.filterNotNull()
-    else                      -> listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
-}
+fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
 
 /**
  * Returns a distinct collection of URLs based on a package name.
@@ -287,8 +288,8 @@ fun urlForPackage(name: String, classLoaders: List<ClassLoader> = emptyList()) =
  *
  * @return the collection of URLs, not null
  */
-fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> = emptyList()) =
-        classLoaders(classLoaders).flatMap<ClassLoader, URL> { classLoader ->
+fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> = defaultClassLoaders()) =
+        classLoaders.flatMap<ClassLoader, URL> { classLoader ->
             try {
                 classLoader.getResources(resourceName).toList().map { url ->
                     val externalForm = url.toExternalForm()
@@ -316,9 +317,9 @@ fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> 
  *
  * @return the URL containing the class, null if not found
  */
-fun urlForClass(aClass: Class<*>, classLoaders: Collection<ClassLoader> = emptyList()): URL? {
+fun urlForClass(aClass: Class<*>, classLoaders: Collection<ClassLoader> = defaultClassLoaders()): URL? {
     val resourceName = aClass.name.replace(".", "/") + ".class"
-    return classLoaders(classLoaders).mapNotNull {
+    return classLoaders.mapNotNull {
         try {
             val url = it.getResource(resourceName)
             when (url) {
@@ -348,10 +349,9 @@ fun urlForClass(aClass: Class<*>, classLoaders: Collection<ClassLoader> = emptyL
  *
  * @return the collection of URLs, not null
  */
-fun urlForClassLoader(classLoaders: Collection<ClassLoader?> = emptyList()) =
-        classLoaders(classLoaders).flatMap { loader ->
-            loader.generateWhileNotNull { parent }
-        }.filterIsInstance<URLClassLoader>().flatMap { it.urLs.orEmpty().asList() }.distinctUrls()
+fun urlForClassLoader(classLoaders: Collection<ClassLoader?> = defaultClassLoaders()) = classLoaders.flatMap { loader ->
+    loader.generateWhileNotNull { parent }
+}.filterIsInstance<URLClassLoader>().flatMap { it.urLs.orEmpty().asList() }.distinctUrls()
 
 /**
  * Returns a distinct collection of URLs based on the `java.class.path` system property.
@@ -446,12 +446,9 @@ fun URL.manifestUrls() = (listOf(this) + tryOrDefault(emptyList()) {
     }
 }).distinctUrls()
 
-fun tryToGetValidUrl(workingDir: File, path: File, filename: File) =
-        listOfNotNull(filename, path.resolve(filename), workingDir.resolve(filename), tryOrNull {
-            // don't do anything, we're going on the assumption it is a jar, which could be wrong
-            filename
-            // todo: is this block necessary?
-        }).firstOrNull { it.exists() }?.toURI()?.toURL()
+fun tryToGetValidUrl(workingDir: File, path: File, filename: File) = listOf(filename,
+                                                                            path.resolve(filename),
+                                                                            workingDir.resolve(filename)).firstOrNull { it.exists() }?.toURI()?.toURL()
 
 fun URL.cleanPath(): String {
     var path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }.removePrefix("jar:").removePrefix("file:")
@@ -485,3 +482,4 @@ fun <R> tryCatch(`try`: () -> R, catch: (Throwable) -> R) = try {
 } catch (e: Throwable) {
     catch(e)
 }
+

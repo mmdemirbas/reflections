@@ -160,5 +160,4 @@ class FilterTest {
         assertFalse(filter.test("org.reflections.foo.Reflections"))
         assertFalse(filter.test("org.foobar.Reflections"))
     }
-
 }

@@ -1,5 +1,6 @@
 package org.reflections
 
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import java.lang.reflect.AnnotatedElement
 import java.lang.reflect.Executable
@@ -109,3 +110,39 @@ object ReflectionUtils {
         }
     }
 }
+
+
+/**
+ * Asserts that [expected] and [actual] are equal after each item transformed to string.
+ *
+ * If necessary, the failure message will be retrieved lazily from the supplied [message] function.
+ */
+fun <T> assertToStringEquals(expected: Iterable<T>, actual: Iterable<T>, message: () -> String? = { null }) =
+        assertToStringEquals<T, Nothing>(expected, actual, message, null)
+
+/**
+ * Asserts that [expected] and [actual] are equal after each item transformed to string,
+ * and sorted by [sortBy] function if provided.
+ *
+ * If necessary, the failure message will be retrieved lazily from the supplied [message] function.
+ */
+fun <T, R : Comparable<R>> assertToStringEquals(expected: Iterable<T>,
+                                                actual: Iterable<T>,
+                                                message: () -> String? = { null },
+                                                sortBy: ((T) -> R?)?) {
+    assertTransformedEquals(expected, actual, message) {
+        val sorted = when (sortBy) {
+            null -> it
+            else -> it.sortedBy(sortBy)
+        }
+        sorted.joinToString("\n")
+    }
+}
+
+/**
+ * Asserts that [expected] and [actual] are equal after [transform]ation.
+ *
+ * If necessary, the failure message will be retrieved lazily from the supplied [message] function.
+ */
+fun <T, R> assertTransformedEquals(expected: T, actual: T, message: () -> String? = { null }, transform: (T) -> R) =
+        assertEquals(transform(expected), transform(actual), message)

@@ -11,18 +11,11 @@ import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.Scanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
-import org.reflections.scanners.getOrThrow
-import org.reflections.scanners.getOrThrowRecursively
-import org.reflections.scanners.getOrThrowRecursivelyExceptSelf
-import org.reflections.scanners.keyCount
-import org.reflections.scanners.valueCount
 import org.reflections.serializers.Serializer
 import org.reflections.serializers.XmlSerializer
-import org.reflections.util.IndexKey
-import org.reflections.util.Multimap
+import org.reflections.util.Datum
 import org.reflections.util.annotationType
 import org.reflections.util.classForName
-import org.reflections.util.directParentsExceptObject
 import org.reflections.util.fullName
 import org.reflections.util.logDebug
 import org.reflections.util.logInfo
@@ -30,13 +23,13 @@ import org.reflections.util.logWarn
 import org.reflections.util.tryOrThrow
 import org.reflections.util.urlForPackage
 import org.reflections.util.withAnnotation
-import org.reflections.util.withAnyParameterAnnotation
 import org.reflections.vfs.Vfs
 import java.io.File
 import java.lang.annotation.Inherited
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Constructor
 import java.lang.reflect.Executable
+import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.net.URL
@@ -63,7 +56,7 @@ import java.util.regex.Pattern
  * ```
  * Reflections reflections = new Reflections("my.project.prefix");
  *
- * Set&#60Class&#60? extends SomeType>> subTypes = reflections.getSubTypesOf(SomeType.class);
+ * Set&#60Class&#60? extends SomeType>> subTypes = reflections.subTypesOf(SomeType.class);
  *
  * Set&#60Class&#60?>> annotated = reflections.getTypesAnnotatedWith(SomeAnnotation.class);
  * ```
@@ -83,30 +76,30 @@ import java.util.regex.Pattern
  * ```
  * And then query, for example:
  * ```
- * Set&#60Class&#60? extends Module>> modules = reflections.getSubTypesOf(com.google.inject.Module.class);
+ * Set&#60Class&#60? extends Module>> modules = reflections.subTypesOf(com.google.inject.Module.class);
  * Set&#60Class&#60?>> singletons =             reflections.getTypesAnnotatedWith(javax.inject.Singleton.class);
  *
- * Set&#60String> properties =       reflections.getResources(Pattern.compile(".*\\.properties"));
- * Set&#60Constructor> injectables = reflections.getConstructorsAnnotatedWith(javax.inject.Inject.class);
- * Set&#60Method> deprecateds =      reflections.getMethodsAnnotatedWith(javax.ws.rs.Path.class);
- * Set&#60Field> ids =               reflections.getFieldsAnnotatedWith(javax.persistence.Id.class);
+ * Set&#60String> properties =       reflections.resources(Pattern.compile(".*\\.properties"));
+ * Set&#60Constructor> injectables = reflections.constructorsAnnotatedWith(javax.inject.Inject.class);
+ * Set&#60Method> deprecateds =      reflections.methodsAnnotatedWith(javax.ws.rs.Path.class);
+ * Set&#60Field> ids =               reflections.fieldsAnnotatedWith(javax.persistence.Id.class);
  *
- * Set&#60Method> someMethods =      reflections.getMethodsMatchParams(long.class, int.class);
- * Set&#60Method> voidMethods =      reflections.getMethodsReturn(void.class);
- * Set&#60Method> pathParamMethods = reflections.getMethodsWithAnyParamAnnotated(PathParam.class);
+ * Set&#60Method> someMethods =      reflections.methodsMatchParams(long.class, int.class);
+ * Set&#60Method> voidMethods =      reflections.methodsReturn(void.class);
+ * Set&#60Method> pathParamMethods = reflections.methodsWithAnyParamAnnotated(PathParam.class);
  * Set&#60Method> floatToString =    reflections.getConverters(Float.class, String.class);
  * List&#60String> parameters =  reflections.getMethodsParamNames(Method.class);
  *
- * Set&#60Member> fieldUsage =       reflections.getUsage(Field.class);
- * Set&#60Member> methodUsage =      reflections.getUsage(Method.class);
- * Set&#60Member> constructorUsage = reflections.getUsage(Constructor.class);
+ * Set&#60Member> fieldUsage =       reflections.usages(Field.class);
+ * Set&#60Member> methodUsage =      reflections.usages(Method.class);
+ * Set&#60Member> constructorUsage = reflections.usages(Constructor.class);
  * ```
  *
  * You can use other scanners defined in Reflections as well, such as: SubTypesScanner, TypeAnnotationsScanner (both default),
  * ResourcesScanner, MethodAnnotationsScanner, ConstructorAnnotationsScanner, FieldAnnotationsScanner,
  * MethodParameterScanner, MethodParameterNamesScanner, MemberUsageScanner or any custom scanner.
  *
- * Use [getStore] to access and query the store directly
+ * Use [ask] to access and query the store directly
  *
  * In order to save the store metadata, use [save] or [save]
  * for example with [org.reflections.serializers.XmlSerializer] or [org.reflections.serializers.JavaCodeSerializer]
@@ -122,32 +115,16 @@ import java.util.regex.Pattern
  *For Javadoc, source code, and more information about Reflections Library, see http://github.com/ronmamo/reflections/
  */
 class Reflections(@Transient val configuration: Configuration = Configuration()) {
-    val stores = configuration.scanners
+    inline fun <reified S : Scanner, R> ask(flatMap: S.() -> Iterable<R>) = scanners().filterIsInstance<S>().apply {
+        if (isEmpty()) throw RuntimeException("Scanner ${S::class.java.simpleName} was not configured")
+    }.flatMap(flatMap).toSet()
+
+    fun keyCount() = scanners().sumBy(Scanner::keyCount)
+    fun valueCount() = scanners().sumBy(Scanner::valueCount)
+    fun scanners() = configuration.scanners
 
     init {
-        configuration.scanners.forEach { it.configuration = configuration }
         scan()
-        if (configuration.expandSuperTypes) expandSuperTypes()
-    }
-
-    /**
-     * get all types scanned. this is effectively similar to getting all subtypes of Object.
-     *
-     * depends on SubTypesScanner configured with `SubTypesScanner(false)`, otherwise `RuntimeException` is thrown
-     *
-     * *note using this might be a bad practice. it is better to get types matching some criteria,
-     * such as [getSubTypesOf] or [getTypesAnnotatedWith]*
-     *
-     * @return Set of String, and not of Class, in order to avoid definition of all types in PermGen
-     */
-    val allTypes by lazy {
-        val allTypes =
-                stores.getOrThrowRecursivelyExceptSelf<SubTypesScanner>(keys = listOf(Any::class.java.fullName()))
-                    .toSet()
-        when {
-            allTypes.isEmpty() -> throw RuntimeException("Couldn't find subtypes of Object. Make sure SubTypesScanner initialized to include Object class - new SubTypesScanner(false)")
-            else               -> allTypes.map { it.value }.toSet()
-        }
     }
 
     /**
@@ -196,6 +173,8 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
         //todo use CompletionService
         futures.forEach { it.get() }
 
+        scanners().forEach { scanner -> scanner.afterScan() }
+
         time = System.currentTimeMillis() - time
 
         //gracefully shutdown the parallel scanner executor service.
@@ -204,8 +183,8 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
         logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values {}",
                 time,
                 scannedUrls,
-                stores.keyCount(),
-                stores.valueCount(),
+                keyCount(),
+                valueCount(),
                 if (executorService is ThreadPoolExecutor) "[using ${executorService.maximumPoolSize} cores]" else "")
     }
 
@@ -217,7 +196,7 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
             val fqn = path!!.replace('/', '.')
             if (inputsFilter.test(path) || inputsFilter.test(fqn)) {
                 var classObject: ClassAdapter? = null
-                configuration.scanners.forEach { scanner ->
+                scanners().forEach { scanner ->
                     try {
                         if (scanner.acceptsInput(path) || scanner.acceptsInput(fqn)) {
                             classObject = scanner.scan(file, classObject)
@@ -261,14 +240,14 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
         logInfo("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
                 time,
                 urls.size,
-                merged.stores.keyCount(),
-                merged.stores.valueCount(),
+                merged.keyCount(),
+                merged.valueCount(),
                 urls.joinToString())
         return merged
     }
 
-    fun merged(others: List<Reflections>) =
-            Reflections(Configuration(scanners = (listOf(this) + others).flatMap { it.stores }.toSet()))
+    private fun merged(others: List<Reflections>) =
+            Reflections(Configuration(scanners = (listOf(this) + others).flatMap { it.scanners() }.toSet()))
 
     /**
      * serialize to a given directory and file using given serializer
@@ -280,47 +259,6 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
         logInfo("Reflections successfully saved in ${file.absolutePath} using ${serializer.javaClass.simpleName}")
     }
 
-    /**
-     * expand super types after scanning, for super types that were not scanned.
-     * this is helpful in finding the transitive closure without scanning all 3rd party dependencies.
-     * it uses [directParentsExceptObject].
-     *
-     *
-     * for example, for classes A,B,C where A supertype of B, B supertype of C:
-     *
-     *  * if scanning C resulted in B (B->C in store), but A was not scanned (although A supertype of B) - then getSubTypes(A) will not return C
-     *  * if expanding supertypes, B will be expanded with A (A->B in store) - then getSubTypes(A) will return C
-     */
-    fun expandSuperTypes() {
-        stores.filterIsInstance<SubTypesScanner>().forEach {
-            val multimap = it.store
-            val expand = Multimap<IndexKey, IndexKey>()
-            (multimap.keys() - multimap.values()).forEach { key ->
-                val type = classForName(key)
-                if (type != null) expandSupertypes(expand, key, type)
-            }
-            multimap.putAll(expand)
-        }
-    }
-
-    private fun expandSupertypes(mmap: Multimap<in IndexKey, in IndexKey>, key: IndexKey, type: Class<*>): Unit =
-            type.directParentsExceptObject().forEach { supertype ->
-                if (mmap.put(supertype.fullName(), key)) {
-                    logDebug("expanded subtype {} -> {}", supertype.name, key)
-                    expandSupertypes(mmap, supertype.fullName(), supertype)
-                }
-            }
-
-
-    //query
-
-    /**
-     * gets all sub types in hierarchy of a given type
-     *
-     * depends on SubTypesScanner configured
-     */
-    fun <T> getSubTypesOf(type: Class<T>) =
-            classesForNames<T>(stores.getOrThrowRecursivelyExceptSelf<SubTypesScanner>(listOf(type.fullName()))).toSet()
 
     /**
      * get types annotated with a given annotation, both classes and annotations
@@ -337,9 +275,9 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on TypeAnnotationsScanner and SubTypesScanner configured
      */
     fun getTypesAnnotatedWith(annotation: Class<out Annotation>, honorInherited: Boolean = false): Set<Class<*>> {
-        val annotated = stores.getOrThrow<TypeAnnotationsScanner>(annotation.fullName())
+        val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.fullName()) }
         val classes = getAllAnnotated(annotated, annotation.isAnnotationPresent(Inherited::class.java), honorInherited)
-        return classesForNames<Any>((annotated + classes).toSet()).toSet()
+        return classesForNames<Any>(annotated + classes).toSet()
     }
 
     /**
@@ -350,230 +288,83 @@ class Reflections(@Transient val configuration: Configuration = Configuration())
      * depends on TypeAnnotationsScanner configured
      */
     fun getTypesAnnotatedWith(annotation: Annotation, honorInherited: Boolean = false): Set<Class<*>> {
-        val annotated = stores.getOrThrow<TypeAnnotationsScanner>(annotation.annotationClass.java.fullName())
+        val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.annotationClass.java.fullName()) }
         val filter = classesForNames<Any>(annotated).filter { withAnnotation(it, annotation) }.toSet()
         val classes =
                 getAllAnnotated(filter.map { it.fullName() },
                                 annotation.annotationType().isAnnotationPresent(Inherited::class.java),
                                 honorInherited)
-        return filter + classesForNames(classes.filter { it !in annotated }.toSet())
+        return filter + classesForNames(classes.filter { it !in annotated })
     }
 
-    private fun getAllAnnotated(annotated: Collection<IndexKey>,
+    private fun getAllAnnotated(annotated: Collection<Datum>,
                                 inherited: Boolean,
-                                honorInherited: Boolean): Collection<IndexKey> {
+                                honorInherited: Boolean): Collection<Datum> {
         return when {
-            !honorInherited -> stores.getOrThrowRecursively<SubTypesScanner>(stores.getOrThrowRecursively<TypeAnnotationsScanner>(
-                    annotated))
+            !honorInherited -> ask<SubTypesScanner, Datum> {
+                recursiveValuesIncludingSelf(ask<TypeAnnotationsScanner, Datum> {
+                    recursiveValuesIncludingSelf(annotated)
+                })
+            }
             inherited       -> {
-                val subTypes = stores.getOrThrow<SubTypesScanner>(annotated.filter { input ->
-                    classForName(input)?.isInterface == false
-                }.toSet())
-                stores.getOrThrowRecursively<SubTypesScanner>(subTypes)
+                val subTypes =
+                        ask<SubTypesScanner, Datum> { values(annotated.filter { input -> classForName(input)?.isInterface == false }) }
+                ask<SubTypesScanner, Datum> { recursiveValuesIncludingSelf(subTypes) }
             }
             else            -> annotated
         }
     }
 
-    /**
-     * get all constructors annotated with a given annotation
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
-    fun getConstructorsAnnotatedWith(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodAnnotations().filterIsInstance<Constructor<*>>().toSet()
+    private fun <T> classesForNames(classes: Iterable<Datum>) = classes.mapNotNull { classForName(it) as Class<out T>? }
+    private fun classForName(typeName: Datum) = classForName(typeName.value, configuration.classLoaders)
 
-    /**
-     * get all methods annotated with a given annotation, including annotation member values matching
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
-    fun getMethodsAnnotatedWith(annotation: Annotation) =
-            listOf(annotation.annotationClass.java.fullName()).methodAnnotations().filterIsInstance<Method>().filter {
-                withAnnotation(it, annotation)
-            }.toSet()
 
-    /**
-     * get all methods annotated with a given annotation
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
-    fun getMethodsAnnotatedWith(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodAnnotations().filterIsInstance<Method>().toSet()
+    //query
 
-    /**
-     * get methods with parameter types matching given `types`
-     */
-    fun getMethodsMatchParams(vararg types: Class<*>) =
-            types.map { it.fullName() }.methodParams().filterIsInstance<Method>().toSet()
+    fun allTypes() = ask<SubTypesScanner, String> { allTypes() }
 
-    /**
-     * get methods with return type match given type
-     */
-    fun getMethodsReturn(returnType: Class<*>) =
-            listOf(returnType.fullName()).methodParams().filterIsInstance<Method>().toSet()
+    fun <T> subTypesOf(type: Class<T>) = ask<SubTypesScanner, Class<out T>> { subTypesOf(type) }
 
-    /**
-     * get methods with any parameter annotated with given annotation
-     */
-    fun getMethodsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodParams().filterIsInstance<Method>().toSet()
+    fun constructorsAnnotatedWith(annotation: Annotation) =
+            ask<MethodAnnotationsScanner, Constructor<*>> { constructorsAnnotatedWith(annotation) }
 
-    /**
-     * get constructors with parameter types matching given `types`
-     */
-    fun getConstructorsMatchParams(vararg types: Class<*>) =
-            types.map { it.fullName() }.methodParams().filterIsInstance<Constructor<*>>().toSet()
+    fun constructorsAnnotatedWith(annotation: Class<out Annotation>) =
+            ask<MethodAnnotationsScanner, Constructor<*>> { constructorsAnnotatedWith(annotation) }
 
-    /**
-     * get constructors with any parameter annotated with given annotation
-     */
-    fun getConstructorsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
-            listOf(annotation.fullName()).methodParams().filterIsInstance<Constructor<*>>().toSet()
+    fun methodsAnnotatedWith(annotation: Annotation) =
+            ask<MethodAnnotationsScanner, Method> { methodsAnnotatedWith(annotation) }
 
-    fun List<IndexKey>.methodAnnotations() = membersIn<MethodAnnotationsScanner>()
-    fun List<IndexKey>.methodParams() = membersIn<MethodParameterScanner>()
+    fun methodsAnnotatedWith(annotation: Class<out Annotation>) =
+            ask<MethodAnnotationsScanner, Method> { methodsAnnotatedWith(annotation) }
 
-    inline fun <reified T : Scanner> List<IndexKey>.membersIn() = stores.getOrThrow<T>(this).map { value ->
-        tryOrThrow("Can't resolve member named $value") { value.descriptorToMember() }
-    }
+    fun methodsMatchParams(vararg types: Class<*>) = ask<MethodParameterScanner, Method> { methodsMatchParams(*types) }
 
-    fun IndexKey.descriptorToMember(): Member {
-        val descriptor = value
-        val p0 = descriptor.lastIndexOf('(')
-        val memberKey = if (p0 == -1) descriptor else descriptor.substringBeforeLast('(')
-        val methodParameters = if (p0 == -1) "" else descriptor.substringAfterLast('(').substringBeforeLast(')')
+    fun methodsReturn(returnType: Class<*>) = ask<MethodParameterScanner, Method> { methodsReturn(returnType) }
 
-        val p1 = Math.max(memberKey.lastIndexOf('.'), memberKey.lastIndexOf('$'))
-        val className = memberKey.substring(memberKey.lastIndexOf(' ') + 1, p1)
-        val memberName = memberKey.substring(p1 + 1)
+    fun methodsWithAnyParamAnnotated(annotation: Annotation) =
+            ask<MethodParameterScanner, Method> { methodsWithAnyParamAnnotated(annotation) }
 
-        val parameterTypes = methodParameters.split(',').dropLastWhile { it.isEmpty() }.mapNotNull { name ->
-            classForName(name.trim { it.toInt() <= ' '.toInt() })
-        }.toTypedArray()
+    fun methodsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
+            ask<MethodParameterScanner, Method> { methodsWithAnyParamAnnotated(annotation) }
 
-        var aClass = classForName(className)
-        while (aClass != null) {
-            try {
-                return when {
-                    !descriptor.contains("(")    -> {
-                        when {
-                            aClass.isInterface -> aClass.getField(memberName)
-                            else               -> aClass.getDeclaredField(memberName)
-                        }
-                    }
-                    descriptor.contains("init>") -> {
-                        when {
-                            aClass.isInterface -> aClass.getConstructor(*parameterTypes)
-                            else               -> aClass.getDeclaredConstructor(*parameterTypes)
-                        }
-                    }
-                    else                         -> {
-                        when {
-                            aClass.isInterface -> aClass.getMethod(memberName, *parameterTypes)
-                            else               -> aClass.getDeclaredMethod(memberName, *parameterTypes)
-                        }
-                    }
-                }
-            } catch (e: Exception) {
-                aClass = aClass.superclass
-            }
-        }
-        when {
-            descriptor.contains("(") -> throw RuntimeException("Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className")
-            else                     -> throw RuntimeException("Can't resolve $memberName field for class $className")
-        }
-    }
+    fun constructorsMatchParams(vararg types: Class<*>) =
+            ask<MethodParameterScanner, Constructor<*>> { constructorsMatchParams(*types) }
 
-    /**
-     * get methods with any parameter annotated with given annotation, including annotation member values matching
-     */
-    fun getMethodsWithAnyParamAnnotated(annotation: Annotation) =
-            getMethodsWithAnyParamAnnotated(annotation.annotationClass.java).filter {
-                withAnyParameterAnnotation(it, annotation)
-            }.toSet()
+    fun constructorsWithAnyParamAnnotated(annotation: Annotation) =
+            ask<MethodParameterScanner, Constructor<*>> { constructorsWithAnyParamAnnotated(annotation) }
 
-    /**
-     * get all constructors annotated with a given annotation, including annotation member values matching
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
-    fun getConstructorsAnnotatedWith(annotation: Annotation) =
-            getConstructorsAnnotatedWith(annotation.annotationType()).filter {
-                withAnnotation(it, annotation)
-            }.toSet()
+    fun constructorsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
+            ask<MethodParameterScanner, Constructor<*>> { constructorsWithAnyParamAnnotated(annotation) }
 
-    /**
-     * get constructors with any parameter annotated with given annotation, including annotation member values matching
-     */
-    fun getConstructorsWithAnyParamAnnotated(annotation: Annotation) =
-            getConstructorsWithAnyParamAnnotated(annotation.annotationType()).filter {
-                withAnyParameterAnnotation(it, annotation)
-            }.toSet()
+    fun fieldsAnnotatedWith(annotation: Annotation) =
+            ask<FieldAnnotationsScanner, Field> { fieldsAnnotatedWith(annotation) }
 
-    /**
-     * get all fields annotated with a given annotation
-     *
-     * depends on FieldAnnotationsScanner configured
-     */
-    fun getFieldsAnnotatedWith(annotation: Class<out Annotation>) =
-            stores.getOrThrow<FieldAnnotationsScanner>(annotation.fullName()).map {
-                val field = it.value
-                val className = field.substringBeforeLast('.')
-                val fieldName = field.substringAfterLast('.')
-                tryOrThrow("Can't resolve field named $fieldName") {
-                    classForName(className)!!.getDeclaredField(fieldName)
-                }
-            }.toSet()
+    fun fieldsAnnotatedWith(annotation: Class<out Annotation>) =
+            ask<FieldAnnotationsScanner, Field> { fieldsAnnotatedWith(annotation) }
 
-    /**
-     * get all methods annotated with a given annotation, including annotation member values matching
-     *
-     * depends on FieldAnnotationsScanner configured
-     */
-    fun getFieldsAnnotatedWith(annotation: Annotation) = getFieldsAnnotatedWith(annotation.annotationType()).filter {
-        withAnnotation(it, annotation)
-    }.toSet()
+    fun resources(pattern: Pattern) = ask<ResourcesScanner, Datum> { resources(pattern) }
 
-    /**
-     * get resources relative paths where simple name (key) matches given namePredicate
-     *
-     * depends on ResourcesScanner configured
-     */
-    private fun getResources(namePredicate: (String) -> Boolean) =
-            stores.getOrThrow<ResourcesScanner>(stores.getOrThrow<ResourcesScanner>().flatMap { it.store.keys() }.filter {
-                namePredicate(it.value)
-            }).toMutableSet()
+    fun paramNames(executable: Executable) = ask<MethodParameterNamesScanner, String> { paramNames(executable) }
 
-    /**
-     * get resources relative paths where simple name (key) matches given regular expression
-     *
-     * depends on ResourcesScanner configured
-     * ```Set<String> xmls = reflections.getResources(".*\\.xml");```
-     */
-    fun getResources(pattern: Pattern) = getResources { pattern.matcher(it).matches() }
-
-    /**
-     * get parameter names of given `method` or `constructor`
-     *
-     * depends on MethodParameterNamesScanner configured
-     */
-    fun getParamNames(executable: Executable): List<String> {
-        val names = stores.getOrThrow<MethodParameterNamesScanner>(executable.fullName()).toList()
-        return when {
-            names.isEmpty() -> emptyList()
-            else            -> names.single().value.split(", ").dropLastWhile { it.isEmpty() }
-        }
-    }
-
-    /**
-     * get all given `constructor`, `method`, or `field` usages in methods and constructors
-     *
-     * depends on MemberUsageScanner configured
-     */
-    fun getUsage(o: AccessibleObject) = listOf(o.fullName()).membersIn<MemberUsageScanner>().toSet()
-
-    fun <T> classesForNames(classes: Iterable<IndexKey>) = classes.mapNotNull { classForName(it) as Class<out T>? }
-    fun classForName(typeName: IndexKey) = classForName(typeName.value)
-    fun classForName(typeName: String) = classForName(typeName, configuration.classLoaders)
+    fun usages(o: AccessibleObject) = ask<MemberUsageScanner, Member> { usages(o) }
 }

@@ -19,28 +19,33 @@ interface VfsUrlType {
  * built-in url types used by [org.reflections.vfs.Vfs.fromURL]
  *
  *
- * jarFile - creates a [org.reflections.vfs.ZipDir] over jar file
+ * JAR_FILE - creates a [org.reflections.vfs.ZipDir] over jar file
  *
- * jarUrl - creates a [org.reflections.vfs.ZipDir] over a jar url (contains ".jar!/" in it's name), using Java's [JarURLConnection]
+ * JAR_URL - creates a [org.reflections.vfs.ZipDir] over a jar url (contains ".jar!/" in it's name), using Java's [JarURLConnection]
  *
- * directory - creates a [org.reflections.vfs.SystemDir] over a file system directory
+ * DIRECTORY - creates a [org.reflections.vfs.SystemDir] over a file system directory
  *
  * jboss vfs - for protocols vfs, using jboss vfs (should be provided in classpath)
  *
  * jboss vfsfile - creates a [UrlTypeVFS] for protocols vfszip and vfsfile.
  *
- * bundle - for bundle protocol, using eclipse FileLocator (should be provided in classpath)
+ * BUNDLE - for bundle protocol, using eclipse FileLocator (should be provided in classpath)
  *
- * jarInputStream - creates a [JarInputDir] over jar files, using Java's JarInputStream
+ * JAR_STREAM - creates a [JarInputDir] over jar files, using Java's JarInputStream
  */
 enum class BuiltinVfsUrlTypes : VfsUrlType {
-    jarFile {
+    JAR_FILE {
         override fun matches(url: URL) = url.protocol == "file" && url.hasJarFileInPath()
         override fun createDir(url: URL) = ZipDir(JarFile(Vfs.getFile(url)!!))
     },
 
-    jarUrl {
-        override fun matches(url: URL) = ("jar" == url.protocol || "zip" == url.protocol || "wsjar" == url.protocol)
+    JAR_STREAM {
+        override fun matches(url: URL) = url.toExternalForm().contains(".jar")
+        override fun createDir(url: URL) = JarInputDir(url)
+    },
+
+    JAR_URL {
+        override fun matches(url: URL) = url.protocol in listOf("jar", "zip", "wsjar")
 
         override fun createDir(url: URL): VfsDir? {
             try {
@@ -57,16 +62,14 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
         }
     },
 
-    directory {
-        override fun matches(url: URL) = when {
-            url.protocol == "file" && !url.hasJarFileInPath() -> Vfs.getFile(url)?.isDirectory == true
-            else                                              -> false
-        }
+    DIRECTORY {
+        override fun matches(url: URL) =
+                url.protocol == "file" && !url.hasJarFileInPath() && Vfs.getFile(url)?.isDirectory == true
 
-        override fun createDir(url: URL) = SystemDir(Vfs.getFile(url)!!)
+        override fun createDir(url: URL) = SystemDir(Vfs.getFile(url) ?: File("."))
     },
 
-    jboss_vfs {
+    JBOSS_VFS {
         override fun matches(url: URL) = url.protocol == "vfs"
 
         override fun createDir(url: URL): VfsDir? {
@@ -80,11 +83,11 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
         }
     },
 
-    jboss_vfsfile {
+    JBOSS_VFSFILE {
         private val VFSZIP = "vfszip"
         private val VFSFILE = "vfsfile"
 
-        override fun matches(url: URL) = VFSZIP == url.protocol || VFSFILE == url.protocol
+        override fun matches(url: URL) = url.protocol in listOf(VFSZIP, VFSFILE)
 
         override fun createDir(url: URL) = try {
             ZipDir(JarFile(adaptURL(url).file))
@@ -130,20 +133,14 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
         }
     },
 
-    bundle {
+    BUNDLE {
         override fun matches(url: URL) = url.protocol.startsWith("bundle")
-
         override fun createDir(url: URL) =
                 Vfs.fromURL(contextClassLoader()!!.loadClass("org.eclipse.core.runtime.FileLocator").getMethod("resolve",
                                                                                                                URL::class.java).invoke(
                         null,
                         url) as URL)
     },
-
-    jarInputStream {
-        override fun matches(url: URL) = url.toExternalForm().contains(".jar")
-        override fun createDir(url: URL) = JarInputDir(url)
-    }
 }
 
 private fun URL.hasJarFileInPath() = toExternalForm().matches(".*\\.jar(!.*|$)".toRegex())

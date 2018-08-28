@@ -6,7 +6,7 @@ import org.dom4j.io.XMLWriter
 import org.reflections.Configuration
 import org.reflections.Reflections
 import org.reflections.scanners.Scanner
-import org.reflections.util.IndexKey
+import org.reflections.util.Datum
 import org.reflections.util.makeParents
 import org.reflections.util.tryOrThrow
 import java.io.File
@@ -44,7 +44,7 @@ object XmlSerializer : Serializer {
                     val entry = e2 as org.dom4j.Element
                     val key = entry.element("key")
                     entry.element("values").elements().map { it as org.dom4j.Node }.forEach {
-                        scanner.store.put(IndexKey(key.text), IndexKey(it.text))
+                        scanner.store.put(Datum(key.text), Datum(it.text))
                     }
                 }
                 scanners.add(scanner)
@@ -72,7 +72,7 @@ object XmlSerializer : Serializer {
     private fun createDocument(reflections: Reflections): org.dom4j.Document {
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
-        reflections.stores.forEach { scanner ->
+        reflections.scanners().forEach { scanner ->
             val indexElement = root.addElement(scanner.classToIndexName())
             scanner.store.map.entries.forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")

@@ -20,7 +20,7 @@ class ReflectionsThreadSafenessTest {
             configuration.scanners = arrayOf<Scanner>(SubTypesScanner(false)).toSet()
             val reflections = Reflections(configuration)
 
-            reflections.getSubTypesOf(Map::class.java)
+            reflections.subTypesOf(Map::class.java)
         }
 
         val pool = Executors.newFixedThreadPool(2)

@@ -2,8 +2,8 @@ package org.reflections.serializers
 
 import org.reflections.Reflections
 import org.reflections.scanners.TypeElementsScanner
-import org.reflections.scanners.getOrThrow
 import org.reflections.serializers.JavaCodeSerializer.save
+import org.reflections.util.Datum
 import org.reflections.util.Multimap
 import org.reflections.util.classForName
 import org.reflections.util.generateWhileNotNull
@@ -109,7 +109,8 @@ object JavaCodeSerializer : Serializer {
     }
 
     override fun toString(reflections: Reflections): String {
-        if (reflections.stores.getOrThrow<TypeElementsScanner>().flatMap { it.store.map.entries }.isEmpty()) {
+        val list = reflections.ask<TypeElementsScanner, Map.Entry<Datum, Set<Datum>>> { entries() }
+        if (list.isEmpty()) {
             logWarn("JavaCodeSerializer needs TypeElementsScanner configured")
         }
 
@@ -117,102 +118,99 @@ object JavaCodeSerializer : Serializer {
         var prevPaths: List<String> = listOf()
         var indent = 1
 
-        reflections.stores.getOrThrow<TypeElementsScanner>().flatMap { it.store.map.entries }.sortedBy { it.key.value }
-            .forEach { (fqn, values) ->
-                val typePaths = fqn.value.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }
+        list.sortedBy { it.key.value }.forEach { (fqn, values) ->
+            val typePaths = fqn.value.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }
 
-                //skip indention
-                var i = 0
-                while (i < Math.min(typePaths.size, prevPaths.size) && typePaths[i] == prevPaths[i]) {
-                    i++
-                }
-
-                //indent left
-                (prevPaths.size downTo i + 1).forEach { j ->
-                    sb.append("\t".repeat(--indent)).append("}\n")
-                }
-
-                //indent right - add packages
-                (i until typePaths.size - 1).forEach { j ->
-                    sb.append("\t".repeat(indent++)).append("public interface ")
-                        .append(getNonDuplicateName(typePaths[j], typePaths, j)).append(" {\n")
-                }
-
-                //indent right - add class
-                val className = typePaths[typePaths.size - 1]
-
-                //get fields and methods
-                val annotations = mutableListOf<String>()
-                val fields = mutableListOf<String>()
-                val methods = Multimap<String, String>()
-
-                values.forEach { elementKey ->
-                    val element = elementKey.value
-                    when {
-                        element.startsWith("@") -> annotations.add(element.substring(1))
-                        element.contains("(")   -> //method
-                            if (!element.startsWith("<")) {
-                                val name = element.substringBefore('(')
-                                val params = element.substringBetween('(', ')')
-
-                                var paramsDescriptor = ""
-                                if (!params.isEmpty()) {
-                                    paramsDescriptor = tokenSeparator +
-                                            params.replace(dotSeparator, tokenSeparator).replace(", ",
-                                                                                                 doubleSeparator).replace(
-                                                    "[]",
-                                                    arrayDescriptor)
-                                }
-                                val normalized = name + paramsDescriptor
-                                methods.put(name, normalized)
-                            }
-                        !element.isEmpty()      -> //field
-                            fields.add(element)
-                    }
-                }
-
-                //add class and it's fields and methods
-                sb.append("\t".repeat(indent++)).append("public interface ")
-                    .append(getNonDuplicateName(className, typePaths, typePaths.size - 1)).append(" {\n")
-
-                //add fields
-                if (!fields.isEmpty()) {
-                    sb.append("\t".repeat(indent++)).append("public interface fields {\n")
-                    fields.forEach { field ->
-                        sb.append("\t".repeat(indent)).append("public interface ")
-                            .append(getNonDuplicateName(field, typePaths)).append(" {}\n")
-                    }
-                    sb.append("\t".repeat(--indent)).append("}\n")
-                }
-
-                //add methods
-                if (!methods.isEmpty()) {
-                    sb.append("\t".repeat(indent++)).append("public interface methods {\n")
-                    methods.entries().forEach { (simpleName, normalized) ->
-                        var methodName = if (methods.get(simpleName)!!.size == 1) simpleName else normalized
-
-                        methodName = getNonDuplicateName(methodName, fields)
-
-                        sb.append("\t".repeat(indent)).append("public interface ")
-                            .append(getNonDuplicateName(methodName, typePaths)).append(" {}\n")
-                    }
-                    sb.append("\t".repeat(--indent)).append("}\n")
-                }
-
-                //add annotations
-                if (!annotations.isEmpty()) {
-                    sb.append("\t".repeat(indent++)).append("public interface annotations {\n")
-                    annotations.forEach { annotation ->
-                        var nonDuplicateName = annotation
-                        nonDuplicateName = getNonDuplicateName(nonDuplicateName, typePaths)
-                        sb.append("\t".repeat(indent)).append("public interface ").append(nonDuplicateName)
-                            .append(" {}\n")
-                    }
-                    sb.append("\t".repeat(--indent)).append("}\n")
-                }
-
-                prevPaths = typePaths
+            //skip indention
+            var i = 0
+            while (i < Math.min(typePaths.size, prevPaths.size) && typePaths[i] == prevPaths[i]) {
+                i++
             }
+
+            //indent left
+            (prevPaths.size downTo i + 1).forEach { j ->
+                sb.append("\t".repeat(--indent)).append("}\n")
+            }
+
+            //indent right - add packages
+            (i until typePaths.size - 1).forEach { j ->
+                sb.append("\t".repeat(indent++)).append("public interface ")
+                    .append(getNonDuplicateName(typePaths[j], typePaths, j)).append(" {\n")
+            }
+
+            //indent right - add class
+            val className = typePaths[typePaths.size - 1]
+
+            //get fields and methods
+            val annotations = mutableListOf<String>()
+            val fields = mutableListOf<String>()
+            val methods = Multimap<String, String>()
+
+            values.forEach { elementKey ->
+                val element = elementKey.value
+                when {
+                    element.startsWith("@") -> annotations.add(element.substring(1))
+                    element.contains("(")   -> //method
+                        if (!element.startsWith("<")) {
+                            val name = element.substringBefore('(')
+                            val params = element.substringBetween('(', ')')
+
+                            var paramsDescriptor = ""
+                            if (!params.isEmpty()) {
+                                paramsDescriptor = tokenSeparator +
+                                        params.replace(dotSeparator, tokenSeparator).replace(", ",
+                                                                                             doubleSeparator).replace("[]",
+                                                                                                                      arrayDescriptor)
+                            }
+                            val normalized = name + paramsDescriptor
+                            methods.put(name, normalized)
+                        }
+                    !element.isEmpty()      -> //field
+                        fields.add(element)
+                }
+            }
+
+            //add class and it's fields and methods
+            sb.append("\t".repeat(indent++)).append("public interface ")
+                .append(getNonDuplicateName(className, typePaths, typePaths.size - 1)).append(" {\n")
+
+            //add fields
+            if (!fields.isEmpty()) {
+                sb.append("\t".repeat(indent++)).append("public interface fields {\n")
+                fields.forEach { field ->
+                    sb.append("\t".repeat(indent)).append("public interface ")
+                        .append(getNonDuplicateName(field, typePaths)).append(" {}\n")
+                }
+                sb.append("\t".repeat(--indent)).append("}\n")
+            }
+
+            //add methods
+            if (!methods.isEmpty()) {
+                sb.append("\t".repeat(indent++)).append("public interface methods {\n")
+                methods.entries().forEach { (simpleName, normalized) ->
+                    var methodName = if (methods.get(simpleName)!!.size == 1) simpleName else normalized
+
+                    methodName = getNonDuplicateName(methodName, fields)
+
+                    sb.append("\t".repeat(indent)).append("public interface ")
+                        .append(getNonDuplicateName(methodName, typePaths)).append(" {}\n")
+                }
+                sb.append("\t".repeat(--indent)).append("}\n")
+            }
+
+            //add annotations
+            if (!annotations.isEmpty()) {
+                sb.append("\t".repeat(indent++)).append("public interface annotations {\n")
+                annotations.forEach { annotation ->
+                    var nonDuplicateName = annotation
+                    nonDuplicateName = getNonDuplicateName(nonDuplicateName, typePaths)
+                    sb.append("\t".repeat(indent)).append("public interface ").append(nonDuplicateName).append(" {}\n")
+                }
+                sb.append("\t".repeat(--indent)).append("}\n")
+            }
+
+            prevPaths = typePaths
+        }
 
         //close indention
         (prevPaths.size downTo 1).forEach { j ->
