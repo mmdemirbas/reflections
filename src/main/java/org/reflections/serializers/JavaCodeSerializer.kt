@@ -7,7 +7,6 @@ import org.reflections.util.Datum
 import org.reflections.util.Multimap
 import org.reflections.util.classForName
 import org.reflections.util.generateWhileNotNull
-import org.reflections.util.logWarn
 import org.reflections.util.makeParents
 import org.reflections.util.substringBetween
 import org.reflections.util.tryOrThrow
@@ -108,9 +107,7 @@ object JavaCodeSerializer : Serializer {
 
     override fun toString(configuration: Configuration): String {
         val list = configuration.ask<TypeElementsScanner, Map.Entry<Datum, Set<Datum>>> { entries() }
-        if (list.isEmpty()) {
-            logWarn("JavaCodeSerializer needs TypeElementsScanner configured")
-        }
+        if (list.isEmpty()) throw RuntimeException("JavaCodeSerializer needs TypeElementsScanner configured")
 
         val sb = StringBuilder()
         var prevPaths: List<String> = listOf()

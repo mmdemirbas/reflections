@@ -10,6 +10,7 @@ import java.net.URLClassLoader
  * Test Urls utility class
  */
 class UrlsTest {
+    // todo: test isimlerini Kotlin sayesinde cümle gibi isimlendir ve test prefix'ini kaldır
     @Test
     fun testForClassLoaderShouldntReorderUrls() {
         // testing same URL set with different order to not fall into the case when HashSet orders elements in the same order as we do

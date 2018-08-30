@@ -74,7 +74,7 @@ class FilterTest {
     //-----------------------------------------------------------------------
     @Test
     fun test_parse_include() {
-        val filter = Filter.parse("+org.reflections.*")
+        val filter = parseFilter("+org.reflections.*")
         assertTrue(filter.test("org.reflections.Configuration"))
         assertTrue(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))
@@ -83,7 +83,7 @@ class FilterTest {
 
     @Test
     fun test_parse_include_notRegex() {
-        val filter = Filter.parse("+org.reflections")
+        val filter = parseFilter("+org.reflections")
         assertFalse(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))
@@ -92,7 +92,7 @@ class FilterTest {
 
     @Test
     fun test_parse_exclude() {
-        val filter = Filter.parse("-org.reflections.*")
+        val filter = parseFilter("-org.reflections.*")
         assertFalse(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertTrue(filter.test("org.foobar.Configuration"))
@@ -101,7 +101,7 @@ class FilterTest {
 
     @Test
     fun test_parse_exclude_notRegex() {
-        val filter = Filter.parse("-org.reflections")
+        val filter = parseFilter("-org.reflections")
         assertTrue(filter.test("org.reflections.Configuration"))
         assertTrue(filter.test("org.reflections.foo.Configuration"))
         assertTrue(filter.test("org.foobar.Configuration"))
@@ -110,7 +110,7 @@ class FilterTest {
 
     @Test
     fun test_parse_include_exclude() {
-        val filter = Filter.parse("+org.reflections.*, -org.reflections.foo.*")
+        val filter = parseFilter("+org.reflections.*, -org.reflections.foo.*")
         assertTrue(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))
@@ -119,7 +119,7 @@ class FilterTest {
     //-----------------------------------------------------------------------
     @Test
     fun test_parsePackages_include() {
-        val filter = Filter.parsePackages("+org.reflections")
+        val filter = parsePackagesFilter("+org.reflections")
         assertTrue(filter.test("org.reflections.Configuration"))
         assertTrue(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))
@@ -128,7 +128,7 @@ class FilterTest {
 
     @Test
     fun test_parsePackages_include_trailingDot() {
-        val filter = Filter.parsePackages("+org.reflections.")
+        val filter = parsePackagesFilter("+org.reflections.")
         assertTrue(filter.test("org.reflections.Configuration"))
         assertTrue(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))
@@ -137,7 +137,7 @@ class FilterTest {
 
     @Test
     fun test_parsePackages_exclude() {
-        val filter = Filter.parsePackages("-org.reflections")
+        val filter = parsePackagesFilter("-org.reflections")
         assertFalse(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertTrue(filter.test("org.foobar.Configuration"))
@@ -146,7 +146,7 @@ class FilterTest {
 
     @Test
     fun test_parsePackages_exclude_trailingDot() {
-        val filter = Filter.parsePackages("-org.reflections.")
+        val filter = parsePackagesFilter("-org.reflections.")
         assertFalse(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertTrue(filter.test("org.foobar.Configuration"))
@@ -155,7 +155,7 @@ class FilterTest {
 
     @Test
     fun test_parsePackages_include_exclude() {
-        val filter = Filter.parsePackages("+org.reflections, -org.reflections.foo")
+        val filter = parsePackagesFilter("+org.reflections, -org.reflections.foo")
         assertTrue(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))

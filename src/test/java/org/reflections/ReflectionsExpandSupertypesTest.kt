@@ -28,7 +28,7 @@ class ReflectionsExpandSupertypesTest {
     }
 
     @Test
-    fun testExpandSupertypes() {
+    fun `expand super types`() {
         val refExpand =
                 Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
                               urls = setOf(urlForClass(C::class.java)!!),
@@ -39,7 +39,7 @@ class ReflectionsExpandSupertypesTest {
     }
 
     @Test
-    fun testNotExpandSupertypes() {
+    fun `do not expand super types`() {
         val refDontExpand =
                 Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner(expandSuperTypes = false)),
                               urls = setOf(urlForClass(C::class.java)!!),

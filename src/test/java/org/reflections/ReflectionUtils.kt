@@ -7,50 +7,6 @@ import java.lang.reflect.Executable
 import java.lang.reflect.Field
 import java.lang.reflect.Member
 
-/**
- * convenient java reflection helper methods
- *
- *
- * 1. some helper methods to get type by name: [classForName] and [classesForNames]
- *
- *
- * 2. some helper methods to get all types/methods/fields/constructors/properties matching some predicates, generally:
- * ``` Set&#60?> result = getAllXXX(type/s, withYYY) ```
- *
- * where get methods are:
- *
- *  * [classAndInterfaceHieararchyExceptObject]
- *  * [getAllFields]
- *  * [getAllMethods]
- *  * [getAllConstructors]
- *
- *
- * and predicates included here all starts with "with", such as
- *
- *  * [withAnnotation]
- *  * [withModifier]
- *  * [withName]
- *  * [withParameters]
- *  * [withAnyParameterAnnotation]
- *  * [withParametersAssignableTo]
- *  * [withParametersAssignableFrom]
- *  * [withPrefix]
- *  * [withReturnType]
- *  * [withType]
- *  * [withTypeAssignableTo]
- *
- *
- *
- * <br></br>
- * for example, getting all getters would be:
- * ```
- * Set&#60Method> getters = getAllMethods(someClasses,
- * Predicates.and(
- * withModifier(Modifier.PUBLIC),
- * withPrefix("get"),
- * withParametersCount(0)));
- * ```
- */
 object ReflectionUtils {
 
     /**

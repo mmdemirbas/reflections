@@ -33,7 +33,7 @@ class VfsTest {
             !url.toExternalForm().contains("surefire") && url.toExternalForm().endsWith(".jar")
         } ?: throw RuntimeException()
 
-    private val someDirectory: URL get() = ReflectionsTest.userDir.toURI().toURL()
+    private val someDirectory: URL get() = userDir.toURI().toURL()
 
     @Test
     fun allKindsOfShittyUrls() {

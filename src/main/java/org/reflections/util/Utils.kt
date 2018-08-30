@@ -147,6 +147,11 @@ fun Class<*>.directParentsExceptObject() =
         (listOfNotNull(superclass) - listOf(Any::class.java) + interfaces.filterNotNull()).toSet()
 
 /**
+ * Returns the superclass hierarchy including this class.
+ */
+fun Class<*>.classHieararchy() = generateWhileNotNull { superclass }
+
+/**
  * Returns the class & interface hierarchy starting with this class, in depth-first order.
  */
 fun Class<*>.classAndInterfaceHieararchyExceptObject() = when {

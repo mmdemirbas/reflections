@@ -171,7 +171,7 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
      *
      * depends on TypeAnnotationsScanner and SubTypesScanner configured
      */
-    fun getTypesAnnotatedWith(annotation: Class<out Annotation>, honorInherited: Boolean): Set<Class<*>> {
+    fun typesAnnotatedWith(annotation: Class<out Annotation>, honorInherited: Boolean): Set<Class<*>> {
         val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.fullName()) }
         val classes = getAllAnnotated(annotated, annotation.isAnnotationPresent(Inherited::class.java), honorInherited)
         return (annotated + classes).mapNotNull { classForName(it.value, classLoaders) }.toSet()
@@ -182,9 +182,9 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
      *
      * [java.lang.annotation.Inherited] is honored according to given honorInherited
      *
-     * depends on TypeAnnotationsScanner configured
+     * depends on TypeAnnotationsScanner and SubTypesScanner configured
      */
-    fun getTypesAnnotatedWith(annotation: Annotation, honorInherited: Boolean): Set<Class<*>> {
+    fun typesAnnotatedWith(annotation: Annotation, honorInherited: Boolean): Set<Class<*>> {
         val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.annotationClass.java.fullName()) }
         val filter =
                 annotated.mapNotNull { classForName(it.value, classLoaders) }.filter { withAnnotation(it, annotation) }
@@ -231,9 +231,9 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
     fun methodsAnnotatedWith(annotation: Class<out Annotation>) =
             ask<MethodAnnotationsScanner, Method> { methodsAnnotatedWith(annotation) }
 
-    fun methodsMatchParams(vararg types: Class<*>) = ask<MethodParameterScanner, Method> { methodsMatchParams(*types) }
+    fun methodsMatchParams(vararg types: Class<*>) = ask<MethodParameterScanner, Method> { methodsWithParamTypes(*types) }
 
-    fun methodsReturn(returnType: Class<*>) = ask<MethodParameterScanner, Method> { methodsReturn(returnType) }
+    fun methodsReturn(returnType: Class<*>) = ask<MethodParameterScanner, Method> { methodsWithReturnType(returnType) }
 
     fun methodsWithAnyParamAnnotated(annotation: Annotation) =
             ask<MethodParameterScanner, Method> { methodsWithAnyParamAnnotated(annotation) }
@@ -242,7 +242,7 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
             ask<MethodParameterScanner, Method> { methodsWithAnyParamAnnotated(annotation) }
 
     fun constructorsMatchParams(vararg types: Class<*>) =
-            ask<MethodParameterScanner, Constructor<*>> { constructorsMatchParams(*types) }
+            ask<MethodParameterScanner, Constructor<*>> { constructorsWithParamTypes(*types) }
 
     fun constructorsWithAnyParamAnnotated(annotation: Annotation) =
             ask<MethodParameterScanner, Constructor<*>> { constructorsWithAnyParamAnnotated(annotation) }
@@ -339,48 +339,47 @@ sealed class Filter {
         override fun toString() = filters.joinToString()
     }
 
-    companion object {
-
-        /**
-         * Parses a string representation of an include/exclude filter.
-         *
-         * The given includeExcludeString is a comma separated list of package name segments,
-         * each starting with either + or - to indicate include/exclude.
-         *
-         * For example parsePackages("-java, -javax, -sun, -com.sun") or parse("+com.myn,-com.myn.excluded").
-         * Note that "-java" will block "java.foo" but not "javax.foo".
-         *
-         * The input strings "-java" and "-java." are equivalent.
-         */
-        fun parsePackages(includeExcludeString: String) = parse(includeExcludeString) {
-            (if (!it.endsWith(".")) "$it." else it).toPrefixRegex()
-        }
-
-        /**
-         * Parses a string representation of an include/exclude filter.
-         *
-         * The given includeExcludeString is a comma separated list of regexes,
-         * each starting with either + or - to indicate include/exclude.
-         *
-         * For example parsePackages("-java\\..*, -javax\\..*, -sun\\..*, -com\\.sun\\..*")
-         * or parse("+com\\.myn\\..*,-com\\.myn\\.excluded\\..*").
-         * Note that "-java\\..*" will block "java.foo" but not "javax.foo".
-         *
-         * See also the more useful [Filter.parsePackages] method.
-         */
-        fun parse(includeExcludeString: String, transformPattern: (String) -> String = { it }) =
-                Composite(includeExcludeString.split(',').dropLastWhile { it.isEmpty() }.map { string ->
-                    val trimmed = string.trim { it <= ' ' }
-                    val prefix = trimmed[0]
-                    val pattern = transformPattern(trimmed.substring(1))
-                    when (prefix) {
-                        '+'  -> Include(pattern)
-                        '-'  -> Exclude(pattern)
-                        else -> throw RuntimeException("includeExclude should start with either + or -")
-                    }
-                })
-    }
 }
 
 fun String.toPrefixRegex() = replace(".", "\\.") + ".*"
 fun Class<*>.toPackageNameRegex() = "${`package`.name}.".toPrefixRegex()
+
+/**
+ * Parses a string representation of an include/exclude filter.
+ *
+ * The given includeExcludeString is a comma separated list of package name segments,
+ * each starting with either + or - to indicate include/exclude.
+ *
+ * For example parsePackagesFilter("-java, -javax, -sun, -com.sun") or parseFilter("+com.myn,-com.myn.excluded").
+ * Note that "-java" will block "java.foo" but not "javax.foo".
+ *
+ * The input strings "-java" and "-java." are equivalent.
+ */
+fun parsePackagesFilter(includeExcludeString: String) = parseFilter(includeExcludeString) {
+    (if (!it.endsWith(".")) "$it." else it).toPrefixRegex()
+}
+
+/**
+ * Parses a string representation of an include/exclude filter.
+ *
+ * The given includeExcludeString is a comma separated list of regexes,
+ * each starting with either + or - to indicate include/exclude.
+ *
+ * For example parsePackagesFilter("-java\\..*, -javax\\..*, -sun\\..*, -com\\.sun\\..*")
+ * or parseFilter("+com\\.myn\\..*,-com\\.myn\\.excluded\\..*").
+ * Note that "-java\\..*" will block "java.foo" but not "javax.foo".
+ *
+ * See also the more useful [Filter.parsePackagesFilter] method.
+ */
+fun parseFilter(includeExcludeString: String, transformPattern: (String) -> String = { it }) =
+        Filter.Composite(includeExcludeString.split(',').dropLastWhile { it.isEmpty() }.map { string ->
+            val trimmed = string.trim { it <= ' ' }
+            val prefix = trimmed[0]
+            val pattern = transformPattern(trimmed.substring(1))
+            when (prefix) {
+                '+'  -> Filter.Include(pattern)
+                '-'  -> Filter.Exclude(pattern)
+                else -> throw RuntimeException("includeExclude should start with either + or -")
+            }
+        })
+

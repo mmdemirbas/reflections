@@ -18,10 +18,12 @@ import org.reflections.util.Datum
 import org.reflections.util.Multimap
 import org.reflections.util.annotationType
 import org.reflections.util.classForName
+import org.reflections.util.classHieararchy
 import org.reflections.util.defaultClassLoaders
 import org.reflections.util.directParentsExceptObject
 import org.reflections.util.fullName
 import org.reflections.util.logDebug
+import org.reflections.util.tryOrNull
 import org.reflections.util.tryOrThrow
 import org.reflections.util.withAnnotation
 import org.reflections.util.withAnyParameterAnnotation
@@ -89,15 +91,12 @@ class ResourcesScanner : Scanner() {
     /**
      * get resources relative paths where simple name (key) matches given regular expression
      *
-     * depends on ResourcesScanner configured
-     * ```Set<String> xmls = reflections.resources(".*\\.xml");```
+     *  ```Set<String> xmls = resources(".*\\.xml");```
      */
     fun resources(pattern: Pattern) = resources { pattern.matcher(it).matches() }
 
     /**
      * get resources relative paths where simple name (key) matches given namePredicate
-     *
-     * depends on ResourcesScanner configured
      */
     fun resources(namePredicate: (String) -> Boolean) = values(store.keys().filter { namePredicate(it.value) }).toSet()
 }
@@ -105,13 +104,10 @@ class ResourcesScanner : Scanner() {
 abstract class BaseClassScanner : Scanner() {
     override fun acceptsInput(file: String) = file.endsWith(".class")
 
-    override fun scan(vfsFile: VfsFile, classObject: ClassAdapter?): ClassAdapter {
-        return (classObject ?: tryOrThrow("could not create class object from vfsFile ${vfsFile.relativePath!!}") {
-            CreateClassAdapter(vfsFile)
-        }).also {
-            scan(it)
-        }
-    }
+    override fun scan(vfsFile: VfsFile, classObject: ClassAdapter?) =
+            (classObject ?: tryOrThrow("could not create class object from vfsFile ${vfsFile.relativePath!!}") {
+                CreateClassAdapter(vfsFile)
+            }).also { scan(it) }
 
     abstract fun scan(cls: ClassAdapter)
 }
@@ -123,20 +119,10 @@ class FieldAnnotationsScanner : BaseClassScanner() {
         }
     }
 
-    /**
-     * get all methods annotated with a given annotation, including annotation member values matching
-     *
-     * depends on FieldAnnotationsScanner configured
-     */
     fun fieldsAnnotatedWith(annotation: Annotation) = fieldsAnnotatedWith(annotation.annotationType()).filter {
         withAnnotation(it, annotation)
     }.toSet()
 
-    /**
-     * get all fields annotated with a given annotation
-     *
-     * depends on FieldAnnotationsScanner configured
-     */
     fun fieldsAnnotatedWith(annotation: Class<out Annotation>) = values(annotation.fullName()).map {
         val field = it.value
         val className = field.substringBeforeLast('.')
@@ -201,11 +187,6 @@ class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoade
     val CtMember.declaringClassName get() = declaringClass.name
     val CtBehavior.parameterNames get() = JavassistMethodAdapter(methodInfo).parameters.joinToString()
 
-    /**
-     * get all given `constructor`, `method`, or `field` usages in methods and constructors
-     *
-     * depends on MemberUsageScanner configured
-     */
     fun usages(o: AccessibleObject) = values(listOf(o.fullName())).map(::descriptorToMember)
 }
 
@@ -215,39 +196,19 @@ class MethodAnnotationsScanner : BaseClassScanner() {
             .forEach { annotation -> store.put(Datum(annotation), method.getMethodFullKey(cls)) }
     }
 
-    /**
-     * get all constructors annotated with a given annotation, including annotation member values matching
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
     fun constructorsAnnotatedWith(annotation: Annotation) =
             constructorsAnnotatedWith(annotation.annotationType()).filter {
                 withAnnotation(it, annotation)
             }.toSet()
 
-    /**
-     * get all constructors annotated with a given annotation
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
     fun constructorsAnnotatedWith(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).methodAnnotations<Constructor<*>>()
 
-    /**
-     * get all methods annotated with a given annotation, including annotation member values matching
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
     fun methodsAnnotatedWith(annotation: Annotation) =
             listOf(annotation.annotationClass.java.fullName()).methodAnnotations<Method>().filter {
                 withAnnotation(it, annotation)
             }.toSet()
 
-    /**
-     * get all methods annotated with a given annotation
-     *
-     * depends on MethodAnnotationsScanner configured
-     */
     fun methodsAnnotatedWith(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).methodAnnotations<Method>()
 
@@ -271,10 +232,6 @@ class MethodParameterNamesScanner : BaseClassScanner() {
         }
     }
 
-    /* get parameter names of given `method` or `constructor`
-    *
-    * depends on MethodParameterNamesScanner configured
-    */
     fun paramNames(executable: Executable): List<String> {
         val names = values(executable.fullName())
         return when {
@@ -304,52 +261,30 @@ class MethodParameterScanner : BaseClassScanner() {
         }.forEach { store.put(Datum(it), method.getMethodFullKey(cls)) }
     }
 
-    /**
-     * get methods with parameter types matching given `types`
-     */
-    fun methodsMatchParams(vararg types: Class<*>) = types.map { it.fullName() }.asMembers<Method>()
+    fun methodsWithParamTypes(vararg types: Class<*>) = types.map { it.fullName() }.asMembers<Method>()
 
-    /**
-     * get methods with return type match given type
-     */
-    fun methodsReturn(returnType: Class<*>) = listOf(returnType.fullName()).asMembers<Method>()
+    fun methodsWithReturnType(returnType: Class<*>) = listOf(returnType.fullName()).asMembers<Method>()
 
-    /**
-     * get methods with any parameter annotated with given annotation, including annotation member values matching
-     */
     fun methodsWithAnyParamAnnotated(annotation: Annotation) =
             methodsWithAnyParamAnnotated(annotation.annotationClass.java).filter {
                 withAnyParameterAnnotation(it, annotation)
             }.toSet()
 
-    /**
-     * get methods with any parameter annotated with given annotation
-     */
     fun methodsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).asMembers<Method>()
 
-    /**
-     * get constructors with parameter types matching given `types`
-     */
-    fun constructorsMatchParams(vararg types: Class<*>) = types.map { it.fullName() }.asMembers<Constructor<*>>()
+    fun constructorsWithParamTypes(vararg types: Class<*>) = types.map { it.fullName() }.asMembers<Constructor<*>>()
 
-    /**
-     * get constructors with any parameter annotated with given annotation, including annotation member values matching
-     */
     fun constructorsWithAnyParamAnnotated(annotation: Annotation) =
             constructorsWithAnyParamAnnotated(annotation.annotationType()).filter {
                 withAnyParameterAnnotation(it, annotation)
             }.toSet()
 
-    /**
-     * get constructors with any parameter annotated with given annotation
-     */
     fun constructorsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).asMembers<Constructor<*>>()
 
     private inline fun <reified T> List<Datum>.asMembers() =
             values(this).map(::descriptorToMember).filterIsInstance<T>().toSet()
-
 }
 
 class TypeElementsScanner(val includeFields: Boolean = true,
@@ -387,16 +322,11 @@ class TypeElementsScanner(val includeFields: Boolean = true,
 class TypeAnnotationsScanner : BaseClassScanner() {
     override fun scan(cls: ClassAdapter) =
             cls.annotations.filter { acceptResult(Datum(it)) || it == Inherited::class.java.name }.forEach {
-                //as an exception, accept Inherited as well
                 store.put(Datum(it), Datum(cls.name))
             }
 }
 
 
-/**
- * @property excludeObjectClass
- * @property expandSuperTypes if true (default), expand super types after scanning, for super types that were not scanned.
- */
 class SubTypesScanner(val excludeObjectClass: Boolean = true,
                       val expandSuperTypes: Boolean = true) : BaseClassScanner() {
 
@@ -449,8 +379,6 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
     /**
      * get all types scanned. this is effectively similar to getting all subtypes of Object.
      *
-     * depends on SubTypesScanner configured with `SubTypesScanner(false)`, otherwise `RuntimeException` is thrown
-     *
      * *note using this might be a bad practice. it is better to get types matching some criteria,
      * such as [subTypesOf] or [getTypesAnnotatedWith]*
      *
@@ -464,19 +392,12 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
         }
     }
 
-    /**
-     * gets all sub types in hierarchy of a given type
-     *
-     * depends on SubTypesScanner configured
-     */
     fun <T> subTypesOf(type: Class<T>) =
             recursiveValuesExcludingSelf(listOf(type.fullName())).mapNotNull { classForName(it.value) as Class<out T>? }.toSet()
-
 }
 
 
-fun descriptorToMember(value: Datum) =
-        tryOrThrow("Can't resolve member named $value") { descriptorToMemberOrThrow(value) }
+fun descriptorToMember(value: Datum) = tryOrThrow("Can't resolve member $value") { descriptorToMemberOrThrow(value) }
 
 fun descriptorToMemberOrThrow(datum: Datum): Member {
     val descriptor = datum.value
@@ -492,35 +413,28 @@ fun descriptorToMemberOrThrow(datum: Datum): Member {
         classForName(name.trim { it.toInt() <= ' '.toInt() })
     }.toTypedArray()
 
-    var aClass = classForName(className)
-    while (aClass != null) {
-        try {
-            return when {
-                !descriptor.contains("(")    -> {
+    return classForName(className)?.classHieararchy()?.asSequence()?.mapNotNull {
+        tryOrNull {
+            // todo: interface olsun olmasın getDeclared** metotları çalışıyor olmalı?
+            when {
+                it.isInterface -> {
                     when {
-                        aClass.isInterface -> aClass.getField(memberName)
-                        else               -> aClass.getDeclaredField(memberName)
+                        !descriptor.contains("(")    -> it.getField(memberName) as Member
+                        descriptor.contains("init>") -> it.getConstructor(*parameterTypes) as Member
+                        else                         -> it.getMethod(memberName, *parameterTypes) as Member
                     }
                 }
-                descriptor.contains("init>") -> {
+                else           -> {
                     when {
-                        aClass.isInterface -> aClass.getConstructor(*parameterTypes)
-                        else               -> aClass.getDeclaredConstructor(*parameterTypes)
-                    }
-                }
-                else                         -> {
-                    when {
-                        aClass.isInterface -> aClass.getMethod(memberName, *parameterTypes)
-                        else               -> aClass.getDeclaredMethod(memberName, *parameterTypes)
+                        !descriptor.contains("(")    -> it.getDeclaredField(memberName) as Member
+                        descriptor.contains("init>") -> it.getDeclaredConstructor(*parameterTypes) as Member
+                        else                         -> it.getDeclaredMethod(memberName, *parameterTypes) as Member
                     }
                 }
             }
-        } catch (e: Exception) {
-            aClass = aClass.superclass
         }
-    }
-    when {
-        descriptor.contains("(") -> throw RuntimeException("Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className")
-        else                     -> throw RuntimeException("Can't resolve $memberName field for class $className")
-    }
+    }?.firstOrNull() ?: throw RuntimeException(when {
+                                                   descriptor.contains("(") -> "Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className"
+                                                   else                     -> "Can't resolve $memberName field for class $className"
+                                               })
 }
