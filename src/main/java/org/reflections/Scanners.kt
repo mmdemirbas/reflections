@@ -78,7 +78,8 @@ data class Scanners(val scanners: Collection<Scanner>) {
     /**
      * Convenient method to scan a package.
      */
-    fun scan(prefix: String) = scan(urls = urlForPackage(prefix), filter = Filter.Include(prefix.toPrefixRegex()))
+    fun scan(prefix: String) = scan(urls = urlForPackage(prefix), filter = Filter.Include(
+            prefix.toPrefixRegex()))
 
     /**
      * @param urls the urls to be scanned
@@ -106,7 +107,8 @@ data class Scanners(val scanners: Collection<Scanner>) {
                 }
                 scannedUrls++
             } catch (e: RuntimeException) {
-                logWarn("could not create VfsDir from url. ignoring the exception and continuing", e)
+                logWarn("could not create VfsDir from url. ignoring the exception and continuing",
+                                             e)
             }
         }
         futures.forEach { it.get() }
@@ -122,7 +124,8 @@ data class Scanners(val scanners: Collection<Scanner>) {
         return this
     }
 
-    private fun scanUrl(filter: Filter, url: URL) = Vfs.fromURL(url).use(VfsDir::files).forEach { file ->
+    private fun scanUrl(filter: Filter, url: URL) = Vfs.fromURL(url).use(
+            VfsDir::files).forEach { file ->
         val fqn = file.relativePath!!.replace('/', '.')
         if (filter.test(file.relativePath!!) || filter.test(fqn)) {
             // todo: bu classObject neden var? Performans ise başka şekilde halledilsin. Kodu kirletmesin.
@@ -134,9 +137,9 @@ data class Scanners(val scanners: Collection<Scanner>) {
                     }
                 } catch (e: Exception) {
                     logWarn("could not scan file {} in with scanner {}",
-                            file.relativePath,
-                            scanner.javaClass.simpleName,
-                            e)
+                                                 file.relativePath,
+                                                 scanner.javaClass.simpleName,
+                                                 e)
                 }
             }
         }
@@ -186,7 +189,10 @@ data class Scanners(val scanners: Collection<Scanner>) {
                            classLoaders: List<ClassLoader> = defaultClassLoaders()): List<Class<*>> {
         val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.annotationClass.java.fullName()) }
         val filter =
-                annotated.mapNotNull { classForName(it.value, classLoaders) }.filter { withAnnotation(it, annotation) }
+                annotated.mapNotNull {
+                    classForName(it.value,
+                                                      classLoaders)
+                }.filter { withAnnotation(it, annotation) }
         val classes =
                 getAllAnnotated(filter.map { it.fullName() },
                                 annotation.annotationType().isAnnotationPresent(Inherited::class.java),
@@ -270,82 +276,3 @@ data class Scanners(val scanners: Collection<Scanner>) {
         }.flatMap(flatMap)
     }
 }
-
-
-sealed class Filter {
-    abstract fun test(s: String): Boolean
-
-    data class Include(val patternString: String) : Filter() {
-        private val pattern = Pattern.compile(patternString)
-        override fun test(s: String) = pattern.matcher(s).matches()
-        override fun toString() = "+$patternString"
-    }
-
-    data class Exclude(val patternString: String) : Filter() {
-        private val pattern = Pattern.compile(patternString)
-        override fun test(s: String) = !pattern.matcher(s).matches()
-        override fun toString() = "-$patternString"
-    }
-
-    data class Composite(val filters: List<Filter>) : Filter() {
-        override fun test(s: String): Boolean {
-            var accept = filters.isEmpty() || filters[0] is Exclude
-            loop@ for (filter in filters) {
-                //skip if this filter won't change
-                when {
-                    accept -> if (filter is Include) continue@loop
-                    else   -> if (filter is Exclude) continue@loop
-                }
-                accept = filter.test(s)
-                //break on first exclusion
-                if (!accept && filter is Exclude) break
-            }
-            return accept
-        }
-
-        override fun toString() = filters.joinToString()
-    }
-
-}
-
-fun String.toPrefixRegex() = replace(".", "\\.") + ".*"
-fun Class<*>.toPackageNameRegex() = "${`package`.name}.".toPrefixRegex()
-
-/**
- * Parses a string representation of an include/exclude filter.
- *
- * The given includeExcludeString is a comma separated list of package name segments,
- * each starting with either + or - to indicate include/exclude.
- *
- * For example parsePackagesFilter("-java, -javax, -sun, -com.sun") or parseFilter("+com.myn,-com.myn.excluded").
- * Note that "-java" will block "java.foo" but not "javax.foo".
- *
- * The input strings "-java" and "-java." are equivalent.
- */
-fun parsePackagesFilter(includeExcludeString: String) = parseFilter(includeExcludeString) {
-    (if (!it.endsWith(".")) "$it." else it).toPrefixRegex()
-}
-
-/**
- * Parses a string representation of an include/exclude filter.
- *
- * The given includeExcludeString is a comma separated list of regexes,
- * each starting with either + or - to indicate include/exclude.
- *
- * For example parsePackagesFilter("-java\\..*, -javax\\..*, -sun\\..*, -com\\.sun\\..*")
- * or parseFilter("+com\\.myn\\..*,-com\\.myn\\.excluded\\..*").
- * Note that "-java\\..*" will block "java.foo" but not "javax.foo".
- *
- * See also the more useful [Filter.parsePackagesFilter] method.
- */
-fun parseFilter(includeExcludeString: String, transformPattern: (String) -> String = { it }) =
-        Filter.Composite(includeExcludeString.split(',').dropLastWhile { it.isEmpty() }.map { string ->
-            val trimmed = string.trim { it <= ' ' }
-            val prefix = trimmed[0]
-            val pattern = transformPattern(trimmed.substring(1))
-            when (prefix) {
-                '+'  -> Filter.Include(pattern)
-                '-'  -> Filter.Exclude(pattern)
-                else -> throw RuntimeException("includeExclude should start with either + or -")
-            }
-        })
