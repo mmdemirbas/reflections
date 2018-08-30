@@ -1,14 +1,14 @@
 package org.reflections.serializers
 
-import org.reflections.Configuration
+import org.reflections.Scanners
 import java.io.File
 import java.io.InputStream
 
 /**
- * Serializer of a [org.reflections.Configuration] instance
+ * Serializer of a [org.reflections.Scanners] instance
  */
 interface Serializer {
-    fun read(inputStream: InputStream): Configuration
-    fun save(configuration: Configuration, file: File)
-    fun toString(configuration: Configuration): String
+    fun read(inputStream: InputStream): Scanners
+    fun save(scanners: Scanners, file: File)
+    fun toString(scanners: Scanners): String
 }

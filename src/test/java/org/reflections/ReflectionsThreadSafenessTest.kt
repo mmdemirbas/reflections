@@ -13,12 +13,10 @@ class ReflectionsThreadSafenessTest {
      */
     @Test
     fun reflections_scan_is_thread_safe() {
+        val scanners = Scanners(SubTypesScanner(false))
         val callable = {
-            val configuration =
-                    Configuration(scanners = setOf(SubTypesScanner(false)),
-                                  urls = setOf(urlForClass(Map::class.java)!!)).withScan()
-
-            configuration.subTypesOf(Map::class.java)
+            scanners.scan(urls = setOf(urlForClass(Map::class.java)!!))
+                .subTypesOf(Map::class.java)
         }
 
         val pool = Executors.newFixedThreadPool(2)

@@ -1,7 +1,7 @@
 package org.reflections.util
 
 import org.apache.logging.log4j.LogManager
-import org.reflections.Configuration
+import org.reflections.Scanners
 import java.io.File
 import java.io.IOException
 import java.lang.reflect.AnnotatedElement
@@ -63,6 +63,8 @@ import javax.servlet.ServletContext
 // todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
 
 // todo: javadoc'larda gereksiz fqn'ler var, zaten import edilmişse bunları uzun yazmaya gerek yok
+
+// todo: performans testleri de ekle
 
 fun Annotation.annotationType() = annotationClass.java
 
@@ -144,7 +146,7 @@ class Multimap<K, V> {
  * - subsequent items will be interfaces in declaration order.
  */
 fun Class<*>.directParentsExceptObject() =
-        (listOfNotNull(superclass) - listOf(Any::class.java) + interfaces.filterNotNull()).toSet()
+        (listOfNotNull(superclass) - listOf(Any::class.java) + interfaces.filterNotNull())
 
 /**
  * Returns the superclass hierarchy including this class.
@@ -155,8 +157,8 @@ fun Class<*>.classHieararchy() = generateWhileNotNull { superclass }
  * Returns the class & interface hierarchy starting with this class, in depth-first order.
  */
 fun Class<*>.classAndInterfaceHieararchyExceptObject() = when {
-    this == Any::class.java -> emptySet()
-    else                    -> dfs { directParentsExceptObject() }.toSet()
+    this == Any::class.java -> emptyList()
+    else                    -> dfs { directParentsExceptObject() }
 }
 
 /**
@@ -171,13 +173,13 @@ fun <T : AnnotatedElement> withAnnotation(element: T, expected: Annotation) =
                                                                                                        expected.annotationType()))
 
 fun withAnyParameterAnnotation(member: Member, expectedType: Class<out Annotation>) =
-        parameterAnnotations(member).map { actual -> actual.annotationType() }.toSet().any { actualType -> actualType == expectedType }
+        parameterAnnotations(member).map { actual -> actual.annotationType() }.any { actualType -> actualType == expectedType }
 
 fun withAnyParameterAnnotation(member: Member, expected: Annotation) = parameterAnnotations(member).any { actual ->
     areAnnotationMembersMatching(expected, actual)
 }
 
-fun parameterAnnotations(member: Member?) = (member as? Executable)?.parameterAnnotations?.flatten().orEmpty().toSet()
+fun parameterAnnotations(member: Member?) = (member as? Executable)?.parameterAnnotations?.flatten().orEmpty()
 
 fun areAnnotationMembersMatching(expected: Annotation, actual: Annotation?) = when {
     actual == null                                       -> false
@@ -252,7 +254,7 @@ fun contextClassLoader() = Thread.currentThread().contextClassLoader ?: null
 /**
  * Gets the class loader of this library `Configuration.class.getClassLoader()` or null.
  */
-fun staticClassLoader() = Configuration::class.java.classLoader ?: null
+fun staticClassLoader() = Scanners::class.java.classLoader ?: null
 
 fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
 
@@ -464,7 +466,7 @@ fun URL.cleanPath(): String {
     }
 }
 
-fun Collection<URL>.distinctUrls() = associate { it.toExternalForm() to it }.values.toSet()
+fun Collection<URL>.distinctUrls() = associate { it.toExternalForm() to it }.values
 
 
 /**

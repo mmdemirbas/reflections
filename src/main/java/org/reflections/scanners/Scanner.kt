@@ -98,7 +98,7 @@ class ResourcesScanner : Scanner() {
     /**
      * get resources relative paths where simple name (key) matches given namePredicate
      */
-    fun resources(namePredicate: (String) -> Boolean) = values(store.keys().filter { namePredicate(it.value) }).toSet()
+    fun resources(namePredicate: (String) -> Boolean) = values(store.keys().filter { namePredicate(it.value) })
 }
 
 abstract class BaseClassScanner : Scanner() {
@@ -121,7 +121,7 @@ class FieldAnnotationsScanner : BaseClassScanner() {
 
     fun fieldsAnnotatedWith(annotation: Annotation) = fieldsAnnotatedWith(annotation.annotationType()).filter {
         withAnnotation(it, annotation)
-    }.toSet()
+    }
 
     fun fieldsAnnotatedWith(annotation: Class<out Annotation>) = values(annotation.fullName()).map {
         val field = it.value
@@ -130,7 +130,7 @@ class FieldAnnotationsScanner : BaseClassScanner() {
         tryOrThrow("Can't resolve field named $fieldName") {
             classForName(className)!!.getDeclaredField(fieldName)
         }
-    }.toSet()
+    }
 }
 
 /**
@@ -199,7 +199,7 @@ class MethodAnnotationsScanner : BaseClassScanner() {
     fun constructorsAnnotatedWith(annotation: Annotation) =
             constructorsAnnotatedWith(annotation.annotationType()).filter {
                 withAnnotation(it, annotation)
-            }.toSet()
+            }
 
     fun constructorsAnnotatedWith(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).methodAnnotations<Constructor<*>>()
@@ -207,13 +207,13 @@ class MethodAnnotationsScanner : BaseClassScanner() {
     fun methodsAnnotatedWith(annotation: Annotation) =
             listOf(annotation.annotationClass.java.fullName()).methodAnnotations<Method>().filter {
                 withAnnotation(it, annotation)
-            }.toSet()
+            }
 
     fun methodsAnnotatedWith(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).methodAnnotations<Method>()
 
     private inline fun <reified T> List<Datum>.methodAnnotations() =
-            values(this).map { value -> descriptorToMember(value) }.filterIsInstance<T>().toSet()
+            values(this).map { value -> descriptorToMember(value) }.filterIsInstance<T>()
 }
 
 class MethodParameterNamesScanner : BaseClassScanner() {
@@ -268,7 +268,7 @@ class MethodParameterScanner : BaseClassScanner() {
     fun methodsWithAnyParamAnnotated(annotation: Annotation) =
             methodsWithAnyParamAnnotated(annotation.annotationClass.java).filter {
                 withAnyParameterAnnotation(it, annotation)
-            }.toSet()
+            }
 
     fun methodsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).asMembers<Method>()
@@ -278,13 +278,13 @@ class MethodParameterScanner : BaseClassScanner() {
     fun constructorsWithAnyParamAnnotated(annotation: Annotation) =
             constructorsWithAnyParamAnnotated(annotation.annotationType()).filter {
                 withAnyParameterAnnotation(it, annotation)
-            }.toSet()
+            }
 
     fun constructorsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).asMembers<Constructor<*>>()
 
     private inline fun <reified T> List<Datum>.asMembers() =
-            values(this).map(::descriptorToMember).filterIsInstance<T>().toSet()
+            values(this).map(::descriptorToMember).filterIsInstance<T>()
 }
 
 class TypeElementsScanner(val includeFields: Boolean = true,
@@ -384,16 +384,16 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
      *
      * @return Set of String, and not of Class, in order to avoid definition of all types in PermGen
      */
-    fun allTypes(): Set<String> {
-        val allTypes = recursiveValuesExcludingSelf(keys = listOf(Any::class.java.fullName())).toSet()
+    fun allTypes(): List<String> {
+        val allTypes = recursiveValuesExcludingSelf(keys = listOf(Any::class.java.fullName()))
         return when {
             allTypes.isEmpty() -> throw RuntimeException("Couldn't find subtypes of Object. Make sure SubTypesScanner initialized to include Object class - new SubTypesScanner(false)")
-            else               -> allTypes.map { it.value }.toSet()
+            else               -> allTypes.map { it.value }
         }
     }
 
     fun <T> subTypesOf(type: Class<T>) =
-            recursiveValuesExcludingSelf(listOf(type.fullName())).mapNotNull { classForName(it.value) as Class<out T>? }.toSet()
+            recursiveValuesExcludingSelf(listOf(type.fullName())).mapNotNull { classForName(it.value) as Class<out T>? }
 }
 
 

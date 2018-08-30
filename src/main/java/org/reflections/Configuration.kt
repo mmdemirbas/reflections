@@ -25,7 +25,6 @@ import org.reflections.util.urlForPackage
 import org.reflections.util.withAnnotation
 import org.reflections.vfs.Vfs
 import org.reflections.vfs.VfsDir
-import org.reflections.vfs.VfsFile
 import java.io.File
 import java.lang.annotation.Inherited
 import java.lang.reflect.AccessibleObject
@@ -40,62 +39,69 @@ import java.util.concurrent.Future
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.regex.Pattern
 
-/**
- * @property scanners  the scanner instances used for scanning different metadata
- * @property urls the urls to be scanned
- * @property filter the fully qualified name filter used to filter types to be scanned
- * @property executorService executor service used to scan files. if null, scanning is done in a simple for loop
- * @property classLoaders the class loaders, might be used for resolving methods/fields
- * @constructor
- */
-data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
-                         val urls: Set<URL> = emptySet(),
-                         val filter: Filter = Filter.Composite(emptyList()),
-                         val executorService: ExecutorService? = null,
-                         val classLoaders: List<ClassLoader> = defaultClassLoaders()) {
-    /**
-     * a convenient constructor for scanning within a package prefix.
-     *
-     * this actually create a [Configuration] with:
-     * <br></br> - urls that contain resources with name `prefix`
-     * <br></br> - filterInputsBy where name starts with the given `prefix`
-     * <br></br> - scanners set to the given `scanners`, otherwise defaults to [TypeAnnotationsScanner] and [SubTypesScanner].
-     *
-     * @param prefix   package prefix, to be used with [urlForPackage] )}
-     * @param scanners optionally supply scanners, otherwise defaults to [TypeAnnotationsScanner] and [SubTypesScanner]
-     */
-    constructor(prefix: String, vararg scanners: Scanner = arrayOf(TypeAnnotationsScanner(), SubTypesScanner())) : this(
-            filter = Filter.Include(prefix.toPrefixRegex()),
-            urls = urlForPackage(prefix),
-            scanners = scanners.toSet())
+data class Scanners(val scanners: Collection<Scanner>) {
+    constructor(vararg scanners: Scanner) : this(scanners.asList())
 
-    fun withScan(): Configuration {
-        scan()
-        return this
+    /**
+     * collect saved Reflections resources from all urls that contains the given packagePrefix and matches the given resourceNameFilter
+     * and de-serializes them using the default serializer [org.reflections.serializers.XmlSerializer] or using the optionally supplied serializer
+     *
+     * by default, resources are collected from all urls that contains the package META-INF/reflections
+     * and includes files matching the pattern .*-reflections.xml
+     *
+     * it is preferred to use a designated resource prefix (for example META-INF/reflections but not just META-INF),
+     * so that relevant urls could be found much faster
+     *
+     * @param serializer - optionally supply one serializer instance. if not specified or null, [org.reflections.serializers.XmlSerializer] will be used
+     */
+    fun merge(packagePrefix: String = "META-INF/reflections/",
+              resourceNameFilter: Filter = Filter.Include(".*-reflections.xml"),
+              serializer: Serializer = XmlSerializer): Scanners {
+        val urls = urlForPackage(packagePrefix)
+        val startTime = System.currentTimeMillis()
+        val others = Vfs.findFiles(urls, packagePrefix, resourceNameFilter).map { file ->
+            tryOrThrow("could not merge $file") {
+                file.openInputStream().use { stream -> serializer.read(stream) }
+            }
+        }
+        val elapsedTime = System.currentTimeMillis() - startTime
+        val merged = Scanners((listOf(this) + others).flatMap { it.scanners })
+        logInfo("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
+                elapsedTime,
+                urls.size,
+                merged.scanners.sumBy(Scanner::keyCount),
+                merged.scanners.sumBy(Scanner::valueCount),
+                urls.joinToString())
+        return merged
     }
 
-    private fun scan() {
-        if (urls.isEmpty()) {
-            logWarn("given scan urls are empty. set urls in the configuration")
-            return
-        }
+    /**
+     * Convenient method to scan a package.
+     */
+    fun scan(prefix: String) = scan(urls = urlForPackage(prefix), filter = Filter.Include(prefix.toPrefixRegex()))
+
+    /**
+     * @param urls the urls to be scanned
+     * @param filter the fully qualified name filter used to filter types to be scanned
+     * @param executorService executor service used to scan files. if null, scanning is done in a simple for loop
+     */
+    fun scan(urls: Collection<URL> = emptySet(),
+             filter: Filter = Filter.Composite(emptyList()),
+             executorService: ExecutorService? = null): Scanners {
+        if (urls.isEmpty()) throw RuntimeException("given scan urls are empty. set urls in the configuration")
 
         logDebug("going to scan these urls:\n{}", urls.joinToString("\n"))
 
         val startTime = System.currentTimeMillis()
         var scannedUrls = 0
-        val executorService = executorService
         val futures = mutableListOf<Future<*>>()
-
-        // todo: change flow or structure: for each url -> for each file -> for each scanner
-
         urls.forEach { url ->
             try {
                 when (executorService) {
-                    null -> scanUrl(url)
+                    null -> scanUrl(filter, url)
                     else -> futures.add(executorService.submit {
                         logDebug("[{}] scanning {}", Thread.currentThread(), url)
-                        scanUrl(url)
+                        scanUrl(filter, url)
                     })
                 }
                 scannedUrls++
@@ -103,32 +109,21 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
                 logWarn("could not create VfsDir from url. ignoring the exception and continuing", e)
             }
         }
-
-        //todo use CompletionService
         futures.forEach { it.get() }
-
         scanners.forEach { it.afterScan() }
-
         val elapsedTime = System.currentTimeMillis() - startTime
-
-        //gracefully shutdown the parallel scanner executor service.
         executorService?.shutdown()
-
         logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values {}",
                 elapsedTime,
                 scannedUrls,
                 scanners.sumBy(Scanner::keyCount),
                 scanners.sumBy(Scanner::valueCount),
                 if (executorService is ThreadPoolExecutor) "[using ${executorService.maximumPoolSize} cores]" else "")
+        return this
     }
 
-    private fun scanUrl(url: URL) = scanFiles(Vfs.fromURL(url).use(VfsDir::files).toList())
-
-    private fun scanFiles(files: List<VfsFile>) = files.forEach { file -> scanFile(file) }
-
-    private fun scanFile(file: VfsFile) {
+    private fun scanUrl(filter: Filter, url: URL) = Vfs.fromURL(url).use(VfsDir::files).forEach { file ->
         val fqn = file.relativePath!!.replace('/', '.')
-        // todo: filter belli bir forma match etsin, o da olur bu da olur olmaz. String değil belli bir tipi olsun
         if (filter.test(file.relativePath!!) || filter.test(fqn)) {
             // todo: bu classObject neden var? Performans ise başka şekilde halledilsin. Kodu kirletmesin.
             var classObject: ClassAdapter? = null
@@ -171,10 +166,12 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
      *
      * depends on TypeAnnotationsScanner and SubTypesScanner configured
      */
-    fun typesAnnotatedWith(annotation: Class<out Annotation>, honorInherited: Boolean): Set<Class<*>> {
+    fun typesAnnotatedWith(annotation: Class<out Annotation>,
+                           honorInherited: Boolean,
+                           classLoaders: List<ClassLoader> = defaultClassLoaders()): List<Class<*>> {
         val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.fullName()) }
         val classes = getAllAnnotated(annotated, annotation.isAnnotationPresent(Inherited::class.java), honorInherited)
-        return (annotated + classes).mapNotNull { classForName(it.value, classLoaders) }.toSet()
+        return (annotated + classes).mapNotNull { classForName(it.value, classLoaders) }
     }
 
     /**
@@ -184,11 +181,12 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
      *
      * depends on TypeAnnotationsScanner and SubTypesScanner configured
      */
-    fun typesAnnotatedWith(annotation: Annotation, honorInherited: Boolean): Set<Class<*>> {
+    fun typesAnnotatedWith(annotation: Annotation,
+                           honorInherited: Boolean,
+                           classLoaders: List<ClassLoader> = defaultClassLoaders()): List<Class<*>> {
         val annotated = ask<TypeAnnotationsScanner, Datum> { values(annotation.annotationClass.java.fullName()) }
         val filter =
                 annotated.mapNotNull { classForName(it.value, classLoaders) }.filter { withAnnotation(it, annotation) }
-                    .toSet()
         val classes =
                 getAllAnnotated(filter.map { it.fullName() },
                                 annotation.annotationType().isAnnotationPresent(Inherited::class.java),
@@ -200,7 +198,8 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
 
     private fun getAllAnnotated(annotated: Collection<Datum>,
                                 inherited: Boolean,
-                                honorInherited: Boolean): Collection<Datum> {
+                                honorInherited: Boolean,
+                                classLoaders: List<ClassLoader> = defaultClassLoaders()): Collection<Datum> {
         return when {
             !honorInherited -> {
                 val keys = ask<TypeAnnotationsScanner, Datum> { recursiveValuesIncludingSelf(annotated) }
@@ -231,7 +230,8 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
     fun methodsAnnotatedWith(annotation: Class<out Annotation>) =
             ask<MethodAnnotationsScanner, Method> { methodsAnnotatedWith(annotation) }
 
-    fun methodsMatchParams(vararg types: Class<*>) = ask<MethodParameterScanner, Method> { methodsWithParamTypes(*types) }
+    fun methodsMatchParams(vararg types: Class<*>) =
+            ask<MethodParameterScanner, Method> { methodsWithParamTypes(*types) }
 
     fun methodsReturn(returnType: Class<*>) = ask<MethodParameterScanner, Method> { methodsWithReturnType(returnType) }
 
@@ -258,52 +258,19 @@ data class Configuration(val scanners: Set<Scanner> = setOf(TypeAnnotationsScann
 
     fun resources(pattern: Pattern) = ask<ResourcesScanner, Datum> { resources(pattern) }
 
+    fun resources(): List<Datum> = ask<ResourcesScanner, Datum> { keys() }
+
     fun paramNames(executable: Executable) = ask<MethodParameterNamesScanner, String> { paramNames(executable) }
 
     fun usages(o: AccessibleObject) = ask<MemberUsageScanner, Member> { usages(o) }
 
-    inline fun <reified S : Scanner, R> ask(flatMap: S.() -> Iterable<R>): Set<R> {
+    inline fun <reified S : Scanner, R> ask(flatMap: S.() -> Iterable<R>): List<R> {
         return scanners.filterIsInstance<S>().apply {
             if (isEmpty()) throw RuntimeException("Scanner ${S::class.java.simpleName} was not configured")
-        }.flatMap(flatMap).toSet()
+        }.flatMap(flatMap)
     }
 }
 
-fun List<Configuration>.merged() = Configuration(scanners = flatMap { it.scanners }.toSet())
-
-/**
- * collect saved Reflections resources from all urls that contains the given packagePrefix and matches the given resourceNameFilter
- * and de-serializes them using the default serializer [org.reflections.serializers.XmlSerializer] or using the optionally supplied serializer
- *
- * by default, resources are collected from all urls that contains the package META-INF/reflections
- * and includes files matching the pattern .*-reflections.xml
- *
- * it is preferred to use a designated resource prefix (for example META-INF/reflections but not just META-INF),
- * so that relevant urls could be found much faster
- *
- * @param serializer - optionally supply one serializer instance. if not specified or null, [org.reflections.serializers.XmlSerializer] will be used
- */
-fun merged(configuration: Configuration,
-           packagePrefix: String = "META-INF/reflections/",
-           resourceNameFilter: Filter = Filter.Include(".*-reflections.xml"),
-           serializer: Serializer = XmlSerializer): Configuration {
-    val urls = urlForPackage(packagePrefix)
-    val startTime = System.currentTimeMillis()
-    val others = Vfs.findFiles(urls, packagePrefix, resourceNameFilter).map { file ->
-        tryOrThrow("could not merge $file") {
-            file.openInputStream().use { stream -> serializer.read(stream) }
-        }
-    }
-    val elapsedTime = System.currentTimeMillis() - startTime
-    val merged = (listOf(configuration) + others).merged()
-    logInfo("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
-            elapsedTime,
-            urls.size,
-            merged.scanners.sumBy(Scanner::keyCount),
-            merged.scanners.sumBy(Scanner::valueCount),
-            urls.joinToString())
-    return merged
-}
 
 sealed class Filter {
     abstract fun test(s: String): Boolean
@@ -382,4 +349,3 @@ fun parseFilter(includeExcludeString: String, transformPattern: (String) -> Stri
                 else -> throw RuntimeException("includeExclude should start with either + or -")
             }
         })
-

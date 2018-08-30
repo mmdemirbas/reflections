@@ -3,10 +3,8 @@ package org.reflections
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.assertThrows
 import org.reflections.Filter.Exclude
 import org.reflections.Filter.Include
@@ -30,42 +28,19 @@ import org.reflections.TestModel.I2
 import org.reflections.TestModel.I3
 import org.reflections.TestModel.MAI1
 import org.reflections.TestModel.Usage
-import org.reflections.scanners.FieldAnnotationsScanner
-import org.reflections.scanners.MemberUsageScanner
-import org.reflections.scanners.MethodAnnotationsScanner
-import org.reflections.scanners.MethodParameterNamesScanner
-import org.reflections.scanners.MethodParameterScanner
 import org.reflections.scanners.ResourcesScanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
-import org.reflections.serializers.JsonSerializer
 import org.reflections.util.Datum
 import org.reflections.util.annotationType
 import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import org.reflections.util.urlForClass
-import java.io.File
 import java.util.regex.Pattern
 
-@TestInstance(TestInstance.Lifecycle.PER_CLASS)
-open class ReflectionsTest {
+abstract class ReflectionsTestBase {
     val TestModelFilter = Include("org.reflections.TestModel\\$.*")
 
-    lateinit var configuration: Configuration
-
-    @BeforeAll
-    open fun setup() {
-        configuration =
-                Configuration(scanners = setOf(SubTypesScanner(false),
-                                               TypeAnnotationsScanner(),
-                                               FieldAnnotationsScanner(),
-                                               MethodAnnotationsScanner(),
-                                               MethodParameterScanner(),
-                                               MethodParameterNamesScanner(),
-                                               MemberUsageScanner()),
-                              filter = TestModelFilter,
-                              urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
-        println(JsonSerializer.toString(configuration))
-    }
+    lateinit var configuration: Scanners
 
     @Nested
     inner class AllTypes {
@@ -453,40 +428,26 @@ open class ReflectionsTest {
 
     @Test
     open fun resources() {
+        val scanners = Scanners(ResourcesScanner())
         val filter = Filter.Composite(listOf(Include(".*\\.xml"), Exclude(".*testModel-reflections\\.xml")))
-        val configuration =
-                Configuration(scanners = setOf(ResourcesScanner()),
-                              filter = filter,
-                              urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
+        val configuration = scanners.scan(filter = filter, urls = setOf(urlForClass(TestModel::class.java)!!))
 
-        val resolved = configuration.resources(Pattern.compile(".*resource1-reflections\\.xml"))
-        assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")), resolved)
+        assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
+                                   configuration.resources(Pattern.compile(".*resource1-reflections\\.xml")))
 
-        val resources = configuration.ask<ResourcesScanner, Datum> { keys() }
         assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"), Datum("resource2-reflections.xml")),
-                                   resources)
+                                   configuration.resources())
     }
-
 
     @Test
     fun `MethodAnnotationsScanner not configured`() {
+        val scanners = Scanners(TypeAnnotationsScanner(), SubTypesScanner())
         val e = assertThrows<RuntimeException> {
-            Configuration(scanners = setOf(TypeAnnotationsScanner(), SubTypesScanner()),
-                          filter = Filter.Composite(listOf(TestModelFilter,
+            scanners.scan(filter = Filter.Composite(listOf(TestModelFilter,
                                                            Filter.Include(TestModel::class.java.toPackageNameRegex()))),
-                          urls = listOfNotNull(urlForClass(TestModel::class.java)).toSet()).withScan()
+                          urls = listOfNotNull(urlForClass(TestModel::class.java)))
                 .methodsAnnotatedWith(AC1::class.java)
         }
         assertEquals("MethodAnnotationsScanner was not configured", e.message)
     }
 }
-
-//a hack to fix user.dir issue(?) in surfire
-val userDir: File
-    get() {
-        var file = File(System.getProperty("user.dir"))
-        if (listOf(*file.list()!!).contains("reflections")) {
-            file = File(file, "reflections")
-        }
-        return file
-    }

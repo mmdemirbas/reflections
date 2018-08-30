@@ -23,10 +23,9 @@ class JavaCodeSerializerTest {
     // todo: Diğer BeforeAll metotlarını da companion object'ten kurtar
     @BeforeAll
     fun generateAndSave() {
-        val configuration =
-                Configuration(scanners = setOf(TypeElementsScanner(publicOnly = false)),
-                              filter = Include("org.reflections.TestModel\\$.*"),
-                              urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
+        val scanners = Scanners(TypeElementsScanner(publicOnly = false))
+        val configuration = scanners.scan(filter = Include("org.reflections.TestModel\\$.*"),
+                                          urls = setOf(urlForClass(TestModel::class.java)!!))
         configuration.save(file = userDir.resolve("src/test/java/org.reflections.MyTestModelStore"),
                            serializer = JavaCodeSerializer)
     }

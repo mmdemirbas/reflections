@@ -1,6 +1,5 @@
 package org.reflections
 
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
@@ -18,48 +17,42 @@ import org.reflections.util.urlForClass
 import java.util.regex.Pattern
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
-class ReflectionsCollectTest : ReflectionsTest() {
+class ReflectionsCollectTest : ReflectionsTestBase() {
     @BeforeAll
-    override fun setup() {
-        val conf1 =
-                Configuration(scanners = setOf(SubTypesScanner(false),
-                                               TypeAnnotationsScanner(),
-                                               MethodAnnotationsScanner(),
-                                               MethodParameterNamesScanner(),
-                                               MemberUsageScanner()),
-                              filter = TestModelFilter,
-                              urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
+    fun setup() {
+        val scanners =
+                Scanners(SubTypesScanner(false),
+                         TypeAnnotationsScanner(),
+                         MethodAnnotationsScanner(),
+                         MethodParameterNamesScanner(),
+                         MemberUsageScanner())
+        val conf1 = scanners.scan(filter = TestModelFilter, urls = setOf(urlForClass(TestModel::class.java)!!))
 
         conf1.save(userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.xml"))
 
-        val conf2 =
-                Configuration(scanners = setOf(MethodParameterScanner()),
-                              filter = TestModelFilter,
-                              urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
+        val scanners1 = Scanners(MethodParameterScanner())
+        val conf2 = scanners1.scan(filter = TestModelFilter, urls = setOf(urlForClass(TestModel::class.java)!!))
 
         conf2.save(userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
                    JsonSerializer)
 
         configuration =
-                merged(merged(Configuration()), "META-INF/reflections", Include(".*-reflections.json"), JsonSerializer)
+                Scanners().merge().merge("META-INF/reflections", Include(".*-reflections.json"), JsonSerializer)
         println(JsonSerializer.toString(configuration))
     }
 
     @Test
     override fun resources() {
+        val scanners = Scanners(ResourcesScanner())
         val filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json")))
-        val configuration =
-                Configuration(scanners = setOf(ResourcesScanner()),
-                              filter = filter,
-                              urls = setOf(urlForClass(TestModel::class.java)!!)).withScan()
+        val configuration = scanners.scan(filter = filter, urls = setOf(urlForClass(TestModel::class.java)!!))
 
-        val resolved = configuration.resources(Pattern.compile(".*resource1-reflections\\.xml"))
-        assertEquals(setOf(Datum("META-INF/reflections/resource1-reflections.xml")), resolved)
+        assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
+                                   configuration.resources(Pattern.compile(".*resource1-reflections\\.xml")))
 
-        val resources = configuration.ask<ResourcesScanner, Datum> { keys() }
-        assertEquals(setOf(Datum("resource1-reflections.xml"),
-                           Datum("resource2-reflections.xml"),
-                           Datum("testModel-reflections.xml"),
-                           Datum("testModel-reflections.json")), resources)
+        assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"),
+                                         Datum("resource2-reflections.xml"),
+                                         Datum("testModel-reflections.xml"),
+                                         Datum("testModel-reflections.json")), configuration.resources())
     }
 }
