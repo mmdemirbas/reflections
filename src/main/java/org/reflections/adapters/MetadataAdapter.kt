@@ -1,6 +1,5 @@
 package org.reflections.adapters
 
-import org.reflections.util.Datum
 import org.reflections.util.logWarn
 
 val CreateClassAdapter = try {
@@ -36,5 +35,5 @@ interface MethodAdapter {
     val returnType: String
     val modifier: String
 
-    fun getMethodFullKey(cls: ClassAdapter): Datum = Datum("${cls.name}.${name}(${parameters.joinToString()})")
+    fun getMethodFullKey(cls: ClassAdapter) = "${cls.name}.${name}(${parameters.joinToString()})"
 }

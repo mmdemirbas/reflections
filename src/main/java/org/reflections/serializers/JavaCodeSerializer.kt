@@ -113,8 +113,8 @@ object JavaCodeSerializer : Serializer {
         var prevPaths: List<String> = listOf()
         var indent = 1
 
-        list.sortedBy { it.key.value }.forEach { (fqn, values) ->
-            val typePaths = fqn.value.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }
+        list.sortedBy { it.key }.forEach { (fqn, values) ->
+            val typePaths = fqn.split("\\.".toRegex()).dropLastWhile { it.isEmpty() }
 
             //skip indention
             var i = 0
@@ -141,8 +141,7 @@ object JavaCodeSerializer : Serializer {
             val fields = mutableListOf<String>()
             val methods = Multimap<String, String>()
 
-            values.forEach { elementKey ->
-                val element = elementKey.value
+            values.forEach { element ->
                 when {
                     element.startsWith("@") -> annotations.add(element.substring(1))
                     element.contains("(")   -> //method

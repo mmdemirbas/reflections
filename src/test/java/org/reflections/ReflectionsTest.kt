@@ -36,7 +36,6 @@ import org.reflections.scanners.MethodParameterScanner
 import org.reflections.scanners.ResourceScanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
-import org.reflections.util.Datum
 import org.reflections.util.annotationType
 import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import org.reflections.util.urlForClass
@@ -472,10 +471,10 @@ class ReflectionsTest {
                                                                             Exclude(".*testModel-reflections\\.xml"))),
                                            urls = setOf(urlForClass(TestModel::class.java)!!))
 
-            assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
+            assertToStringEqualsSorted(setOf("META-INF/reflections/resource1-reflections.xml"),
                                        scanner.resources(Pattern.compile(".*resource1-reflections\\.xml")))
 
-            assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"), Datum("resource2-reflections.xml")),
+            assertToStringEqualsSorted(setOf("resource1-reflections.xml", "resource2-reflections.xml"),
                                        scanner.resources())
         }
 
@@ -486,13 +485,13 @@ class ReflectionsTest {
                     ResourceScanner().scan(filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json"))),
                                            urls = setOf(urlForClass(TestModel::class.java)!!))
 
-            assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
+            assertToStringEqualsSorted(setOf("META-INF/reflections/resource1-reflections.xml"),
                                        scanner.resources(Pattern.compile(".*resource1-reflections\\.xml")))
 
-            assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"),
-                                             Datum("resource2-reflections.xml"),
-                                             Datum("testModel-reflections.xml"),
-                                             Datum("testModel-reflections.json")), scanner.resources())
+            assertToStringEqualsSorted(setOf("resource1-reflections.xml",
+                                             "resource2-reflections.xml",
+                                             "testModel-reflections.xml",
+                                             "testModel-reflections.json"), scanner.resources())
         }
     }
 }

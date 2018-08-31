@@ -14,6 +14,7 @@ import java.net.URL
 import java.net.URLClassLoader
 import java.net.URLDecoder
 import java.util.*
+import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
@@ -93,22 +94,16 @@ fun File.makeParents(): File {
     return this
 }
 
-data class Datum(val value: String)
-
-fun AnnotatedElement.fullName(): Datum = Datum(when (this) {
-                                                   is Class<*>       -> this.name + when {
-                                                       this.isArray -> "[]".repeat(this.generateWhileNotNull { componentType }.size)
-                                                       else         -> ""
-                                                   }
-                                                   is Field          -> "${declaringClass.name}.$name"
-                                                   is Method         -> "${declaringClass.name}.$name(${parameterTypes.joinToString {
-                                                       it.fullName().value
-                                                   }})"
-                                                   is Constructor<*> -> "${this.declaringClass.name}.<init>(${this.parameterTypes.joinToString {
-                                                       it.fullName().value
-                                                   }})"
-                                                   else              -> TODO()
-                                               })
+fun AnnotatedElement.fullName(): String = when (this) {
+    is Class<*>       -> this.name + when {
+        this.isArray -> "[]".repeat(this.generateWhileNotNull { componentType }.size)
+        else         -> ""
+    }
+    is Field          -> "${declaringClass.name}.$name"
+    is Method         -> "${declaringClass.name}.$name(${parameterTypes.joinToString { it.fullName() }})"
+    is Constructor<*> -> "${this.declaringClass.name}.<init>(${this.parameterTypes.joinToString { it.fullName() }})"
+    else              -> TODO()
+}
 
 open class DefaultThreadFactory(private val namePrefix: String, private val daemon: Boolean) : ThreadFactory {
     private val group = System.getSecurityManager()?.threadGroup ?: Thread.currentThread().threadGroup
@@ -492,3 +487,8 @@ fun <R> tryCatch(`try`: () -> R, catch: (Throwable) -> R) = try {
     catch(e)
 }
 
+fun <V> Iterable<Callable<V>>.runAllPossiblyParallelAndWait(executorService: ExecutorService?) =
+        when (executorService) {
+            null -> map { it.call()!! }
+            else -> map { executorService.submit(it::call) }.map { it.get()!! }
+        }

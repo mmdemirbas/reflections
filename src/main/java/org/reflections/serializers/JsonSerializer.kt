@@ -2,7 +2,6 @@ package org.reflections.serializers
 
 import org.reflections.scanners.CompositeScanner
 import org.reflections.scanners.SimpleScanner
-import org.reflections.util.Datum
 import org.reflections.util.makeParents
 import java.io.File
 import java.io.InputStream
@@ -29,9 +28,7 @@ object JsonSerializer : Serializer {
             .registerTypeAdapter(CompositeScanner::class.java,
                                  com.google.gson.JsonSerializer<CompositeScanner> { scanners, type, context ->
                                      context.serialize(scanners.scanners.associate { scanner ->
-                                         scanner.javaClass.name to scanner.store.map.entries.associate { (key, values) ->
-                                             key.value to values.map { it.value }
-                                         }
+                                         scanner.javaClass.name to scanner.stringEntries()
                                      })
                                  })
             .registerTypeAdapter(CompositeScanner::class.java,
@@ -43,7 +40,7 @@ object JsonSerializer : Serializer {
                                              (multimap as com.google.gson.JsonObject).entrySet()
                                                  .forEach { (key, value) ->
                                                      (value as com.google.gson.JsonArray).forEach { element ->
-                                                         scanner.store.put(Datum(key), Datum(element.asString))
+                                                         scanner.addEntry(key, element.asString)
                                                      }
                                                  }
                                              scanners.add(scanner)
@@ -59,6 +56,5 @@ object JsonSerializer : Serializer {
         write(file.makeParents().toPath(), toString(scanners).toByteArray(Charset.defaultCharset()))
     }
 
-    override fun toString(scanners: List<SimpleScanner<*>>) = gson.toJson(CompositeScanner(
-            scanners))!!
+    override fun toString(scanners: List<SimpleScanner<*>>) = gson.toJson(CompositeScanner(scanners))!!
 }
