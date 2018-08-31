@@ -7,12 +7,22 @@ import javassist.bytecode.Descriptor
 import javassist.bytecode.FieldInfo
 import javassist.bytecode.MethodInfo
 import javassist.bytecode.ParameterAnnotationsAttribute
+import org.reflections.util.classForName
+import org.reflections.util.generateWhileNotNull
+import org.reflections.util.logWarn
 import org.reflections.util.substringBetween
+import org.reflections.util.tryOrDefault
 import org.reflections.util.tryOrThrow
 import org.reflections.util.whileNotNull
 import org.reflections.vfs.VfsFile
 import java.io.BufferedInputStream
 import java.io.DataInputStream
+import java.lang.reflect.Constructor
+import java.lang.reflect.Executable
+import java.lang.reflect.Field
+import java.lang.reflect.Member
+import java.lang.reflect.Method
+import java.lang.reflect.Modifier
 
 val CreateJavassistClassAdapter = { vfsFile: VfsFile ->
     tryOrThrow("could not create class file from ${vfsFile.name}") {
@@ -20,6 +30,47 @@ val CreateJavassistClassAdapter = { vfsFile: VfsFile ->
             .use { stream -> JavassistClassAdapter(ClassFile(DataInputStream(BufferedInputStream(stream)))) }
     }
 }
+
+val CreateJavaReflectionClassAdapter = { vfsFile: VfsFile ->
+    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
+}
+
+val CreateClassAdapter = try {
+    // the CreateJavassistClassAdapter is preferred in terms of performance and class loading.
+    CreateJavassistClassAdapter
+} catch (e: Throwable) {
+    logWarn("could not create CreateJavassistClassAdapter, using CreateJavaReflectionClassAdapter", e)
+    CreateJavaReflectionClassAdapter
+}
+
+interface ClassAdapter {
+    val name: String
+    val isPublic: Boolean
+    val annotations: List<String>
+    val fields: List<FieldAdapter>
+    val methods: List<MethodAdapter>
+    val superclass: String
+    val interfaces: List<String>
+}
+
+interface FieldAdapter {
+    val name: String
+    val isPublic: Boolean
+    val annotations: List<String>
+}
+
+interface MethodAdapter {
+    val name: String
+    val isPublic: Boolean
+    val annotations: List<String>
+    val parameters: List<String>
+    fun parameterAnnotations(parameterIndex: Int): List<String>
+    val returnType: String
+    val modifier: String
+
+    fun getMethodFullKey(cls: ClassAdapter) = "${cls.name}.${name}(${parameters.joinToString()})"
+}
+
 
 data class JavassistClassAdapter(val cls: ClassFile) : ClassAdapter {
     override val fields = cls.fields.map { JavassistFieldAdapter(it as FieldInfo) }
@@ -79,4 +130,51 @@ data class JavassistMethodAdapter(val method: MethodInfo) : MethodAdapter {
             }
         }
     }
+}
+
+
+data class JavaReflectionClassAdapter(val cls: Class<*>) : ClassAdapter {
+    override val fields = cls.declaredFields.map { JavaReflectionFieldAdapter(it) }
+    override val methods = (cls.declaredMethods.asList() + cls.declaredConstructors).map {
+        JavaReflectionMethodAdapter(it)
+    }
+
+    override val annotations = cls.declaredAnnotations.map { it.annotationClass.java.name }
+    override val name = cls.name!!
+    override val superclass = cls.superclass?.name.orEmpty()
+    override val interfaces = cls.interfaces.map { it.name!! }
+    override val isPublic = Modifier.isPublic(cls.modifiers)
+}
+
+data class JavaReflectionFieldAdapter(val field: Field) : FieldAdapter {
+    override val annotations = field.declaredAnnotations.map { it.annotationClass.java.name }
+    override val name = field.name!!
+    override val isPublic = Modifier.isPublic(field.modifiers)
+}
+
+data class JavaReflectionMethodAdapter(val method: Member) : MethodAdapter {
+    override val name = when (method) {
+        is Method         -> method.name
+        is Constructor<*> -> "<init>"
+        else              -> TODO()
+    }
+
+    override val parameters = (method as? Executable)?.parameterTypes.orEmpty().map { cls ->
+        when {
+            cls.isArray -> tryOrDefault(cls.name) {
+                val componentTypes = cls.generateWhileNotNull { componentType }
+                componentTypes.last().name + "[]".repeat(componentTypes.size - 1)
+            }
+            else        -> cls.name
+        }!!
+    }
+
+    override val annotations = (method as Executable).declaredAnnotations!!.map { it.annotationClass.java.name }
+
+    override fun parameterAnnotations(parameterIndex: Int) =
+            (method as Executable).parameterAnnotations[parameterIndex].map { it.annotationClass.java.name }
+
+    override val returnType = (method as Method).returnType.name!!
+    override val modifier = Modifier.toString(method.modifiers)!!
+    override val isPublic = Modifier.isPublic(method.modifiers)
 }
