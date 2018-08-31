@@ -8,7 +8,6 @@ import org.reflections.ReflectionsExpandSupertypesTest.TestModel.A
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.B
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.ScannedScope.C
 import org.reflections.scanners.SubTypesScanner
-import org.reflections.scanners.TypeAnnotationsScanner
 import org.reflections.util.urlForClass
 
 class ReflectionsExpandSupertypesTest {
@@ -29,7 +28,7 @@ class ReflectionsExpandSupertypesTest {
 
     @Test
     fun `expand super types`() {
-        val scanners = Scanners(TypeAnnotationsScanner(), SubTypesScanner())
+        val scanners = SubTypesScanner()
         val conf = scanners.scan(urls = setOf(urlForClass(C::class.java)!!), filter = inputsFilter)
         val subTypes = conf.subTypesOf(A::class.java)
         assertTrue(subTypes.contains(B::class.java), "expanded")
@@ -38,7 +37,7 @@ class ReflectionsExpandSupertypesTest {
 
     @Test
     fun `do not expand super types`() {
-        val scanners = Scanners(TypeAnnotationsScanner(), SubTypesScanner(expandSuperTypes = false))
+        val scanners = SubTypesScanner(expandSuperTypes = false)
         val conf = scanners.scan(urls = setOf(urlForClass(C::class.java)!!), filter = inputsFilter)
         val subTypes = conf.subTypesOf(A::class.java)
         assertFalse(subTypes.contains(B::class.java), "expanded")

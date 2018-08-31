@@ -1,7 +1,6 @@
 package org.reflections.util
 
 import org.apache.logging.log4j.LogManager
-import org.reflections.Scanners
 import java.io.File
 import java.io.IOException
 import java.lang.reflect.AnnotatedElement
@@ -254,7 +253,7 @@ fun contextClassLoader() = Thread.currentThread().contextClassLoader ?: null
 /**
  * Gets the class loader of this library `Configuration.class.getClassLoader()` or null.
  */
-fun staticClassLoader() = Scanners::class.java.classLoader ?: null
+fun staticClassLoader() = Scanner::class.java.classLoader ?: null
 
 fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
 

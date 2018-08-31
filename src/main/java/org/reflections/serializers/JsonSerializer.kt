@@ -1,7 +1,7 @@
 package org.reflections.serializers
 
-import org.reflections.Scanners
-import org.reflections.scanners.Scanner
+import org.reflections.scanners.CompositeScanner
+import org.reflections.scanners.SimpleScanner
 import org.reflections.util.Datum
 import org.reflections.util.makeParents
 import java.io.File
@@ -26,20 +26,20 @@ import java.nio.file.Files.write
 object JsonSerializer : Serializer {
     private val gson: com.google.gson.Gson by lazy {
         com.google.gson.GsonBuilder()
-            .registerTypeAdapter(Scanners::class.java,
-                                 com.google.gson.JsonSerializer<Scanners> { scanners, type, context ->
+            .registerTypeAdapter(CompositeScanner::class.java,
+                                 com.google.gson.JsonSerializer<CompositeScanner> { scanners, type, context ->
                                      context.serialize(scanners.scanners.associate { scanner ->
                                          scanner.javaClass.name to scanner.store.map.entries.associate { (key, values) ->
                                              key.value to values.map { it.value }
                                          }
                                      })
                                  })
-            .registerTypeAdapter(Scanners::class.java,
-                                 com.google.gson.JsonDeserializer<Scanners> { jsonElement, type, context ->
-                                     val scanners = mutableListOf<Scanner>()
+            .registerTypeAdapter(CompositeScanner::class.java,
+                                 com.google.gson.JsonDeserializer<CompositeScanner> { jsonElement, type, context ->
+                                     val scanners = mutableListOf<SimpleScanner<*>>()
                                      (jsonElement as com.google.gson.JsonObject).entrySet()
                                          .forEach { (scannerType, multimap) ->
-                                             val scanner = Class.forName(scannerType).newInstance() as Scanner
+                                             val scanner = Class.forName(scannerType).newInstance() as SimpleScanner<*>
                                              (multimap as com.google.gson.JsonObject).entrySet()
                                                  .forEach { (key, value) ->
                                                      (value as com.google.gson.JsonArray).forEach { element ->
@@ -48,15 +48,17 @@ object JsonSerializer : Serializer {
                                                  }
                                              scanners.add(scanner)
                                          }
-                                     Scanners(scanners)
+                                     CompositeScanner(scanners)
                                  }).setPrettyPrinting().create()
     }
 
-    override fun read(inputStream: InputStream) = gson.fromJson(InputStreamReader(inputStream), Scanners::class.java)!!
+    override fun read(inputStream: InputStream) =
+            gson.fromJson(InputStreamReader(inputStream), CompositeScanner::class.java)!!.scanners
 
-    override fun save(scanners: Scanners, file: File) {
+    override fun save(scanners: List<SimpleScanner<*>>, file: File) {
         write(file.makeParents().toPath(), toString(scanners).toByteArray(Charset.defaultCharset()))
     }
 
-    override fun toString(scanners: Scanners) = gson.toJson(scanners)!!
+    override fun toString(scanners: List<SimpleScanner<*>>) = gson.toJson(CompositeScanner(
+            scanners))!!
 }

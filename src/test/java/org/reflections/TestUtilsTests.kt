@@ -11,7 +11,6 @@ import org.reflections.TestModel.C3
 import org.reflections.TestModel.C4
 import org.reflections.TestModel.I1
 import org.reflections.scanners.FieldAnnotationsScanner
-import org.reflections.util.urlForClass
 import org.reflections.util.withAnnotation
 import org.reflections.util.withAnyParameterAnnotation
 import java.lang.reflect.Field
@@ -130,11 +129,10 @@ class TestUtilsTests {
 
     @Test
     fun getAllAndReflections() {
-        val scanners = Scanners(FieldAnnotationsScanner())
-        val configuration = scanners.scan(filter = Filter.Include(TestModel::class.java.toPackageNameRegex()),
-                                          urls = listOfNotNull(urlForClass(TestModel::class.java)))
 
-        val allFields = configuration.fieldsAnnotatedWith(AF1::class.java).filter { it.hasModifier(Modifier.PROTECTED) }
+        val allFields =
+                FieldAnnotationsScanner().scan(TestModel::class.java).fieldsAnnotatedWith(AF1::class.java)
+                    .filter { it.hasModifier(Modifier.PROTECTED) }
 
         assertEquals(1, allFields.size.toLong())
         assertHasNames(listOf("f2"), allFields)

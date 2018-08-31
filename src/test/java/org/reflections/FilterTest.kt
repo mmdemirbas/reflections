@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.reflections.Filter.Exclude
 import org.reflections.Filter.Include
+import org.reflections.scanners.Scanner
 
 /**
  * Test filtering
@@ -40,7 +41,7 @@ class FilterTest {
 
     @Test
     fun test_includePackagebyClass() {
-        val filter = Include(Scanners::class.java.toPackageNameRegex())
+        val filter = Include(Scanner::class.java.toPackageNameRegex())
         assertTrue(filter.test("org.reflections.Configuration"))
         assertTrue(filter.test("org.reflections.foo.Configuration"))
         assertFalse(filter.test("org.foobar.Configuration"))
@@ -65,7 +66,7 @@ class FilterTest {
 
     @Test
     fun test_excludePackageByClass() {
-        val filter = Exclude(Scanners::class.java.toPackageNameRegex())
+        val filter = Exclude(Scanner::class.java.toPackageNameRegex())
         assertFalse(filter.test("org.reflections.Configuration"))
         assertFalse(filter.test("org.reflections.foo.Configuration"))
         assertTrue(filter.test("org.foobar.Configuration"))

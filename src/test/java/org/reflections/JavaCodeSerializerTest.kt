@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
-import org.reflections.Filter.Include
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C1`
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.fields.f1
 import org.reflections.MyTestModelStore.org.reflections.`TestModel$C4`.methods.`m1_int$$$$__java_lang_String$$$$`
@@ -16,18 +15,14 @@ import org.reflections.TestModel.C2
 import org.reflections.TestModel.C4
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.serializers.JavaCodeSerializer
-import org.reflections.util.urlForClass
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class JavaCodeSerializerTest {
-    // todo: Diğer BeforeAll metotlarını da companion object'ten kurtar
     @BeforeAll
     fun generateAndSave() {
-        val scanners = Scanners(TypeElementsScanner(publicOnly = false))
-        val configuration = scanners.scan(filter = Include("org.reflections.TestModel\\$.*"),
-                                          urls = setOf(urlForClass(TestModel::class.java)!!))
-        configuration.save(file = userDir.resolve("src/test/java/org.reflections.MyTestModelStore"),
-                           serializer = JavaCodeSerializer)
+        val scanner = TypeElementsScanner(publicOnly = false).scan(TestModel::class.java)
+        scanner.save(file = userDir.resolve("src/test/java/org.reflections.MyTestModelStore"),
+                     serializer = JavaCodeSerializer)
     }
 
     @Test

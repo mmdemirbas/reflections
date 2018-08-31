@@ -3,8 +3,7 @@ package org.reflections.serializers
 import org.dom4j.io.OutputFormat
 import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
-import org.reflections.Scanners
-import org.reflections.scanners.Scanner
+import org.reflections.scanners.SimpleScanner
 import org.reflections.util.Datum
 import org.reflections.util.makeParents
 import org.reflections.util.tryOrThrow
@@ -33,12 +32,13 @@ import java.io.Writer
  * ```
  */
 object XmlSerializer : Serializer {
-    override fun read(inputStream: InputStream): Scanners {
+    // todo: basitlik açısından JAXB object'e dönüştürülebilir
+    override fun read(inputStream: InputStream): List<SimpleScanner<*>> {
         return tryOrThrow("could not read.") {
-            val scanners = mutableListOf<Scanner>()
+            val scanners = mutableListOf<SimpleScanner<*>>()
             SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
                 val index = e1 as org.dom4j.Element
-                val scanner = index.name.indexNameToClass().newInstance() as Scanner
+                val scanner = index.name.indexNameToClass().newInstance() as SimpleScanner<*>
                 index.elements().forEach { e2 ->
                     val entry = e2 as org.dom4j.Element
                     val key = entry.element("key")
@@ -48,30 +48,30 @@ object XmlSerializer : Serializer {
                 }
                 scanners.add(scanner)
             }
-            Scanners(scanners)
+            scanners
         }
     }
 
-    override fun save(scanners: Scanners, file: File) = tryOrThrow("could not save to file $file") {
+    override fun save(scanners: List<SimpleScanner<*>>, file: File) = tryOrThrow("could not save to file $file") {
         file.makeParents()
         FileWriter(file).use { writer -> writeTo(writer, scanners) }
     }
 
-    override fun toString(scanners: Scanners) = StringWriter().use { writer ->
+    override fun toString(scanners: List<SimpleScanner<*>>) = StringWriter().use { writer ->
         writeTo(writer, scanners)
         writer.toString()
     }
 
-    private fun writeTo(fileWriter: Writer, scanners: Scanners) {
-        val xmlWriter = XMLWriter(fileWriter, OutputFormat.createPrettyPrint())
+    private fun writeTo(writer: Writer, scanners: List<SimpleScanner<*>>) {
+        val xmlWriter = XMLWriter(writer, OutputFormat.createPrettyPrint())
         xmlWriter.write(createDocument(scanners))
         xmlWriter.close()
     }
 
-    private fun createDocument(scanners: Scanners): org.dom4j.Document {
+    private fun createDocument(scanners: List<SimpleScanner<*>>): org.dom4j.Document {
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
-        scanners.scanners.forEach { scanner ->
+        scanners.forEach { scanner ->
             val indexElement = root.addElement(scanner.classToIndexName())
             scanner.store.map.entries.forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")
@@ -85,6 +85,6 @@ object XmlSerializer : Serializer {
         return document
     }
 
-    private fun String.indexNameToClass() = Class.forName("${Scanner::class.java.`package`.name}.${this}")!!
-    private fun Scanner.classToIndexName() = javaClass.simpleName!!
+    private fun String.indexNameToClass() = Class.forName("${SimpleScanner::class.java.`package`.name}.${this}")!!
+    private fun SimpleScanner<*>.classToIndexName() = javaClass.simpleName!!
 }

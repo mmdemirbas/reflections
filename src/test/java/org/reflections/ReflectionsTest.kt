@@ -1,7 +1,6 @@
 package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
@@ -28,7 +27,13 @@ import org.reflections.TestModel.I2
 import org.reflections.TestModel.I3
 import org.reflections.TestModel.MAI1
 import org.reflections.TestModel.Usage
-import org.reflections.scanners.ResourcesScanner
+import org.reflections.scanners.CompositeScanner
+import org.reflections.scanners.FieldAnnotationsScanner
+import org.reflections.scanners.MemberUsageScanner
+import org.reflections.scanners.MethodAnnotationsScanner
+import org.reflections.scanners.MethodParameterNamesScanner
+import org.reflections.scanners.MethodParameterScanner
+import org.reflections.scanners.ResourceScanner
 import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
 import org.reflections.util.Datum
@@ -37,40 +42,47 @@ import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import org.reflections.util.urlForClass
 import java.util.regex.Pattern
 
-abstract class ReflectionsTestBase {
-    val TestModelFilter = Include("org.reflections.TestModel\\$.*")
-
-    lateinit var configuration: Scanners
-
+class ReflectionsTest {
     @Nested
     inner class AllTypes {
+
         @Test
-        fun `is not empty`() {
-            assertFalse(configuration.allTypes().isEmpty(),
-                        "allTypes should not be empty when Reflections is configured with SubTypesScanner(false)")
+        fun `object included`() {
+            assertTrue(SubTypesScanner(excludeObjectClass = false).scan(TestModel::class.java).allTypes().isNotEmpty())
+        }
+
+        @Test
+        fun `object excluded`() {
+            assertTrue(SubTypesScanner(excludeObjectClass = true).scan(TestModel::class.java).allTypes().isEmpty())
         }
     }
 
     @Nested
     inner class SubTypesOf {
+        private val scanner = SubTypesScanner(excludeObjectClass = false).scan(TestModel::class.java)
+
         @Test
         fun `interface`() {
             assertToStringEqualsSorted(setOf(I2::class.java,
                                              C1::class.java,
                                              C2::class.java,
                                              C3::class.java,
-                                             C5::class.java), configuration.subTypesOf(I1::class.java))
+                                             C5::class.java), scanner.subTypesOf(I1::class.java))
         }
 
         @Test
         fun `class`() {
             assertToStringEqualsSorted(setOf(C2::class.java, C3::class.java, C5::class.java),
-                                       configuration.subTypesOf(C1::class.java))
+                                       scanner.subTypesOf(C1::class.java))
         }
     }
 
     @Nested
     inner class TypesAnnotatedWith {
+        private val scanner =
+                CompositeScanner(SubTypesScanner(excludeObjectClass = false),
+                                 TypeAnnotationsScanner()).scan(TestModel::class.java)
+
         @Nested
         inner class MetaEnabled {
             @Test
@@ -95,7 +107,7 @@ abstract class ReflectionsTestBase {
             }
 
             private fun assertTypesAnnotatedWith(annotation: Class<out Annotation>, expected: Set<Class<*>>) {
-                val actual = configuration.typesAnnotatedWith(annotation, true)
+                val actual = scanner.typesAnnotatedWith(annotation, true)
                 assertToStringEqualsSorted(expected, actual)
                 assertTrue(actual.all { it.annotations.asList().map { it.annotationType() }.contains(annotation) })
             }
@@ -103,7 +115,7 @@ abstract class ReflectionsTestBase {
             @Test
             fun `value match`() {
                 assertToStringEqualsSorted(setOf(C3::class.java, I3::class.java, AC3::class.java),
-                                           configuration.typesAnnotatedWith(JavaSpecific.newAC2("ugh?!"), true))
+                                           scanner.typesAnnotatedWith(JavaSpecific.newAC2("ugh?!"), true))
             }
         }
 
@@ -140,7 +152,7 @@ abstract class ReflectionsTestBase {
             }
 
             private fun assertMetaAnnotatedWith(annotation: Class<out Annotation>, expected: Set<Class<out Any>>) {
-                val actual = configuration.typesAnnotatedWith(annotation, false)
+                val actual = scanner.typesAnnotatedWith(annotation, false)
                 assertToStringEqualsSorted(expected, actual)
                 assertTrue(actual.all {
                     val result = mutableSetOf<Class<*>>()
@@ -167,19 +179,28 @@ abstract class ReflectionsTestBase {
                                              C6::class.java,
                                              AC3::class.java,
                                              C7::class.java),
-                                       configuration.typesAnnotatedWith(JavaSpecific.newAC2("ugh?!"), false))
+                                       scanner.typesAnnotatedWith(JavaSpecific.newAC2("ugh?!"), false))
         }
 
         @Test
         fun `no match`() {
-            assertToStringEqualsSorted(emptySet(), configuration.typesAnnotatedWith(AM1::class.java, false))
+            assertToStringEqualsSorted(emptySet(), scanner.typesAnnotatedWith(AM1::class.java, false))
         }
 
+        @Test
+        fun `TypeAnnotationsScanner not configured`() {
+            val e = assertThrows<RuntimeException> {
+                CompositeScanner().scan(TestModel::class.java).typesAnnotatedWith(AC1::class.java, false)
+            }
+            assertEquals("TypeAnnotationsScanner was not configured", e.message)
+        }
     }
 
 
     @Nested
     inner class MethodsAnnotatedWith {
+        private val scanner = MethodAnnotationsScanner().scan(TestModel::class.java)
+
         @Test
         fun `by instance`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("m1"),
@@ -189,7 +210,7 @@ abstract class ReflectionsTestBase {
                                              C4::class.java.getDeclaredMethod("m1",
                                                                               Array<IntArray>::class.java,
                                                                               Array<Array<String>>::class.java)),
-                                       configuration.methodsAnnotatedWith(JavaSpecific.newAM1("1")))
+                                       scanner.methodsAnnotatedWith(JavaSpecific.newAM1("1")))
         }
 
         @Test
@@ -202,51 +223,57 @@ abstract class ReflectionsTestBase {
                                                                               Array<IntArray>::class.java,
                                                                               Array<Array<String>>::class.java),
                                              C4::class.java.getDeclaredMethod("m3")),
-                                       configuration.methodsAnnotatedWith(AM1::class.java))
+                                       scanner.methodsAnnotatedWith(AM1::class.java))
         }
     }
 
     @Nested
     inner class ConstructorsAnnotatedWith {
+        private val scanner = MethodAnnotationsScanner().scan(TestModel::class.java)
+
         @Test
         fun `by isntance`() {
             val am1 = JavaSpecific.newAM1("1")
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
-                                       configuration.constructorsAnnotatedWith(am1))
+                                       scanner.constructorsAnnotatedWith(am1))
         }
 
         @Test
         fun `by type`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
-                                       configuration.constructorsAnnotatedWith(AM1::class.java))
+                                       scanner.constructorsAnnotatedWith(AM1::class.java))
         }
     }
 
     @Nested
     inner class FieldsAnnotatedWith {
+        private val scanner = FieldAnnotationsScanner().scan(TestModel::class.java)
+
         @Test
         fun `by instance`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredField("f2")),
-                                       configuration.fieldsAnnotatedWith(JavaSpecific.newAF1("2")))
+                                       scanner.fieldsAnnotatedWith(JavaSpecific.newAF1("2")))
         }
 
         @Test
         fun `by type`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredField("f1"),
                                              C4::class.java.getDeclaredField("f2")),
-                                       configuration.fieldsAnnotatedWith(AF1::class.java))
+                                       scanner.fieldsAnnotatedWith(AF1::class.java))
         }
     }
 
     @Nested
     inner class MethodsMatchParams {
+        private val scanner = MethodParameterScanner().scan(TestModel::class.java)
+
         @Test
         fun `multiple nested array params`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("m1",
                                                                               Array<IntArray>::class.java,
                                                                               Array<Array<String>>::class.java)),
-                                       configuration.methodsMatchParams(Array<IntArray>::class.java,
-                                                                        Array<Array<String>>::class.java))
+                                       scanner.methodsWithParamTypes(Array<IntArray>::class.java,
+                                                                     Array<Array<String>>::class.java))
         }
 
         @Test
@@ -258,19 +285,21 @@ abstract class ReflectionsTestBase {
                                              AM1::class.java.getMethod("value"),
                                              Usage.C1::class.java.getDeclaredMethod("method"),
                                              Usage.C2::class.java.getDeclaredMethod("method")),
-                                       configuration.methodsMatchParams())
+                                       scanner.methodsWithParamTypes())
         }
 
         @Test
         fun `single simple param`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("m4", String::class.java),
                                              Usage.C1::class.java.getDeclaredMethod("method", String::class.java)),
-                                       configuration.methodsMatchParams(String::class.java))
+                                       scanner.methodsWithParamTypes(String::class.java))
         }
     }
 
     @Nested
     inner class MethodsReturns {
+        private val scanner = MethodParameterScanner().scan(TestModel::class.java)
+
         @Test
         fun void() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("m1"),
@@ -283,7 +312,7 @@ abstract class ReflectionsTestBase {
                                              Usage.C1::class.java.getDeclaredMethod("method"),
                                              Usage.C1::class.java.getDeclaredMethod("method", String::class.java),
                                              Usage.C2::class.java.getDeclaredMethod("method")),
-                                       configuration.methodsReturn(Void.TYPE))
+                                       scanner.methodsWithReturnType(Void.TYPE))
         }
 
         @Test
@@ -293,7 +322,7 @@ abstract class ReflectionsTestBase {
                                              AC2::class.java.getMethod("value"),
                                              AF1::class.java.getMethod("value"),
                                              AM1::class.java.getMethod("value")),
-                                       configuration.methodsReturn(String::class.java))
+                                       scanner.methodsWithReturnType(String::class.java))
         }
 
         @Test
@@ -301,27 +330,31 @@ abstract class ReflectionsTestBase {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("add",
                                                                               Int::class.javaPrimitiveType,
                                                                               Int::class.javaPrimitiveType)),
-                                       configuration.methodsReturn(Int::class.javaPrimitiveType!!))
+                                       scanner.methodsWithReturnType(Int::class.javaPrimitiveType!!))
         }
     }
 
     @Nested
     inner class MethodsWithAnyParamAnnotated {
+        private val scanner = MethodParameterScanner().scan(TestModel::class.java)
+
         @Test
         fun `by instance`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("m4", String::class.java)),
-                                       configuration.methodsWithAnyParamAnnotated(JavaSpecific.newAM1("2")))
+                                       scanner.methodsWithAnyParamAnnotated(JavaSpecific.newAM1("2")))
         }
 
         @Test
         fun `by type`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredMethod("m4", String::class.java)),
-                                       configuration.methodsWithAnyParamAnnotated(AM1::class.java))
+                                       scanner.methodsWithAnyParamAnnotated(AM1::class.java))
         }
     }
 
     @Nested
     inner class ConstructorMatchParams {
+        private val scanner = MethodParameterScanner().scan(TestModel::class.java)
+
         @Test
         fun `no params`() {
             assertToStringEqualsSorted(setOf(C1::class.java.getDeclaredConstructor(),
@@ -333,87 +366,91 @@ abstract class ReflectionsTestBase {
                                              C7::class.java.getDeclaredConstructor(),
                                              Usage.C1::class.java.getDeclaredConstructor(),
                                              Usage.C2::class.java.getDeclaredConstructor()),
-                                       configuration.constructorsMatchParams())
+                                       scanner.constructorsWithParamTypes())
         }
 
         @Test
         fun `single param`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
-                                       configuration.constructorsMatchParams(String::class.java))
+                                       scanner.constructorsWithParamTypes(String::class.java))
         }
     }
 
     @Nested
     inner class ConstructorsWithAnyParamAnnotated {
+        private val scanner = MethodParameterScanner().scan(TestModel::class.java)
+
         @Test
         fun `by instance`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
-                                       configuration.constructorsWithAnyParamAnnotated(JavaSpecific.newAM1("1")))
+                                       scanner.constructorsWithAnyParamAnnotated(JavaSpecific.newAM1("1")))
         }
 
         @Test
         fun `by type`() {
             assertToStringEqualsSorted(setOf(C4::class.java.getDeclaredConstructor(String::class.java)),
-                                       configuration.constructorsWithAnyParamAnnotated(AM1::class.java))
+                                       scanner.constructorsWithAnyParamAnnotated(AM1::class.java))
         }
     }
 
     @Nested
     inner class ParamNames {
+        private val scanner = MethodParameterNamesScanner().scan(TestModel::class.java)
+
         @Test
         fun ctor() {
             assertToStringEqualsSorted(listOf("f1"),
-                                       configuration.paramNames(C4::class.java.getDeclaredConstructor(String::class.java)))
+                                       scanner.paramNames(C4::class.java.getDeclaredConstructor(String::class.java)))
         }
 
         @Test
         fun `multiple params`() {
             assertToStringEqualsSorted(listOf("i1", "i2"),
-                                       configuration.paramNames(C4::class.java.getDeclaredMethod("add",
-                                                                                                 Int::class.javaPrimitiveType,
-                                                                                                 Int::class.javaPrimitiveType)))
+                                       scanner.paramNames(C4::class.java.getDeclaredMethod("add",
+                                                                                           Int::class.javaPrimitiveType,
+                                                                                           Int::class.javaPrimitiveType)))
         }
 
         @Test
         fun `single param`() {
             assertToStringEqualsSorted(listOf("string"),
-                                       configuration.paramNames(C4::class.java.getDeclaredMethod("m4",
-                                                                                                 String::class.java)))
+                                       scanner.paramNames(C4::class.java.getDeclaredMethod("m4", String::class.java)))
         }
 
         @Test
         fun `no param`() {
-            assertToStringEqualsSorted(emptyList<Any>(),
-                                       configuration.paramNames(C4::class.java.getDeclaredMethod("m3")))
+            assertToStringEqualsSorted(emptyList<Any>(), scanner.paramNames(C4::class.java.getDeclaredMethod("m3")))
         }
     }
 
     @Nested
     inner class Usages {
+        private val scanner = MemberUsageScanner().scan(TestModel::class.java)
+
         @Test
         fun `ctor - with param`() {
             assertToStringEqualsSorted(setOf(Usage.C2::class.java.getDeclaredMethod("method")),
-                                       configuration.usages(Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java)))
+                                       scanner.usages(Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java)))
         }
 
         @Test
         fun `ctor - no param`() {
             assertToStringEqualsSorted(setOf(Usage.C2::class.java.getDeclaredConstructor(),
                                              Usage.C2::class.java.getDeclaredMethod("method")),
-                                       configuration.usages(Usage.C1::class.java.getDeclaredConstructor()))
+                                       scanner.usages(Usage.C1::class.java.getDeclaredConstructor()))
         }
 
         @Test
         fun `method - with param`() {
             assertToStringEqualsSorted(setOf(Usage.C2::class.java.getDeclaredMethod("method")),
-                                       configuration.usages(Usage.C1::class.java.getDeclaredMethod("method",
-                                                                                                   String::class.java)))
+                                       scanner.usages(Usage.C1::class.java.getDeclaredMethod("method",
+                                                                                             String::class.java)))
         }
 
         @Test
         fun `method - no param`() {
             assertToStringEqualsSorted(setOf(Usage.C2::class.java.getDeclaredMethod("method")),
-                                       configuration.usages(Usage.C1::class.java.getDeclaredMethod("method")))
+                                       scanner.usages(Usage.C1::class.java.getDeclaredMethod("method")))
         }
 
         @Test
@@ -422,32 +459,40 @@ abstract class ReflectionsTestBase {
                                              Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java),
                                              Usage.C1::class.java.getDeclaredMethod("method"),
                                              Usage.C1::class.java.getDeclaredMethod("method", String::class.java)),
-                                       configuration.usages(Usage.C1::class.java.getDeclaredField("c2")))
+                                       scanner.usages(Usage.C1::class.java.getDeclaredField("c2")))
         }
     }
 
-    @Test
-    open fun resources() {
-        val scanners = Scanners(ResourcesScanner())
-        val filter = Filter.Composite(listOf(Include(".*\\.xml"), Exclude(".*testModel-reflections\\.xml")))
-        val configuration = scanners.scan(filter = filter, urls = setOf(urlForClass(TestModel::class.java)!!))
+    @Nested
+    inner class Resources {
+        @Test
+        fun resources1() {
+            val scanner =
+                    ResourceScanner().scan(filter = Filter.Composite(listOf(Include(".*\\.xml"),
+                                                                            Exclude(".*testModel-reflections\\.xml"))),
+                                           urls = setOf(urlForClass(TestModel::class.java)!!))
 
-        assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
-                                   configuration.resources(Pattern.compile(".*resource1-reflections\\.xml")))
+            assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
+                                       scanner.resources(Pattern.compile(".*resource1-reflections\\.xml")))
 
-        assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"), Datum("resource2-reflections.xml")),
-                                   configuration.resources())
-    }
-
-    @Test
-    fun `MethodAnnotationsScanner not configured`() {
-        val scanners = Scanners(TypeAnnotationsScanner(), SubTypesScanner())
-        val e = assertThrows<RuntimeException> {
-            scanners.scan(filter = Filter.Composite(listOf(TestModelFilter,
-                                                           Filter.Include(TestModel::class.java.toPackageNameRegex()))),
-                          urls = listOfNotNull(urlForClass(TestModel::class.java)))
-                .methodsAnnotatedWith(AC1::class.java)
+            assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"), Datum("resource2-reflections.xml")),
+                                       scanner.resources())
         }
-        assertEquals("MethodAnnotationsScanner was not configured", e.message)
+
+
+        @Test
+        fun resources2() {
+            val scanner =
+                    ResourceScanner().scan(filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json"))),
+                                           urls = setOf(urlForClass(TestModel::class.java)!!))
+
+            assertToStringEqualsSorted(setOf(Datum("META-INF/reflections/resource1-reflections.xml")),
+                                       scanner.resources(Pattern.compile(".*resource1-reflections\\.xml")))
+
+            assertToStringEqualsSorted(setOf(Datum("resource1-reflections.xml"),
+                                             Datum("resource2-reflections.xml"),
+                                             Datum("testModel-reflections.xml"),
+                                             Datum("testModel-reflections.json")), scanner.resources())
+        }
     }
 }
