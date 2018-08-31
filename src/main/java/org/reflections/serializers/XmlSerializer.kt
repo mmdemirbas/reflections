@@ -3,6 +3,7 @@ package org.reflections.serializers
 import org.dom4j.io.OutputFormat
 import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
+import org.reflections.scanners.CompositeScanner
 import org.reflections.scanners.SimpleScanner
 import org.reflections.util.makeParents
 import org.reflections.util.tryOrThrow
@@ -32,7 +33,7 @@ import java.io.Writer
  */
 object XmlSerializer : Serializer {
     // todo: basitlik açısından JAXB object'e dönüştürülebilir
-    override fun read(inputStream: InputStream): List<SimpleScanner<*>> {
+    override fun read(inputStream: InputStream): CompositeScanner {
         return tryOrThrow("could not read.") {
             val scanners = mutableListOf<SimpleScanner<*>>()
             SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
@@ -47,30 +48,30 @@ object XmlSerializer : Serializer {
                 }
                 scanners.add(scanner)
             }
-            scanners
+            CompositeScanner(scanners)
         }
     }
 
-    override fun save(scanners: List<SimpleScanner<*>>, file: File) = tryOrThrow("could not save to file $file") {
+    override fun save(scanners: CompositeScanner, file: File) = tryOrThrow("could not save to file $file") {
         file.makeParents()
         FileWriter(file).use { writer -> writeTo(writer, scanners) }
     }
 
-    override fun toString(scanners: List<SimpleScanner<*>>) = StringWriter().use { writer ->
+    override fun toString(scanners: CompositeScanner) = StringWriter().use { writer ->
         writeTo(writer, scanners)
         writer.toString()
     }
 
-    private fun writeTo(writer: Writer, scanners: List<SimpleScanner<*>>) {
+    private fun writeTo(writer: Writer, scanners: CompositeScanner) {
         val xmlWriter = XMLWriter(writer, OutputFormat.createPrettyPrint())
         xmlWriter.write(createDocument(scanners))
         xmlWriter.close()
     }
 
-    private fun createDocument(scanners: List<SimpleScanner<*>>): org.dom4j.Document {
+    private fun createDocument(scanners: CompositeScanner): org.dom4j.Document {
         val document = org.dom4j.DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
-        scanners.forEach { scanner ->
+        scanners.scanners.forEach { scanner ->
             val indexElement = root.addElement(scanner.classToIndexName())
             scanner.stringEntries().forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")

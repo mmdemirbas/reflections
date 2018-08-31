@@ -50,11 +50,11 @@ object JsonSerializer : Serializer {
     }
 
     override fun read(inputStream: InputStream) =
-            gson.fromJson(InputStreamReader(inputStream), CompositeScanner::class.java)!!.scanners
+            gson.fromJson(InputStreamReader(inputStream), CompositeScanner::class.java)!!
 
-    override fun save(scanners: List<SimpleScanner<*>>, file: File) {
+    override fun save(scanners: CompositeScanner, file: File) {
         write(file.makeParents().toPath(), toString(scanners).toByteArray(Charset.defaultCharset()))
     }
 
-    override fun toString(scanners: List<SimpleScanner<*>>) = gson.toJson(CompositeScanner(scanners))!!
+    override fun toString(scanners: CompositeScanner) = gson.toJson(scanners)!!
 }

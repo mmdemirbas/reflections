@@ -1,6 +1,6 @@
 package org.reflections.serializers
 
-import org.reflections.scanners.SimpleScanner
+import org.reflections.scanners.CompositeScanner
 import org.reflections.scanners.TypeElementsScanner
 import org.reflections.serializers.JavaCodeSerializer.save
 import org.reflections.util.Multimap
@@ -68,7 +68,7 @@ object JavaCodeSerializer : Serializer {
      * for example ```/data/projects/my/src/main/java/org.my.project.MyStore```
      * would create class MyStore in package org.my.project in the path /data/projects/my/src/main/java
      */
-    override fun save(scanners: List<SimpleScanner<*>>, file: File) {
+    override fun save(scanners: CompositeScanner, file: File) {
         var name = file.name
         if (name.endsWith("/")) {
             name = name.dropLast(1) //trim / at the end
@@ -104,9 +104,9 @@ object JavaCodeSerializer : Serializer {
               sb.toString().toByteArray(Charset.defaultCharset()))
     }
 
-    override fun toString(scanners: List<SimpleScanner<*>>): String {
+    override fun toString(scanners: CompositeScanner): String {
 
-        val list = scanners.filterIsInstance<TypeElementsScanner>().flatMap { it.entries() }
+        val list = scanners.scanners.filterIsInstance<TypeElementsScanner>().flatMap { it.entries() }
         if (list.isEmpty()) throw RuntimeException("JavaCodeSerializer needs TypeElementsScanner configured")
 
         val sb = StringBuilder()
