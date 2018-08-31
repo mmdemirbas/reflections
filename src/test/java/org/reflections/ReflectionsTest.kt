@@ -150,16 +150,18 @@ class ReflectionsTest {
 
             }
 
+            // todo: gereksiz toList, toSet ve asList gibi metotları kaldır. mesela sonrasında filter olanlar...
+
             private fun assertMetaAnnotatedWith(annotation: Class<out Annotation>, expected: Set<Class<out Any>>) {
                 val actual = scanner.typesAnnotatedWith(annotation, false)
                 assertToStringEqualsSorted(expected, actual)
-                assertTrue(actual.all {
+                assertTrue(actual.all { cls ->
                     val result = mutableSetOf<Class<*>>()
-                    val stack = it.classAndInterfaceHieararchyExceptObject().toMutableList()
+                    val stack = cls.classAndInterfaceHieararchyExceptObject().toMutableList()
                     while (!stack.isEmpty()) {
                         val next = stack.removeAt(0)
                         if (result.add(next)) {
-                            stack += next.declaredAnnotations.asList().map { it.annotationType() }.filter {
+                            stack += next.declaredAnnotations.map { it.annotationType() }.filter {
                                 !result.contains(it) && !stack.contains(it)
                             }
                         }

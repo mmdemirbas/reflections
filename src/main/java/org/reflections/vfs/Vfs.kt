@@ -58,17 +58,14 @@ object Vfs {
     /**
      * the default url types that will be used when issuing [org.reflections.vfs.Vfs.fromURL]
      */
-    val defaultUrlTypes: MutableList<VfsUrlType> = BuiltinVfsUrlTypes.values().toMutableList()
+    val defaultUrlTypes = BuiltinVfsUrlTypes.values().toMutableList()
 
     /**
      * tries to create a VfsDir from the given url, using the given urlTypes
      */
     fun fromURL(url: URL, urlTypes: List<VfsUrlType> = defaultUrlTypes) = urlTypes.mapNotNull { type ->
         try {
-            when {
-                type.matches(url) -> type.createDir(url)
-                else              -> null
-            }
+            type.createDir(url)
         } catch (e: Throwable) {
             logWarn("could not create VfsDir using $type from url ${url.toExternalForm()}. skipping.", e)
             null

@@ -3,6 +3,7 @@ package org.reflections
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
@@ -42,9 +43,9 @@ class VfsTest {
             assertTrue(jar1.toString().startsWith("file:"))
             assertTrue(jar1.toString().contains(".jar"))
 
-            assertTrue(BuiltinVfsUrlTypes.JAR_FILE.matches(jar1))
-            assertFalse(BuiltinVfsUrlTypes.JAR_URL.matches(jar1))
-            assertFalse(BuiltinVfsUrlTypes.DIRECTORY.matches(jar1))
+            assertNotNull(BuiltinVfsUrlTypes.JAR_FILE.createDir(jar1))
+            assertNull(BuiltinVfsUrlTypes.JAR_URL.createDir(jar1))
+            assertNull(BuiltinVfsUrlTypes.DIRECTORY.createDir(jar1))
 
             val dir = BuiltinVfsUrlTypes.JAR_FILE.createDir(jar1)
             var vfsFile: VfsFile? = null
@@ -64,9 +65,9 @@ class VfsTest {
             assertTrue(rtJarUrl!!.toString().startsWith("jar:file:"))
             assertTrue(rtJarUrl.toString().contains(".jar!"))
 
-            assertFalse(BuiltinVfsUrlTypes.JAR_FILE.matches(rtJarUrl))
-            assertTrue(BuiltinVfsUrlTypes.JAR_URL.matches(rtJarUrl))
-            assertFalse(BuiltinVfsUrlTypes.DIRECTORY.matches(rtJarUrl))
+            assertNull(BuiltinVfsUrlTypes.JAR_FILE.createDir(rtJarUrl))
+            assertNotNull(BuiltinVfsUrlTypes.JAR_URL.createDir(rtJarUrl))
+            assertNull(BuiltinVfsUrlTypes.DIRECTORY.createDir(rtJarUrl))
 
             val dir = BuiltinVfsUrlTypes.JAR_URL.createDir(rtJarUrl)
             var vfsFile: VfsFile? = null
@@ -87,9 +88,9 @@ class VfsTest {
             assertTrue(thisUrl!!.toString().startsWith("file:"))
             assertFalse(thisUrl.toString().contains(".jar"))
 
-            assertFalse(BuiltinVfsUrlTypes.JAR_FILE.matches(thisUrl))
-            assertFalse(BuiltinVfsUrlTypes.JAR_URL.matches(thisUrl))
-            assertTrue(BuiltinVfsUrlTypes.DIRECTORY.matches(thisUrl))
+            assertNull(BuiltinVfsUrlTypes.JAR_FILE.createDir(thisUrl))
+            assertNull(BuiltinVfsUrlTypes.JAR_URL.createDir(thisUrl))
+            assertNotNull(BuiltinVfsUrlTypes.DIRECTORY.createDir(thisUrl))
 
             val dir = BuiltinVfsUrlTypes.DIRECTORY.createDir(thisUrl)
             var vfsFile: VfsFile? = null
@@ -201,8 +202,7 @@ class VfsTest {
     @Disabled
     fun vfsFromHttpUrl() {
         defaultUrlTypes.add(object : VfsUrlType {
-            override fun matches(url: URL) = url.protocol == "http"
-            override fun createDir(url: URL) = HttpDir(url)
+            override fun createDir(url: URL) = if (url.protocol == "http") HttpDir(url) else null
         })
 
         testVfsDir(URL("http://mirrors.ibiblio.org/pub/mirrors/maven2/org/slf4j/slf4j-api/1.5.6/slf4j-api-1.5.6.jar"))

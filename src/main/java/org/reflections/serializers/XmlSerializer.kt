@@ -1,17 +1,14 @@
 package org.reflections.serializers
 
+import org.dom4j.DocumentFactory
 import org.dom4j.io.OutputFormat
 import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
 import org.reflections.scanners.CompositeScanner
 import org.reflections.scanners.SimpleScanner
-import org.reflections.util.makeParents
 import org.reflections.util.tryOrThrow
-import java.io.File
-import java.io.FileWriter
-import java.io.InputStream
+import java.io.Reader
 import java.io.StringWriter
-import java.io.Writer
 
 /**
  * serialization of Reflections to xml
@@ -22,23 +19,24 @@ import java.io.Writer
  * <?xml version="1.0" encoding="UTF-8"?>
  *
  * <Reflections>
- * <SubTypesScanner>
- * <entry>
- * <key>com.google.inject.Module</key>
- * <values>
- * <value>fully.qualified.name.1</value>
- * <value>fully.qualified.name.2</value>
+ *   <SubTypesScanner>
+ *     <entry>
+ *       <key>com.google.inject.Module</key>
+ *       <values>
+ *         <value>fully.qualified.name.1</value>
+ *         <value>fully.qualified.name.2</value>
  * ...
  * ```
  */
 object XmlSerializer : Serializer {
     // todo: basitlik açısından JAXB object'e dönüştürülebilir
-    override fun read(inputStream: InputStream): CompositeScanner {
+    override fun read(reader: Reader): CompositeScanner {
         return tryOrThrow("could not read.") {
             val scanners = mutableListOf<SimpleScanner<*>>()
-            SAXReader().read(inputStream).rootElement.elements().forEach { e1 ->
+            SAXReader().read(reader).rootElement.elements().forEach { e1 ->
                 val index = e1 as org.dom4j.Element
-                val scanner = index.name.indexNameToClass().newInstance() as SimpleScanner<*>
+                val scanner =
+                        Class.forName("${SimpleScanner::class.java.`package`.name}.${index.name}")!!.newInstance() as SimpleScanner<*>
                 index.elements().forEach { e2 ->
                     val entry = e2 as org.dom4j.Element
                     val key = entry.element("key")
@@ -52,27 +50,11 @@ object XmlSerializer : Serializer {
         }
     }
 
-    override fun save(scanners: CompositeScanner, file: File) = tryOrThrow("could not save to file $file") {
-        file.makeParents()
-        FileWriter(file).use { writer -> writeTo(writer, scanners) }
-    }
-
-    override fun toString(scanners: CompositeScanner) = StringWriter().use { writer ->
-        writeTo(writer, scanners)
-        writer.toString()
-    }
-
-    private fun writeTo(writer: Writer, scanners: CompositeScanner) {
-        val xmlWriter = XMLWriter(writer, OutputFormat.createPrettyPrint())
-        xmlWriter.write(createDocument(scanners))
-        xmlWriter.close()
-    }
-
-    private fun createDocument(scanners: CompositeScanner): org.dom4j.Document {
-        val document = org.dom4j.DocumentFactory.getInstance().createDocument()
+    override fun write(scanners: CompositeScanner, writer: Appendable) {
+        val document = DocumentFactory.getInstance().createDocument()
         val root = document.addElement("Reflections")
         scanners.scanners.forEach { scanner ->
-            val indexElement = root.addElement(scanner.classToIndexName())
+            val indexElement = root.addElement(scanner.javaClass.simpleName!!)
             scanner.stringEntries().forEach { (key, values) ->
                 val entryElement = indexElement.addElement("entry")
                 entryElement.addElement("key").text = key
@@ -82,9 +64,11 @@ object XmlSerializer : Serializer {
                 }
             }
         }
-        return document
-    }
 
-    private fun String.indexNameToClass() = Class.forName("${SimpleScanner::class.java.`package`.name}.${this}")!!
-    private fun SimpleScanner<*>.classToIndexName() = javaClass.simpleName!!
+        val stringWriter = StringWriter()
+        val xmlWriter = XMLWriter(stringWriter, OutputFormat.createPrettyPrint())
+        xmlWriter.write(document)
+        xmlWriter.close()
+        writer.append(stringWriter.toString())
+    }
 }

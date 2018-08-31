@@ -23,25 +23,18 @@ import java.util.jar.Attributes
 import java.util.jar.JarFile
 import javax.servlet.ServletContext
 
+// todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
 
-// todo: Scanner'ların kendilerine has configuration'ları olabilsin. Ctor'da verilsin. Configuration nesnesinden kaldırılsın. Örnek: expandSupertypes
+// todo: File yerine Path kullan ki Jimfs kullanmaya yol açılsın
 
 // todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
-
-// todo: uzun testleri parçala
 // todo: testleri geçir
 // todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
 // todo: coverage kontrol et, eksik testleri tamamla
 
 // todo: Gereksiz nullable'ları ve null check'leri temizle
-// todo: bütün nullable collection'ları non-nullable & empty hale getir
 // todo: içinde nullable item bulunabilen collection'ları da non-nullable hale getir olabildiğince
 // todo: metot input'larında nullable olması pek mantıklı olmayan tipler non-nullable hale getirilsin
-
-// todo: File yerine Path kullan ki Jimfs kullanmaya yol açılsın
-
-// todo: query metotlarını Reflections'tan ilgili scanner'lara kaydır
-// todo: scannerlardan belli bir tipi alma kodları daha kısa ve anlaşılır hale getirilebilir mi
 
 // todo: optional dependency'leri değerlendir, mümkünse kaldırmaya çalış veya testlere kaydır. Nihai amaç zero or at most one (javassist) dependency
 
@@ -52,15 +45,11 @@ import javax.servlet.ServletContext
 // todo: update urls in javadocs etc
 // todo: update javadocs according to the new structure
 
-// todo: configuration'da scanners'ın default'u da boş olmalı değil mi?
-
 // todo: library'nin bizim yerimize birşeyleri nasıl tarayacağına karar vermesi yerine
 // todo: biz öyle bir mekanizma sunmalıyız ki, sadece sorgulayacağımız şeyleri taramaya izin verebilmeliyiz.
 // todo: belki mevcut yapı da bu şekilde tasarlandı ama biraz da java'dan kaynaklı verbosity vardır.
 
-// todo: iki farklı scanner'ı ortak kullanan metotlara bir çare düşünülmeli. Bu kadar parçalamasak mı? Yoksa daha düzgün parçalasak mı?
-
-// todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
+// todo: iki farklı scanner'ı ortak kullanan metotlara daha düzgün ele alınabilir mi?
 
 // todo: javadoc'larda gereksiz fqn'ler var, zaten import edilmişse bunları uzun yazmaya gerek yok
 
@@ -122,7 +111,6 @@ fun executorService(): ExecutorService? = Executors.newFixedThreadPool(Runtime.g
 
 class Multimap<K, V> {
     val map = mutableMapOf<K, MutableSet<V>>()
-    fun isEmpty() = map.isEmpty()
     fun putAll(multimap: Multimap<out K, out V>) = multimap.entries().forEach { put(it.key, it.value) }
     fun put(key: K, value: V) = map.getOrPut(key) { mutableSetOf() }.add(value)
     fun get(key: K) = map[key]

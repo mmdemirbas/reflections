@@ -1,19 +1,24 @@
 package org.reflections.serializers
 
 import org.reflections.scanners.CompositeScanner
-import org.reflections.scanners.SimpleScanner
+import org.reflections.util.makeParents
+import org.reflections.util.tryOrThrow
 import java.io.File
-import java.io.InputStream
+import java.io.FileWriter
+import java.io.Reader
+import java.lang.Appendable
 
 /**
- * Serializer of a [SimpleScanner] instances
+ * Serializer of a [CompositeScanner] instances
  */
 interface Serializer {
-    fun read(inputStream: InputStream): CompositeScanner
+    fun read(reader: Reader): CompositeScanner
+    fun write(scanners: CompositeScanner, writer: Appendable)
 
-    // todo: remove save method or reduce to a single common method
-    fun save(scanners: CompositeScanner, file: File)
+    fun save(scanners: CompositeScanner, file: File) = tryOrThrow("could not save to file $file") {
+        file.makeParents()
+        FileWriter(file).use { writer -> XmlSerializer.write(scanners, writer) }
+    }
 
-    // todo: refactor to give output to a output stream etc. for efficiency. toString still can remain as a common utility.
-    fun toString(scanners: CompositeScanner): String
+    fun toString(scanners: CompositeScanner) = StringBuilder().apply { write(scanners, this) }.toString()
 }

@@ -10,9 +10,6 @@ import java.util.jar.JarFile
 import java.util.regex.Pattern
 
 interface VfsUrlType {
-    // todo: matches metodu diğerinin içine katılabilir. null dönmüşse match etmemiş demektir.
-    fun matches(url: URL): Boolean
-
     fun createDir(url: URL): VfsDir?
 }
 
@@ -36,51 +33,60 @@ interface VfsUrlType {
  */
 enum class BuiltinVfsUrlTypes : VfsUrlType {
     JAR_FILE {
-        override fun matches(url: URL) = url.protocol == "file" && url.hasJarFileInPath()
-        override fun createDir(url: URL) = ZipDir(JarFile(Vfs.getFile(url)!!))
+        override fun createDir(url: URL) = when {
+            url.protocol == "file" && url.hasJarFileInPath() -> ZipDir(JarFile(Vfs.getFile(url)!!))
+            else                                             -> null
+        }
     },
 
     JAR_STREAM {
-        override fun matches(url: URL) = url.toExternalForm().contains(".jar")
-        override fun createDir(url: URL) = JarInputDir(url)
+        override fun createDir(url: URL) = when {
+            url.toExternalForm().contains(".jar") -> JarInputDir(url)
+            else                                  -> null
+        }
     },
 
     JAR_URL {
-        override fun matches(url: URL) = url.protocol in listOf("jar", "zip", "wsjar")
-
         override fun createDir(url: URL): VfsDir? {
-            try {
-                val urlConnection = url.openConnection()
-                if (urlConnection is JarURLConnection) {
-                    urlConnection.setUseCaches(false)
-                    return ZipDir(urlConnection.jarFile)
-                }
-            } catch (e: Throwable) { /*fallback*/
-            }
+            when {
+                url.protocol in listOf("jar", "zip", "wsjar") -> {
+                    try {
+                        val urlConnection = url.openConnection()
+                        if (urlConnection is JarURLConnection) {
+                            urlConnection.setUseCaches(false)
+                            return ZipDir(urlConnection.jarFile)
+                        }
+                    } catch (e: Throwable) { /*fallback*/
+                    }
 
-            val file = Vfs.getFile(url)
-            return if (file == null) null else ZipDir(JarFile(file))
+                    val file = Vfs.getFile(url)
+                    return if (file == null) null else ZipDir(JarFile(file))
+                }
+                else                                          -> return null
+            }
         }
     },
 
     DIRECTORY {
-        override fun matches(url: URL) =
-                url.protocol == "file" && !url.hasJarFileInPath() && Vfs.getFile(url)?.isDirectory == true
-
-        override fun createDir(url: URL) = SystemDir(Vfs.getFile(url) ?: File("."))
+        override fun createDir(url: URL) = when {
+            url.protocol == "file" && !url.hasJarFileInPath() && Vfs.getFile(url)?.isDirectory == true -> SystemDir(Vfs.getFile(
+                    url) ?: File("."))
+            else                                                                                       -> null
+        }
     },
 
     JBOSS_VFS {
-        override fun matches(url: URL) = url.protocol == "vfs"
-
-        override fun createDir(url: URL): VfsDir? {
-            val content = url.openConnection().content
-            val virtualFile = contextClassLoader()!!.loadClass("org.jboss.vfs.VirtualFile")
-            val physicalFile = virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File
-            val name = virtualFile.getMethod("getName").invoke(content) as String
-            var file = java.io.File(physicalFile.parentFile, name)
-            if (!file.exists() || !file.canRead()) file = physicalFile
-            return if (file.isDirectory) SystemDir(file) else ZipDir(JarFile(file))
+        override fun createDir(url: URL) = when {
+            url.protocol == "vfs" -> {
+                val content = url.openConnection().content
+                val virtualFile = contextClassLoader()!!.loadClass("org.jboss.vfs.VirtualFile")
+                val physicalFile = virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File
+                val name = virtualFile.getMethod("getName").invoke(content) as String
+                var file = java.io.File(physicalFile.parentFile, name)
+                if (!file.exists() || !file.canRead()) file = physicalFile
+                if (file.isDirectory) SystemDir(file) else ZipDir(JarFile(file))
+            }
+            else                  -> null
         }
     },
 
@@ -88,13 +94,16 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
         private val VFSZIP = "vfszip"
         private val VFSFILE = "vfsfile"
 
-        override fun matches(url: URL) = url.protocol in listOf(VFSZIP, VFSFILE)
-
-        override fun createDir(url: URL) = try {
-            ZipDir(JarFile(adaptURL(url).file))
-        } catch (e: Exception) {
-            logWarn("Could not get URL", e)
-            null
+        override fun createDir(url: URL) = when {
+            url.protocol in listOf(VFSZIP, VFSFILE) -> {
+                try {
+                    ZipDir(JarFile(adaptURL(url).file))
+                } catch (e: Exception) {
+                    logWarn("Could not get URL", e)
+                    null
+                }
+            }
+            else                                    -> null
         }
 
         private fun adaptURL(url: URL) = tryOrDefault(url) {
@@ -135,12 +144,15 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
     },
 
     BUNDLE {
-        override fun matches(url: URL) = url.protocol.startsWith("bundle")
-        override fun createDir(url: URL) =
+        override fun createDir(url: URL) = when {
+            url.protocol.startsWith("bundle") -> {
                 Vfs.fromURL(contextClassLoader()!!.loadClass("org.eclipse.core.runtime.FileLocator").getMethod("resolve",
                                                                                                                URL::class.java).invoke(
                         null,
                         url) as URL)
+            }
+            else                              -> null
+        }
     },
 }
 

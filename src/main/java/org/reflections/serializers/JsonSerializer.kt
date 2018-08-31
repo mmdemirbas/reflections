@@ -2,12 +2,7 @@ package org.reflections.serializers
 
 import org.reflections.scanners.CompositeScanner
 import org.reflections.scanners.SimpleScanner
-import org.reflections.util.makeParents
-import java.io.File
-import java.io.InputStream
-import java.io.InputStreamReader
-import java.nio.charset.Charset
-import java.nio.file.Files.write
+import java.io.Reader
 
 /**
  * serialization of Reflections to json
@@ -23,6 +18,7 @@ import java.nio.file.Files.write
  * ```
  */
 object JsonSerializer : Serializer {
+    // todo: buradaki JSON dönüşümü library kullanmadan yapılabilse güzel olur
     private val gson: com.google.gson.Gson by lazy {
         com.google.gson.GsonBuilder()
             .registerTypeAdapter(CompositeScanner::class.java,
@@ -49,12 +45,6 @@ object JsonSerializer : Serializer {
                                  }).setPrettyPrinting().create()
     }
 
-    override fun read(inputStream: InputStream) =
-            gson.fromJson(InputStreamReader(inputStream), CompositeScanner::class.java)!!
-
-    override fun save(scanners: CompositeScanner, file: File) {
-        write(file.makeParents().toPath(), toString(scanners).toByteArray(Charset.defaultCharset()))
-    }
-
-    override fun toString(scanners: CompositeScanner) = gson.toJson(scanners)!!
+    override fun read(reader: Reader) = gson.fromJson(reader, CompositeScanner::class.java)!!
+    override fun write(scanners: CompositeScanner, writer: Appendable) = gson.toJson(scanners, writer)
 }

@@ -193,7 +193,7 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
                 urls = urlForPackage(packagePrefix)
                 scanners = Vfs.findFiles(urls, packagePrefix, resourceNameFilter).flatMap { file ->
                     tryOrThrow("could not merge $file") {
-                        file.openInputStream().use { stream -> serializer.read(stream).scanners }
+                        file.openInputStream().bufferedReader().use { stream -> serializer.read(stream).scanners }
                     }
                 }
             }
@@ -267,6 +267,7 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
     fun values(keys: Collection<String>): Collection<String> = keys.flatMap(::values)
     fun values(): Collection<String> = store.values()
     fun values(key: String): Collection<String> = store.get(key).orEmpty()
+
     fun addEntry(key: String, value: String) {
         store.put(key, value)
     }
@@ -611,22 +612,10 @@ fun descriptorToMemberOrThrow(descriptor: String): Member {
 
     return classForName(className)?.classHieararchy()?.asSequence()?.mapNotNull {
         tryOrNull {
-            // todo: interface olsun olmasın getDeclared** metotları çalışıyor olmalı?
             when {
-                it.isInterface -> {
-                    when {
-                        !descriptor.contains("(")    -> it.getField(memberName) as Member
-                        descriptor.contains("init>") -> it.getConstructor(*parameterTypes) as Member
-                        else                         -> it.getMethod(memberName, *parameterTypes) as Member
-                    }
-                }
-                else           -> {
-                    when {
-                        !descriptor.contains("(")    -> it.getDeclaredField(memberName) as Member
-                        descriptor.contains("init>") -> it.getDeclaredConstructor(*parameterTypes) as Member
-                        else                         -> it.getDeclaredMethod(memberName, *parameterTypes) as Member
-                    }
-                }
+                !descriptor.contains("(")    -> it.getDeclaredField(memberName) as Member
+                descriptor.contains("init>") -> it.getDeclaredConstructor(*parameterTypes) as Member
+                else                         -> it.getDeclaredMethod(memberName, *parameterTypes) as Member
             }
         }
     }?.firstOrNull() ?: throw RuntimeException(when {
