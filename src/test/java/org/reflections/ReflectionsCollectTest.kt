@@ -13,31 +13,37 @@ import org.reflections.scanners.SubTypesScanner
 import org.reflections.scanners.TypeAnnotationsScanner
 import org.reflections.serializers.JsonSerializer
 import org.reflections.serializers.XmlSerializer
+import java.nio.file.FileSystems
 
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class ReflectionsCollectTest {
 
     @Test
     fun `collect XML`() {
+        val fileSystem = FileSystems.getDefault()
         val scanned =
                 CompositeScanner(SubTypesScanner(excludeObjectClass = false),
                                  TypeAnnotationsScanner(),
                                  MethodAnnotationsScanner(),
                                  MethodParameterNamesScanner(),
                                  MemberUsageScanner()).scan(TestModel::class.java)
-        scanned.save(file = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.xml"),
+        scanned.save(path = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.xml"),
                      serializer = XmlSerializer)
-        val collected = CompositeScanner.collect()
+        val collected = CompositeScanner.collect(fileSystem = fileSystem)
         assertEquals(scanned, collected)
     }
 
     @Test
     fun `collect JSON`() {
+        val fileSystem = FileSystems.getDefault()
         val scanned = MethodParameterScanner().scan(TestModel::class.java)
-        scanned.save(file = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
+        scanned.save(path = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
                      serializer = JsonSerializer)
         val collected =
-                CompositeScanner.collect("META-INF/reflections", Include(".*-reflections\\.json"), JsonSerializer)
+                CompositeScanner.collect(packagePrefix = "META-INF/reflections",
+                                         resourceNameFilter = Include(".*-reflections\\.json"),
+                                         serializer = JsonSerializer,
+                                         fileSystem = fileSystem)
         assertEquals(scanned, collected)
     }
 

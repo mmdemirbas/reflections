@@ -37,7 +37,6 @@ import org.reflections.util.withAnyParameterAnnotation
 import org.reflections.vfs.Vfs
 import org.reflections.vfs.VfsDir
 import org.reflections.vfs.VfsFile
-import java.io.File
 import java.lang.annotation.Inherited
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Constructor
@@ -46,6 +45,9 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.net.URL
+import java.nio.file.FileSystem
+import java.nio.file.FileSystems
+import java.nio.file.Path
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.regex.Pattern
@@ -59,26 +61,33 @@ data class ScanMetrics(val elapsedTime: Int = 0, val keyCount: Int = 0, val valu
 }
 
 interface Scanner<S : Scanner<S>> {
-    fun save(file: File, serializer: Serializer = XmlSerializer)
+    fun save(path: Path, serializer: Serializer = XmlSerializer)
 
-    fun scan(prefix: String, executorService: ExecutorService? = null) = scan(urls = urlForPackage(prefix),
-                                                                              filter = Filter.Include(prefix.toPrefixRegex()),
-                                                                              executorService = executorService)
+    fun scan(prefix: String,
+             executorService: ExecutorService? = null,
+             fileSystem: FileSystem = FileSystems.getDefault()) = scan(urls = urlForPackage(prefix),
+                                                                       filter = Filter.Include(prefix.toPrefixRegex()),
+                                                                       executorService = executorService,
+                                                                       fileSystem = fileSystem)
 
-    fun scan(klass: Class<*>, executorService: ExecutorService? = null) =
+    fun scan(klass: Class<*>,
+             executorService: ExecutorService? = null,
+             fileSystem: FileSystem = FileSystems.getDefault()) =
             scan(filter = Filter.Include(klass.name.replace("$", "\\$").replace(".", "\\.") + "(\\$.*)?"),
                  urls = setOf(urlForClass(klass)!!),
-                 executorService = executorService)
+                 executorService = executorService,
+                 fileSystem = fileSystem)
 
     fun scan(urls: Collection<URL> = emptySet(),
              filter: Filter = Filter.Composite(emptyList()),
-             executorService: ExecutorService? = null): S {
+             executorService: ExecutorService? = null,
+             fileSystem: FileSystem = FileSystems.getDefault()): S {
         if (urls.isEmpty()) throw RuntimeException("given scan urls are empty. set urls in the configuration")
 
         logDebug("going to scan these urls:\n{}", urls.joinToString("\n"))
 
         val scanMetrics =
-                urls.map { url -> Callable<ScanMetrics> { scanUrl(filter, url) } }
+                urls.map { url -> Callable<ScanMetrics> { scanUrl(filter, url, fileSystem) } }
                     .runAllPossiblyParallelAndWait(executorService)
         val afterScanMetrics = afterScan()
         val combinedMetrics = ScanMetrics(scanMetrics + afterScanMetrics)
@@ -91,17 +100,19 @@ interface Scanner<S : Scanner<S>> {
         return this as S
     }
 
-    fun scanUrl(filter: Filter, url: URL): ScanMetrics
+    fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem = FileSystems.getDefault()): ScanMetrics
     fun afterScan() = ScanMetrics()
 }
 
 data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<CompositeScanner> {
     constructor(vararg scanners: SimpleScanner<*>) : this(scanners.asList())
 
-    override fun scanUrl(filter: Filter, url: URL) = ScanMetrics(scanners.map { it.scanUrl(filter, url) })
+    override fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem) = ScanMetrics(scanners.map {
+        it.scanUrl(filter, url, fileSystem)
+    })
 
-    override fun save(file: File, serializer: Serializer) = serializer.save(this, file).also {
-        logInfo("Reflections successfully saved in ${file.absolutePath} using ${serializer.javaClass.simpleName}")
+    override fun save(path: Path, serializer: Serializer) = serializer.write(this, path).also {
+        logInfo("Reflections successfully saved in ${path.toAbsolutePath()} using ${serializer.javaClass.simpleName}")
     }
 
     /**
@@ -185,13 +196,17 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
          */
         fun collect(packagePrefix: String = "META-INF/reflections/",
                     resourceNameFilter: Filter = Filter.Include(".*-reflections\\.xml"),
-                    serializer: Serializer = XmlSerializer): CompositeScanner {
+                    serializer: Serializer = XmlSerializer,
+                    fileSystem: FileSystem = FileSystems.getDefault()): CompositeScanner {
             var urls: Collection<URL> = emptyList()
             var scanners: List<SimpleScanner<*>> = emptyList()
 
             val elapsedMillis = measureTimeMillis {
                 urls = urlForPackage(packagePrefix)
-                scanners = Vfs.findFiles(urls, packagePrefix, resourceNameFilter).flatMap { file ->
+                scanners = Vfs.findFiles(inUrls = urls,
+                                         packagePrefix = packagePrefix,
+                                         nameFilter = resourceNameFilter,
+                                         fileSystem = fileSystem).flatMap { file ->
                     tryOrThrow("could not merge $file") {
                         file.openInputStream().bufferedReader().use { stream -> serializer.read(stream).scanners }
                     }
@@ -217,13 +232,11 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
 
     open fun acceptResult(fqn: String) = true
 
-    override fun save(file: File, serializer: Serializer) = serializer.save(CompositeScanner(this), file).also {
-        logInfo("Reflections successfully saved in ${file.absolutePath} using ${serializer.javaClass.simpleName}")
-    }
+    override fun save(path: Path, serializer: Serializer) = CompositeScanner(this).save(path, serializer)
 
-    override fun scanUrl(filter: Filter, url: URL): ScanMetrics {
+    override fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem): ScanMetrics {
         val elapsedMillis = measureTimeMillis {
-            Vfs.fromURL(url).use(VfsDir::files).forEach { file ->
+            Vfs.fromURL(url = url, fileSystem = fileSystem).use(VfsDir::files).forEach { file ->
                 val fqn = file.relativePath!!.replace('/', '.')
                 if (filter.test(file.relativePath!!) || filter.test(fqn)) {
                     try {

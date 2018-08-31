@@ -2,9 +2,11 @@ package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.reflections.util.classAndInterfaceHieararchyExceptObject
-import java.io.File
 import java.lang.reflect.Executable
 import java.lang.reflect.Member
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 /**
  * Asserts that [expected] and [actual] are equal after each item transformed to string,
@@ -68,12 +70,14 @@ fun isAssignable(child: List<Class<*>>, parent: List<Class<*>>): Boolean {
     }
 }
 
+// todo: userDir hack midir nedir buna gerek var mı?
 //a hack to fix user.dir issue(?) in surfire
-val userDir: File
+val userDir: Path
     get() {
-        var file = File(System.getProperty("user.dir"))
-        if (listOf(*file.list()!!).contains("reflections")) {
-            file = File(file, "reflections")
+        // todo: fileSystem parametric verilmeli
+        val file = Paths.get(System.getProperty("user.dir"))
+        return when {
+            Files.list(file).anyMatch { it.toString() == "reflections" } -> file.resolve("reflections")
+            else                                                         -> file
         }
-        return file
     }

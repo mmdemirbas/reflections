@@ -1,7 +1,6 @@
 package org.reflections.util
 
 import org.apache.logging.log4j.LogManager
-import java.io.File
 import java.io.IOException
 import java.lang.reflect.AnnotatedElement
 import java.lang.reflect.Constructor
@@ -13,6 +12,10 @@ import java.net.MalformedURLException
 import java.net.URL
 import java.net.URLClassLoader
 import java.net.URLDecoder
+import java.nio.file.FileSystem
+import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
@@ -22,10 +25,9 @@ import java.util.concurrent.atomic.AtomicInteger
 import java.util.jar.Attributes
 import java.util.jar.JarFile
 import javax.servlet.ServletContext
+import kotlin.streams.asSequence
 
 // todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
-
-// todo: File yerine Path kullan ki Jimfs kullanmaya yol açılsın
 
 // todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
 // todo: testleri geçir
@@ -55,6 +57,8 @@ import javax.servlet.ServletContext
 
 // todo: performans testleri de ekle
 
+// todo: System property'si kullanılan yerler daha iyi encapsulate edilebilir. Testi de kolay olabilir böylece... Jimfs gibi birşeyler lazım yani..
+
 fun Annotation.annotationType() = annotationClass.java
 
 private val logger = LogManager.getLogger("org.reflections.Reflections")
@@ -76,11 +80,6 @@ fun <T> T?.generateWhileNotNull(next: T.() -> T?): List<T> {
         value = value.next()
     }
     return result
-}
-
-fun File.makeParents(): File {
-    absoluteFile.parentFile.mkdirs()
-    return this
 }
 
 fun AnnotatedElement.fullName(): String = when (this) {
@@ -343,25 +342,11 @@ fun urlForClassLoader(classLoaders: Collection<ClassLoader?> = defaultClassLoade
     loader.generateWhileNotNull { parent }
 }.filterIsInstance<URLClassLoader>().flatMap { it.urLs.orEmpty().asList() }.distinctUrls()
 
-/**
- * Returns a distinct collection of URLs based on the `java.class.path` system property.
- *
- *
- * This finds the URLs using the `java.class.path` system property.
- *
- *
- * The returned collection of URLs retains the classpath order.
- *
- * @return the collection of URLs, not null
- */
-fun urlForJavaClassPath() =
-        System.getProperty("java.class.path")?.split(File.pathSeparator.toRegex()).orEmpty().dropLastWhile { it.isEmpty() }.mapNotNull { path ->
-            try {
-                File(path).toURI().toURL()
-            } catch (e: Exception) {
-                logWarn("Could not get URL", e)
-                null
-            }
+
+fun urlForJavaClassPath(fileSystem: FileSystem = FileSystems.getDefault(),
+                        pathSeparator: String = java.io.File.pathSeparator) =
+        System.getProperty("java.class.path").orEmpty().split(pathSeparator.toRegex()).dropLastWhile { it.isEmpty() }.mapNotNull { path ->
+            tryOrNull { fileSystem.getPath(path).toUri().toURL() }
         }.distinctUrls()
 
 /**
@@ -386,12 +371,15 @@ fun ServletContext.webInfLibUrls() =
  *
  * @return the collection of URLs, not null
  */
-fun ServletContext.webInfClassesUrls() = tryOrNull {
+fun ServletContext.webInfClassesUrls(fileSystem: FileSystem = FileSystems.getDefault()) = tryOrNull {
     val path = getRealPath("/WEB-INF/classes")
-    when {
-        path == null        -> getResource("/WEB-INF/classes")
-        File(path).exists() -> File(path).toURL()
-        else                -> null
+    if (path == null) getResource("/WEB-INF/classes")
+    else {
+        val file = fileSystem.getPath(path)
+        when {
+            Files.exists(file) -> file.toUri().toURL()
+            else               -> null
+        }
     }
 }
 
@@ -422,23 +410,23 @@ fun Iterable<URL>.manifestUrls() = flatMap { it.manifestUrls() }.distinctUrls()
  *
  * @return the collection of URLs, not null
  */
-fun URL.manifestUrls() = (listOf(this) + tryOrDefault(emptyList()) {
+fun URL.manifestUrls(fileSystem: FileSystem = FileSystems.getDefault()) = (listOf(this) + tryOrDefault(emptyList()) {
     // don't do anything on exception, we're going on the assumption it is a jar, which could be wrong
     val cleaned = cleanPath()
-    val file = File(cleaned)
-    val dir = file.parentFile
+    val file = fileSystem.getPath(cleaned)
+    val dir = file.parent
     val jar = JarFile(cleaned)
     listOfNotNull(tryToGetValidUrl(file,
                                    dir,
                                    file)) + jar.manifest?.mainAttributes?.getValue(Attributes.Name("Class-Path")).orEmpty().split(
             ' ').dropLastWhile { it.isEmpty() }.mapNotNull {
-        tryToGetValidUrl(file, dir, File(it))
+        tryToGetValidUrl(file, dir, fileSystem.getPath(it))
     }
 }).distinctUrls()
 
-fun tryToGetValidUrl(workingDir: File, path: File, filename: File) = listOf(filename,
+fun tryToGetValidUrl(workingDir: Path, path: Path, filename: Path) = listOf(filename,
                                                                             path.resolve(filename),
-                                                                            workingDir.resolve(filename)).firstOrNull { it.exists() }?.toURI()?.toURL()
+                                                                            workingDir.resolve(filename)).firstOrNull { it.exists() }?.toUri()?.toURL()
 
 fun URL.cleanPath(): String {
     val path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }.removePrefix("jar:").removePrefix("file:")
@@ -450,6 +438,12 @@ fun URL.cleanPath(): String {
 
 fun Collection<URL>.distinctUrls() = associate { it.toExternalForm() to it }.values
 
+
+/**
+ * Runs the given block, or returns silently if an exception occurs.
+ */
+// todo: bu metot Throwables'ın düzgünce yazıldığı kütüphane içine de kopyalansın. Böyle şeyler için tek bir merkez olsa iyi olacak reuse için.
+fun tryOrIgnore(block: () -> Unit) = tryCatch(block) { }
 
 /**
  * Runs the given block and returns its result, or `null` if an exception occurs.
@@ -480,3 +474,28 @@ fun <V> Iterable<Callable<V>>.runAllPossiblyParallelAndWait(executorService: Exe
             null -> map { it.call()!! }
             else -> map { executorService.submit(it::call) }.map { it.get()!! }
         }
+
+fun Path.exists() = Files.exists(this)
+fun Path.walkTopDown() = Files.walk(this).asSequence()
+val Path.name get() = fileName.toString()
+fun Path.inputStream() = Files.newInputStream(this)
+fun Path.canRead() = Files.isReadable(this)
+val Path.path get() = this.toString()
+val Path.isFile get() = Files.isRegularFile(this)
+val Path.isDirectory get() = Files.isDirectory(this)
+fun Path.delete() = Files.delete(this)
+
+// todo: temp file create işlemini de Files & Path apisi üzerinden yap, yada kullanımını kaldırıp sil mümkünse...
+fun createTempPath() = java.io.File.createTempFile("", "").toPath()
+
+fun Path.toURL() = toUri().toURL()
+fun Path.bufferedWriter() = Files.newBufferedWriter(this)
+fun Path.mkdir() = Files.createDirectory(this)
+fun Path.mkdirs() = Files.createDirectories(this)
+
+fun Path.mkParentDirs(): Path {
+    parent.mkdirs()
+    return this
+}
+
+fun Path.nullIfNotExists(): Path? = if (exists()) this else null
