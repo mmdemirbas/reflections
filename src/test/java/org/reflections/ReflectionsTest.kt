@@ -27,18 +27,6 @@ import org.reflections.TestModel.I2
 import org.reflections.TestModel.I3
 import org.reflections.TestModel.MAI1
 import org.reflections.TestModel.Usage
-import org.reflections.scanners.CompositeScanner
-import org.reflections.scanners.FieldAnnotationsScanner
-import org.reflections.scanners.MemberUsageScanner
-import org.reflections.scanners.MethodAnnotationsScanner
-import org.reflections.scanners.MethodParameterNamesScanner
-import org.reflections.scanners.MethodParameterScanner
-import org.reflections.scanners.ResourceScanner
-import org.reflections.scanners.SubTypesScanner
-import org.reflections.scanners.TypeAnnotationsScanner
-import org.reflections.util.annotationType
-import org.reflections.util.classAndInterfaceHieararchyExceptObject
-import org.reflections.util.urlForClass
 import java.util.regex.Pattern
 
 class ReflectionsTest {
@@ -484,8 +472,9 @@ class ReflectionsTest {
         @Test
         fun resources2() {
             val scanner =
-                    ResourceScanner().scan(filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json"))),
-                                           urls = setOf(urlForClass(TestModel::class.java)!!))
+                    ResourceScanner()
+                        .scan(filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json"))),
+                              urls = setOf(urlForClass(TestModel::class.java)!!))
 
             assertToStringEqualsSorted(setOf("META-INF/reflections/resource1-reflections.xml"),
                                        scanner.resources(Pattern.compile(".*resource1-reflections\\.xml")))

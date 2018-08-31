@@ -1,7 +1,6 @@
 package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import org.reflections.util.classAndInterfaceHieararchyExceptObject
 import java.lang.reflect.Executable
 import java.lang.reflect.Member
 import java.nio.file.Files

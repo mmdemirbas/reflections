@@ -1,4 +1,4 @@
-package org.reflections.scanners
+package org.reflections
 
 import javassist.ClassPool
 import javassist.CtBehavior
@@ -10,33 +10,6 @@ import javassist.expr.ExprEditor
 import javassist.expr.FieldAccess
 import javassist.expr.MethodCall
 import javassist.expr.NewExpr
-import org.reflections.Filter
-import org.reflections.adapters.ClassAdapter
-import org.reflections.adapters.CreateClassAdapter
-import org.reflections.adapters.JavassistMethodAdapter
-import org.reflections.serializers.Serializer
-import org.reflections.serializers.XmlSerializer
-import org.reflections.toPrefixRegex
-import org.reflections.util.Multimap
-import org.reflections.util.annotationType
-import org.reflections.util.classForName
-import org.reflections.util.classHieararchy
-import org.reflections.util.defaultClassLoaders
-import org.reflections.util.directParentsExceptObject
-import org.reflections.util.fullName
-import org.reflections.util.logDebug
-import org.reflections.util.logInfo
-import org.reflections.util.logWarn
-import org.reflections.util.runAllPossiblyParallelAndWait
-import org.reflections.util.tryOrNull
-import org.reflections.util.tryOrThrow
-import org.reflections.util.urlForClass
-import org.reflections.util.urlForPackage
-import org.reflections.util.withAnnotation
-import org.reflections.util.withAnyParameterAnnotation
-import org.reflections.vfs.Vfs
-import org.reflections.vfs.VfsDir
-import org.reflections.vfs.VfsFile
 import java.lang.annotation.Inherited
 import java.lang.reflect.AccessibleObject
 import java.lang.reflect.Constructor
@@ -94,9 +67,9 @@ interface Scanner<S : Scanner<S>> {
         executorService?.shutdown()
 
         logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values",
-                combinedMetrics.elapsedTime,
-                combinedMetrics.keyCount,
-                combinedMetrics.valueCount)
+                                combinedMetrics.elapsedTime,
+                                combinedMetrics.keyCount,
+                                combinedMetrics.valueCount)
         return this as S
     }
 
@@ -244,7 +217,10 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
                             scanFile(file)
                         }
                     } catch (e: Exception) {
-                        logWarn("could not scan file {} in with scanner {}", file.relativePath, javaClass.simpleName, e)
+                        logWarn("could not scan file {} in with scanner {}",
+                                                file.relativePath,
+                                                javaClass.simpleName,
+                                                e)
                     }
                 }
             }
@@ -359,13 +335,14 @@ class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoade
         }
     }
 
-    override fun scanClass(cls: ClassAdapter) = tryOrThrow("Could not scan method usage for ${cls.name}") {
-        classPool.get(cls.name).run {
-            declaredConstructors.forEach(::scanMember)
-            declaredMethods.forEach(::scanMember)
-            detach()
-        }
-    }
+    override fun scanClass(cls: ClassAdapter) =
+            tryOrThrow("Could not scan method usage for ${cls.name}") {
+                classPool.get(cls.name).run {
+                    declaredConstructors.forEach(::scanMember)
+                    declaredMethods.forEach(::scanMember)
+                    detach()
+                }
+            }
 
     private fun scanMember(member: CtBehavior) {
         //key contains this$/val$ means local field/parameter closure
@@ -376,17 +353,24 @@ class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoade
                 put("${e!!.constructor.declaringClassName}.<init>(${e.constructor.parameterNames})", e.lineNumber, key)
             }
 
-            override fun edit(m: MethodCall?) = tryOrThrow("Could not find member ${m!!.className} in $key") {
-                put("${m.method.declaringClassName}.${m.methodName}(${m.method.parameterNames})", m.lineNumber, key)
-            }
+            override fun edit(m: MethodCall?) =
+                    tryOrThrow("Could not find member ${m!!.className} in $key") {
+                        put("${m.method.declaringClassName}.${m.methodName}(${m.method.parameterNames})",
+                            m.lineNumber,
+                            key)
+                    }
 
-            override fun edit(c: ConstructorCall?) = tryOrThrow("Could not find member ${c!!.className} in $key") {
-                put("${c.constructor.declaringClassName}.<init>(${c.constructor.parameterNames})", c.lineNumber, key)
-            }
+            override fun edit(c: ConstructorCall?) =
+                    tryOrThrow("Could not find member ${c!!.className} in $key") {
+                        put("${c.constructor.declaringClassName}.<init>(${c.constructor.parameterNames})",
+                            c.lineNumber,
+                            key)
+                    }
 
-            override fun edit(f: FieldAccess?) = tryOrThrow("Could not find member ${f!!.fieldName} in $key") {
-                put("${f.field.declaringClassName}.${f.fieldName}", f.lineNumber, key)
-            }
+            override fun edit(f: FieldAccess?) =
+                    tryOrThrow("Could not find member ${f!!.fieldName} in $key") {
+                        put("${f.field.declaringClassName}.${f.fieldName}", f.lineNumber, key)
+                    }
         })
     }
 
@@ -608,7 +592,8 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
 }
 
 
-fun descriptorToMember(value: String) = tryOrThrow("Can't resolve member $value") { descriptorToMemberOrThrow(value) }
+fun descriptorToMember(value: String) =
+        tryOrThrow("Can't resolve member $value") { descriptorToMemberOrThrow(value) }
 
 fun descriptorToMemberOrThrow(descriptor: String): Member {
     val p0 = descriptor.lastIndexOf('(')

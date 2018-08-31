@@ -1,14 +1,11 @@
-package org.reflections.serializers
+package org.reflections
 
 import org.dom4j.DocumentFactory
+import org.dom4j.Element
+import org.dom4j.Node
 import org.dom4j.io.OutputFormat
 import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
-import org.reflections.scanners.CompositeScanner
-import org.reflections.scanners.SimpleScanner
-import org.reflections.util.bufferedWriter
-import org.reflections.util.mkParentDirs
-import org.reflections.util.tryOrThrow
 import java.io.Reader
 import java.io.StringWriter
 import java.lang.Appendable
@@ -21,9 +18,10 @@ interface Serializer {
     fun read(reader: Reader): CompositeScanner
     fun write(scanners: CompositeScanner, writer: Appendable)
 
-    fun write(scanners: CompositeScanner, path: Path) = tryOrThrow("could not write to path $path") {
-        path.mkParentDirs().bufferedWriter().use { writer -> write(scanners, writer) }
-    }
+    fun write(scanners: CompositeScanner, path: Path) =
+            tryOrThrow("could not write to path $path") {
+                path.mkParentDirs().bufferedWriter().use { writer -> write(scanners, writer) }
+            }
 
     fun toString(scanners: CompositeScanner) = StringBuilder().apply { write(scanners, this) }.toString()
 }
@@ -55,13 +53,13 @@ object XmlSerializer : Serializer {
         return tryOrThrow("could not read.") {
             val scanners = mutableListOf<SimpleScanner<*>>()
             SAXReader().read(reader).rootElement.elements().forEach { e1 ->
-                val index = e1 as org.dom4j.Element
+                val index = e1 as Element
                 val scanner =
                         Class.forName("${SimpleScanner::class.java.`package`.name}.${index.name}")!!.newInstance() as SimpleScanner<*>
                 index.elements().forEach { e2 ->
-                    val entry = e2 as org.dom4j.Element
+                    val entry = e2 as Element
                     val key = entry.element("key")
-                    entry.element("values").elements().map { it as org.dom4j.Node }.forEach {
+                    entry.element("values").elements().map { it as Node }.forEach {
                         scanner.addEntry(key.text, it.text)
                     }
                 }
@@ -103,7 +101,7 @@ object XmlSerializer : Serializer {
  * ```
  * {"store":
  *   {"storeMap":
- *     {"org.reflections.scanners.TypeAnnotationsScanner":
+ *     {"org.reflections.TypeAnnotationsScanner":
  *       {
  *         "org.reflections.TestModel$AC1":["org.reflections.TestModel$C1"],
  *         "org.reflections.TestModel$AC2":["org.reflections.TestModel$I3",

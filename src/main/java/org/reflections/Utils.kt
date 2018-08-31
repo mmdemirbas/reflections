@@ -1,4 +1,4 @@
-package org.reflections.util
+package org.reflections
 
 import org.apache.logging.log4j.LogManager
 import java.io.IOException
@@ -105,7 +105,7 @@ open class DefaultThreadFactory(private val namePrefix: String, private val daem
 
 fun executorService(): ExecutorService? = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors(),
                                                                        DefaultThreadFactory("org.reflections-scanner-",
-                                                                                            true))
+                                                                                                            true))
 
 
 class Multimap<K, V> {
@@ -150,8 +150,8 @@ fun <T> T.dfs(next: T.() -> Iterable<T>): List<T> = listOf(this) + next().flatMa
 
 fun <T : AnnotatedElement> withAnnotation(element: T, expected: Annotation) =
         element.isAnnotationPresent(expected.annotationType()) && areAnnotationMembersMatching(expected,
-                                                                                               element.getAnnotation(
-                                                                                                       expected.annotationType()))
+                                                                                                               element.getAnnotation(
+                                                                                                                       expected.annotationType()))
 
 fun withAnyParameterAnnotation(member: Member, expectedType: Class<out Annotation>) =
         parameterAnnotations(member).map { actual -> actual.annotationType() }.any { actualType -> actualType == expectedType }
@@ -237,7 +237,8 @@ fun contextClassLoader() = Thread.currentThread().contextClassLoader ?: null
  */
 fun staticClassLoader() = Scanner::class.java.classLoader ?: null
 
-fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
+fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(),
+                                                             staticClassLoader()).distinct()
 
 /**
  * Returns a distinct collection of URLs based on a package name.
@@ -410,15 +411,16 @@ fun Iterable<URL>.manifestUrls() = flatMap { it.manifestUrls() }.distinctUrls()
  *
  * @return the collection of URLs, not null
  */
-fun URL.manifestUrls(fileSystem: FileSystem = FileSystems.getDefault()) = (listOf(this) + tryOrDefault(emptyList()) {
+fun URL.manifestUrls(fileSystem: FileSystem = FileSystems.getDefault()) = (listOf(this) + tryOrDefault(
+        emptyList()) {
     // don't do anything on exception, we're going on the assumption it is a jar, which could be wrong
     val cleaned = cleanPath()
     val file = fileSystem.getPath(cleaned)
     val dir = file.parent
     val jar = JarFile(cleaned)
     listOfNotNull(tryToGetValidUrl(file,
-                                   dir,
-                                   file)) + jar.manifest?.mainAttributes?.getValue(Attributes.Name("Class-Path")).orEmpty().split(
+                                                   dir,
+                                                   file)) + jar.manifest?.mainAttributes?.getValue(Attributes.Name("Class-Path")).orEmpty().split(
             ' ').dropLastWhile { it.isEmpty() }.mapNotNull {
         tryToGetValidUrl(file, dir, fileSystem.getPath(it))
     }
@@ -429,7 +431,8 @@ fun tryToGetValidUrl(workingDir: Path, path: Path, filename: Path) = listOf(file
                                                                             workingDir.resolve(filename)).firstOrNull { it.exists() }?.toUri()?.toURL()
 
 fun URL.cleanPath(): String {
-    val path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }.removePrefix("jar:").removePrefix("file:")
+    val path = tryOrDefault(path) { URLDecoder.decode(path, "UTF-8") }
+        .removePrefix("jar:").removePrefix("file:")
     return when {
         path.endsWith("!/") -> path.removeSuffix("!/") + '/'
         else                -> path
@@ -458,7 +461,8 @@ fun <R> tryOrDefault(default: R, block: () -> R) = tryCatch(block) { default }
 /**
  * Runs the given block and returns its result, or throws a [RuntimeException] with the specifid [message] if an exception occurs.
  */
-fun <R> tryOrThrow(message: String, block: () -> R) = tryCatch(block) { throw RuntimeException(message, it) }
+fun <R> tryOrThrow(message: String, block: () -> R) =
+        tryCatch(block) { throw RuntimeException(message, it) }
 
 /**
  * Method equivalent of a try-catch block.

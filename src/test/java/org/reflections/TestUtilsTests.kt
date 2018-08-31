@@ -10,9 +10,6 @@ import org.reflections.TestModel.AM1
 import org.reflections.TestModel.C3
 import org.reflections.TestModel.C4
 import org.reflections.TestModel.I1
-import org.reflections.scanners.FieldAnnotationsScanner
-import org.reflections.util.withAnnotation
-import org.reflections.util.withAnyParameterAnnotation
 import java.lang.reflect.Field
 import java.lang.reflect.Member
 import java.lang.reflect.Method
@@ -131,7 +128,8 @@ class TestUtilsTests {
     fun getAllAndReflections() {
 
         val allFields =
-                FieldAnnotationsScanner().scan(TestModel::class.java).fieldsAnnotatedWith(AF1::class.java)
+                FieldAnnotationsScanner()
+                    .scan(TestModel::class.java).fieldsAnnotatedWith(AF1::class.java)
                     .filter { it.hasModifier(Modifier.PROTECTED) }
 
         assertEquals(1, allFields.size.toLong())

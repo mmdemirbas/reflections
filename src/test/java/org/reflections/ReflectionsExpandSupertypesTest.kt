@@ -7,8 +7,6 @@ import org.reflections.Filter.Include
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.A
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.B
 import org.reflections.ReflectionsExpandSupertypesTest.TestModel.ScannedScope.C
-import org.reflections.scanners.SubTypesScanner
-import org.reflections.util.urlForClass
 
 class ReflectionsExpandSupertypesTest {
     private val inputsFilter =

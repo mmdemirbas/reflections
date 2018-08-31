@@ -2,7 +2,6 @@ package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.reflections.scanners.SubTypesScanner
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit.SECONDS
 
@@ -13,7 +12,8 @@ class ReflectionsThreadSafenessTest {
     @Test
     fun reflections_scan_is_thread_safe() {
         val callable = {
-            SubTypesScanner(excludeObjectClass = false).scan(Map::class.java).subTypesOf(Map::class.java)
+            SubTypesScanner(excludeObjectClass = false)
+                .scan(Map::class.java).subTypesOf(Map::class.java)
         }
 
         val pool = Executors.newFixedThreadPool(2)

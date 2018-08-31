@@ -5,7 +5,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.reflections.Filter.Exclude
 import org.reflections.Filter.Include
-import org.reflections.scanners.Scanner
 
 /**
  * Test filtering

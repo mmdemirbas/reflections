@@ -1,4 +1,4 @@
-package org.reflections.adapters
+package org.reflections
 
 import javassist.bytecode.AccessFlag
 import javassist.bytecode.AnnotationsAttribute
@@ -7,14 +7,6 @@ import javassist.bytecode.Descriptor
 import javassist.bytecode.FieldInfo
 import javassist.bytecode.MethodInfo
 import javassist.bytecode.ParameterAnnotationsAttribute
-import org.reflections.util.classForName
-import org.reflections.util.generateWhileNotNull
-import org.reflections.util.logWarn
-import org.reflections.util.substringBetween
-import org.reflections.util.tryOrDefault
-import org.reflections.util.tryOrThrow
-import org.reflections.util.whileNotNull
-import org.reflections.vfs.VfsFile
 import java.io.BufferedInputStream
 import java.io.DataInputStream
 import java.lang.reflect.Constructor
@@ -32,7 +24,10 @@ val CreateJavassistClassAdapter = { vfsFile: VfsFile ->
 }
 
 val CreateJavaReflectionClassAdapter = { vfsFile: VfsFile ->
-    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
+    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/",
+                                                                           ".").replace(
+            ".class",
+            ""))!!)
 }
 
 val CreateClassAdapter = try {

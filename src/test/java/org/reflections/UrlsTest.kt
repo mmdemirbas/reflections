@@ -2,7 +2,6 @@ package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
-import org.reflections.util.urlForClassLoader
 import java.net.URL
 import java.net.URLClassLoader
 
