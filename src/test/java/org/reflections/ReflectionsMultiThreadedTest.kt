@@ -21,8 +21,7 @@ class ReflectionsMultiThreadedTest {
                                 MethodAnnotationsScanner(),
                                 MethodParameterScanner(),
                                 MethodParameterNamesScanner(),
-                                MemberUsageScanner())
-            .scan(klass = TestModel::class.java,
-                  executorService = executorService)
+                                MemberUsageScanner()).scan(klass = TestModel::class.java,
+                                                           executorService = executorService)
     }
 }

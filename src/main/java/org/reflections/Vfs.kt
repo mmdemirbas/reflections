@@ -65,8 +65,7 @@ object Vfs {
         try {
             type.createDir(url, fileSystem)
         } catch (e: Throwable) {
-            logWarn("could not create VfsDir using $type from url ${url.toExternalForm()}. skipping.",
-                                    e)
+            logWarn("could not create VfsDir using $type from url ${url.toExternalForm()}. skipping.", e)
             null
         }
     }.firstOrNull()
@@ -78,17 +77,17 @@ object Vfs {
     fun findFiles(inUrls: Collection<URL>,
                   packagePrefix: String,
                   nameFilter: Filter,
-                  fileSystem: FileSystem = FileSystems.getDefault()) = findFiles(inUrls = inUrls,
-                                                                                                     fileSystem = fileSystem) { vfsFile: VfsFile ->
-        val path = vfsFile.relativePath ?: ""
-        when {
-            path.startsWith(packagePrefix) -> {
-                val filename = path.substringAfter(packagePrefix)
-                !filename.isEmpty() && nameFilter.test(filename.substring(1))
+                  fileSystem: FileSystem = FileSystems.getDefault()) =
+            findFiles(inUrls = inUrls, fileSystem = fileSystem) { vfsFile: VfsFile ->
+                val path = vfsFile.relativePath ?: ""
+                when {
+                    path.startsWith(packagePrefix) -> {
+                        val filename = path.substringAfter(packagePrefix)
+                        !filename.isEmpty() && nameFilter.test(filename.substring(1))
+                    }
+                    else                           -> false
+                }
             }
-            else                           -> false
-        }
-    }
 
     /**
      * return an iterable of all [VfsFile] in given urls, matching filePredicate
@@ -154,12 +153,9 @@ class ZipDir(val jarFile: JarFile, val fileSystem: FileSystem) : VfsDir(fileSyst
     // todo: JarFile'ı file'a bulaşmadan path'ten create edebilmeliyiz
     constructor(path: Path) : this(JarFile(path.toFile()), path.fileSystem)
 
-    override fun files() =
-            jarFile.entries().asSequence().filter { !it.isDirectory }.map {
-                ZipFile(this,
-                                        it,
-                                        fileSystem)
-            }
+    override fun files() = jarFile.entries().asSequence().filter { !it.isDirectory }.map {
+        ZipFile(this, it, fileSystem)
+    }
 
     override fun close() = tryOrIgnore { jarFile.close() }
 }
@@ -249,8 +245,7 @@ interface VfsUrlType {
 enum class BuiltinVfsUrlTypes : VfsUrlType {
     JAR_FILE {
         override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol == "file" && url.hasJarFileInPath() -> ZipDir(Vfs.getFile(url,
-                                                                                   fileSystem)!!)
+            url.protocol == "file" && url.hasJarFileInPath() -> ZipDir(Vfs.getFile(url, fileSystem)!!)
             else                                             -> null
         }
     },
@@ -355,10 +350,9 @@ enum class BuiltinVfsUrlTypes : VfsUrlType {
 
     BUNDLE {
         override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol.startsWith("bundle") -> Vfs.fromURL(url = contextClassLoader()!!.loadClass(
-                    "org.eclipse.core.runtime.FileLocator").getMethod("resolve", URL::class.java).invoke(null,
-                                                                                                         url) as URL,
-                                                             fileSystem = fileSystem)
+            url.protocol.startsWith("bundle") -> Vfs.fromURL(url = contextClassLoader()!!.loadClass("org.eclipse.core.runtime.FileLocator").getMethod(
+                    "resolve",
+                    URL::class.java).invoke(null, url) as URL, fileSystem = fileSystem)
             else                              -> null
         }
     },

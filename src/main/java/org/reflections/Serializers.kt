@@ -18,15 +18,12 @@ interface Serializer {
     fun read(reader: Reader): CompositeScanner
     fun write(scanners: CompositeScanner, writer: Appendable)
 
-    fun write(scanners: CompositeScanner, path: Path) =
-            tryOrThrow("could not write to path $path") {
-                path.mkParentDirs().bufferedWriter().use { writer -> write(scanners, writer) }
-            }
+    fun write(scanners: CompositeScanner, path: Path) = tryOrThrow("could not write to path $path") {
+        path.mkParentDirs().bufferedWriter().use { writer -> write(scanners, writer) }
+    }
 
     fun toString(scanners: CompositeScanner) = StringBuilder().apply { write(scanners, this) }.toString()
 }
-
-
 
 
 /**

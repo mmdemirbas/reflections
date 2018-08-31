@@ -24,10 +24,7 @@ val CreateJavassistClassAdapter = { vfsFile: VfsFile ->
 }
 
 val CreateJavaReflectionClassAdapter = { vfsFile: VfsFile ->
-    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/",
-                                                                           ".").replace(
-            ".class",
-            ""))!!)
+    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
 }
 
 val CreateClassAdapter = try {

@@ -67,9 +67,9 @@ interface Scanner<S : Scanner<S>> {
         executorService?.shutdown()
 
         logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values",
-                                combinedMetrics.elapsedTime,
-                                combinedMetrics.keyCount,
-                                combinedMetrics.valueCount)
+                combinedMetrics.elapsedTime,
+                combinedMetrics.keyCount,
+                combinedMetrics.valueCount)
         return this as S
     }
 
@@ -176,14 +176,16 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
 
             val elapsedMillis = measureTimeMillis {
                 urls = urlForPackage(packagePrefix)
-                scanners = Vfs.findFiles(inUrls = urls,
-                                         packagePrefix = packagePrefix,
-                                         nameFilter = resourceNameFilter,
-                                         fileSystem = fileSystem).flatMap { file ->
-                    tryOrThrow("could not merge $file") {
-                        file.openInputStream().bufferedReader().use { stream -> serializer.read(stream).scanners }
-                    }
-                }
+                scanners =
+                        Vfs.findFiles(inUrls = urls,
+                                      packagePrefix = packagePrefix,
+                                      nameFilter = resourceNameFilter,
+                                      fileSystem = fileSystem).flatMap { file ->
+                            tryOrThrow("could not merge $file") {
+                                file.openInputStream().bufferedReader()
+                                    .use { stream -> serializer.read(stream).scanners }
+                            }
+                        }
             }
 
             logInfo("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
@@ -217,10 +219,7 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
                             scanFile(file)
                         }
                     } catch (e: Exception) {
-                        logWarn("could not scan file {} in with scanner {}",
-                                                file.relativePath,
-                                                javaClass.simpleName,
-                                                e)
+                        logWarn("could not scan file {} in with scanner {}", file.relativePath, javaClass.simpleName, e)
                     }
                 }
             }
@@ -335,14 +334,13 @@ class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoade
         }
     }
 
-    override fun scanClass(cls: ClassAdapter) =
-            tryOrThrow("Could not scan method usage for ${cls.name}") {
-                classPool.get(cls.name).run {
-                    declaredConstructors.forEach(::scanMember)
-                    declaredMethods.forEach(::scanMember)
-                    detach()
-                }
-            }
+    override fun scanClass(cls: ClassAdapter) = tryOrThrow("Could not scan method usage for ${cls.name}") {
+        classPool.get(cls.name).run {
+            declaredConstructors.forEach(::scanMember)
+            declaredMethods.forEach(::scanMember)
+            detach()
+        }
+    }
 
     private fun scanMember(member: CtBehavior) {
         //key contains this$/val$ means local field/parameter closure
@@ -353,24 +351,17 @@ class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoade
                 put("${e!!.constructor.declaringClassName}.<init>(${e.constructor.parameterNames})", e.lineNumber, key)
             }
 
-            override fun edit(m: MethodCall?) =
-                    tryOrThrow("Could not find member ${m!!.className} in $key") {
-                        put("${m.method.declaringClassName}.${m.methodName}(${m.method.parameterNames})",
-                            m.lineNumber,
-                            key)
-                    }
+            override fun edit(m: MethodCall?) = tryOrThrow("Could not find member ${m!!.className} in $key") {
+                put("${m.method.declaringClassName}.${m.methodName}(${m.method.parameterNames})", m.lineNumber, key)
+            }
 
-            override fun edit(c: ConstructorCall?) =
-                    tryOrThrow("Could not find member ${c!!.className} in $key") {
-                        put("${c.constructor.declaringClassName}.<init>(${c.constructor.parameterNames})",
-                            c.lineNumber,
-                            key)
-                    }
+            override fun edit(c: ConstructorCall?) = tryOrThrow("Could not find member ${c!!.className} in $key") {
+                put("${c.constructor.declaringClassName}.<init>(${c.constructor.parameterNames})", c.lineNumber, key)
+            }
 
-            override fun edit(f: FieldAccess?) =
-                    tryOrThrow("Could not find member ${f!!.fieldName} in $key") {
-                        put("${f.field.declaringClassName}.${f.fieldName}", f.lineNumber, key)
-                    }
+            override fun edit(f: FieldAccess?) = tryOrThrow("Could not find member ${f!!.fieldName} in $key") {
+                put("${f.field.declaringClassName}.${f.fieldName}", f.lineNumber, key)
+            }
         })
     }
 
@@ -592,8 +583,7 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
 }
 
 
-fun descriptorToMember(value: String) =
-        tryOrThrow("Can't resolve member $value") { descriptorToMemberOrThrow(value) }
+fun descriptorToMember(value: String) = tryOrThrow("Can't resolve member $value") { descriptorToMemberOrThrow(value) }
 
 fun descriptorToMemberOrThrow(descriptor: String): Member {
     val p0 = descriptor.lastIndexOf('(')

@@ -128,8 +128,7 @@ class TestUtilsTests {
     fun getAllAndReflections() {
 
         val allFields =
-                FieldAnnotationsScanner()
-                    .scan(TestModel::class.java).fieldsAnnotatedWith(AF1::class.java)
+                FieldAnnotationsScanner().scan(TestModel::class.java).fieldsAnnotatedWith(AF1::class.java)
                     .filter { it.hasModifier(Modifier.PROTECTED) }
 
         assertEquals(1, allFields.size.toLong())

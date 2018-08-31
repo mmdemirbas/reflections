@@ -472,9 +472,8 @@ class ReflectionsTest {
         @Test
         fun resources2() {
             val scanner =
-                    ResourceScanner()
-                        .scan(filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json"))),
-                              urls = setOf(urlForClass(TestModel::class.java)!!))
+                    ResourceScanner().scan(filter = Filter.Composite(listOf(Include(".*\\.xml"), Include(".*\\.json"))),
+                                           urls = setOf(urlForClass(TestModel::class.java)!!))
 
             assertToStringEqualsSorted(setOf("META-INF/reflections/resource1-reflections.xml"),
                                        scanner.resources(Pattern.compile(".*resource1-reflections\\.xml")))
