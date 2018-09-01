@@ -219,7 +219,6 @@ class JarInputFile(entry: ZipEntry,
     }
 }
 
-
 typealias VfsUrlTypeParser = (url: URL, fileSystem: FileSystem) -> VfsDir?
 
 object VfsUrlTypes {

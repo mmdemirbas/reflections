@@ -28,6 +28,14 @@ import kotlin.streams.asSequence
 
 // todo: exceptionlar elden geçirilmeli, mesajlar daha anlaşılır detaylar vermeli ya da gereksiz exception'lar atılmamalı
 
+// todo: önemli hataların suppress edilmediğinden emin ol
+
+// todo: json için de bir serialized dosya koy
+
+// todo: JsonSerializer daha human-readable bir default gibi duruyor
+
+// todo: log metotlarında string interpolation kullan
+
 // todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
 // todo: testleri geçir
 // todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı

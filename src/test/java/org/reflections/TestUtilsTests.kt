@@ -21,6 +21,8 @@ import java.util.regex.Pattern
  * @author mamo
  */
 class TestUtilsTests {
+    // todo: split these tests
+
     @Test
     fun getAllTest() {
         assertEquals(listOf(I1::class.java),

@@ -17,19 +17,17 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 class VfsTest {
-    private val someJar: URL
-        get() = urlForClassLoader().firstOrNull { url ->
-            !url.toExternalForm().contains("surefire") && url.toExternalForm().endsWith(".jar")
-        } ?: throw RuntimeException()
+    private fun getSomeJar(): URL = urlForClassLoader().firstOrNull { url ->
+        !url.toExternalForm().contains("surefire") && url.toExternalForm().endsWith(".jar")
+    } ?: throw RuntimeException()
 
-    private val someDirectory: URL get() = userDir.toUri().toURL()
+    // todo: split these tests
 
     @Test
     fun allKindsOfShittyUrls() {
-        val fileSystem = FileSystems.getDefault()
-
         run {
-            val jar1 = someJar
+            val fileSystem = FileSystems.getDefault()
+            val jar1 = getSomeJar()
             assertTrue(jar1.toString().startsWith("file:"))
             assertTrue(jar1.toString().contains(".jar"))
 
@@ -51,6 +49,7 @@ class VfsTest {
         }
 
         run {
+            val fileSystem = FileSystems.getDefault()
             val rtJarUrl = urlForClass(String::class.java)
             assertTrue(rtJarUrl!!.toString().startsWith("jar:file:"))
             assertTrue(rtJarUrl.toString().contains(".jar!"))
@@ -74,6 +73,7 @@ class VfsTest {
         }
 
         run {
+            val fileSystem = FileSystems.getDefault()
             val thisUrl = urlForClass(javaClass)
             assertTrue(thisUrl!!.toString().startsWith("file:"))
             assertFalse(thisUrl.toString().contains(".jar"))
@@ -95,6 +95,8 @@ class VfsTest {
             val className = stringCF.name
             assertTrue(className == javaClass.name)
         }
+
+        val fileSystem = FileSystems.getDefault()
         // create a file, then delete it so we can treat as a non-existing directory
         val tempFile = createTempPath()
         tempFile.delete()
@@ -116,12 +118,12 @@ class VfsTest {
 
     @Test
     fun vfsFromJar() {
-        testVfsDir(someJar)
+        testVfsDir(getSomeJar())
     }
 
     @Test
     fun vfsFromDir() {
-        testVfsDir(someDirectory)
+        testVfsDir(userDir.toUri().toURL())
     }
 
     @Test
@@ -162,13 +164,13 @@ class VfsTest {
 
     @Test
     fun vfsFromJarFileUrl() {
-        testVfsDir(URL("jar:file:${someJar.path}!/"))
+        testVfsDir(URL("jar:file:${getSomeJar().path}!/"))
     }
 
     @Test
     fun findFilesFromEmptyMatch() {
         val fileSystem = FileSystems.getDefault()
-        val jar = someJar
+        val jar = getSomeJar()
         val files = Vfs.findFiles(inUrls = listOf(jar), fileSystem = fileSystem) { file -> true }
         assertNotNull(files)
         assertTrue(files.iterator().hasNext())

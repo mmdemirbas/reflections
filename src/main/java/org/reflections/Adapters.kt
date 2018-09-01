@@ -22,7 +22,6 @@ val createClassAdapter = { vfsFile: VfsFile ->
         vfsFile.openInputStream()
             .use { stream -> JavassistClassAdapter(ClassFile(DataInputStream(BufferedInputStream(stream)))) }
     } catch (e: Exception) {
-        e.printStackTrace()
         JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
     }
 }

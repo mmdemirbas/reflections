@@ -9,9 +9,10 @@ import java.net.URLClassLoader
  * Test Urls utility class
  */
 class UrlsTest {
-    // todo: test isimlerini Kotlin sayesinde cümle gibi isimlendir ve test prefix'ini kaldır
+    // todo: split these tests
+
     @Test
-    fun testForClassLoaderShouldntReorderUrls() {
+    fun `urlForClassLoader should not reorder urls`() {
         // testing same URL set with different order to not fall into the case when HashSet orders elements in the same order as we do
         val urls1 =
                 listOf(URL("file", "foo", 1111, "foo"),
@@ -31,4 +32,7 @@ class UrlsTest {
                      resultUrls2.toList(),
                      "URLs returned from urlForClassLoader should be in the same order as source URLs")
     }
+
+    // todo: test isimlerini Kotlin sayesinde cümle gibi isimlendir ve test prefix'ini kaldır
+
 }

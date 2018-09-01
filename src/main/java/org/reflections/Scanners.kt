@@ -34,7 +34,8 @@ data class ScanMetrics(val elapsedTime: Int = 0, val keyCount: Int = 0, val valu
 }
 
 interface Scanner<S : Scanner<S>> {
-    fun save(path: Path, serializer: Serializer = XmlSerializer)
+    fun save(path: Path, serializer: Serializer = XmlSerializer): S
+    fun dump(serializer: Serializer = JsonSerializer): S
 
     fun scan(prefix: String,
              executorService: ExecutorService? = null,
@@ -73,6 +74,7 @@ interface Scanner<S : Scanner<S>> {
     }
 
     fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem = FileSystems.getDefault()): ScanMetrics
+
     fun afterScan() = ScanMetrics()
 }
 
@@ -83,8 +85,16 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
         it.scanUrl(filter, url, fileSystem)
     })
 
-    override fun save(path: Path, serializer: Serializer) = serializer.write(this, path).also {
-        logInfo("Reflections successfully saved in ${path.toAbsolutePath()} using ${serializer.javaClass.simpleName}")
+    override fun save(path: Path, serializer: Serializer): CompositeScanner {
+        serializer.write(this, path).also {
+            logInfo("Reflections successfully saved in ${path.toAbsolutePath()} using ${serializer.javaClass.simpleName}")
+        }
+        return this
+    }
+
+    override fun dump(serializer: Serializer): CompositeScanner {
+        println(serializer.toString(this))
+        return this
     }
 
     /**
@@ -207,7 +217,15 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
 
     open fun acceptResult(fqn: String) = true
 
-    override fun save(path: Path, serializer: Serializer) = CompositeScanner(this).save(path, serializer)
+    override fun save(path: Path, serializer: Serializer): S {
+        CompositeScanner(this).save(path, serializer)
+        return this as S
+    }
+
+    override fun dump(serializer: Serializer): S {
+        CompositeScanner(this).dump(serializer)
+        return this as S
+    }
 
     override fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem): ScanMetrics {
         val elapsedMillis = measureTimeMillis {
@@ -266,9 +284,7 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
 class ResourceScanner : SimpleScanner<ResourceScanner>() {
     override fun acceptsInput(file: String) = !file.endsWith(".class") //not a class
 
-    override fun scanFile(vfsFile: VfsFile) {
-        addEntry(vfsFile.name, vfsFile.relativePath!!)
-    }
+    override fun scanFile(vfsFile: VfsFile) = addEntry(vfsFile.name, vfsFile.relativePath!!)
 
     fun resources() = keys()
 
