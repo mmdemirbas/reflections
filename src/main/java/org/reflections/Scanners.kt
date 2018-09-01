@@ -290,7 +290,7 @@ abstract class ClassScanner<S : ClassScanner<S>> : SimpleScanner<S>() {
 
     override fun scanFile(vfsFile: VfsFile) =
             tryOrThrow("could not create class object from vfsFile ${vfsFile.relativePath!!}") {
-                scanClass(CreateClassAdapter(vfsFile))
+                scanClass(createClassAdapter(vfsFile))
             }
 
     abstract fun scanClass(cls: ClassAdapter)

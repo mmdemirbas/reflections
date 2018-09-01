@@ -15,7 +15,6 @@ import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
-import java.text.MessageFormat.format
 
 class VfsTest {
     private val someJar: URL
@@ -47,7 +46,7 @@ class VfsTest {
                 }
             }
 
-            val stringCF = CreateClassAdapter(vfsFile!!)
+            val stringCF = createClassAdapter(vfsFile!!)
             val className = stringCF.name
         }
 
@@ -69,7 +68,7 @@ class VfsTest {
                 }
             }
 
-            val stringCF = CreateClassAdapter(vfsFile!!)
+            val stringCF = createClassAdapter(vfsFile!!)
             val className = stringCF.name
             assertTrue(className == "java.lang.String")
         }
@@ -92,7 +91,7 @@ class VfsTest {
                 }
             }
 
-            val stringCF = CreateClassAdapter(vfsFile!!)
+            val stringCF = createClassAdapter(vfsFile!!)
             val className = stringCF.name
             assertTrue(className == javaClass.name)
         }
@@ -135,9 +134,8 @@ class VfsTest {
         newDir.mkdir()
 
         try {
-            val dir = Vfs.fromURL(url = URL(format("file:{0}", dirWithJarInName)), fileSystem = fileSystem)
-
-            assertEquals(dirWithJarInName, dir.path)
+            val dir = Vfs.fromURL(url = URL("file:$dirWithJarInName"), fileSystem = fileSystem)
+            assertEquals(fileSystem.getPath(dirWithJarInName), dir.path)
             assertEquals(SystemDir::class.java, dir.javaClass)
         } finally {
             newDir.delete()
@@ -159,7 +157,7 @@ class VfsTest {
         val dir = Vfs.fromURL(url = URL(directoryInJarPath), fileSystem = fileSystem)
 
         assertEquals(ZipDir::class.java, dir.javaClass)
-        assertEquals(expectedJarFile, dir.path)
+        assertEquals(fileSystem.getPath(expectedJarFile), dir.path)
     }
 
     @Test
@@ -247,7 +245,7 @@ class VfsTest {
         val fileSystem = FileSystems.getDefault()
         urlForClassLoader().forEach { jar ->
             JarInputDir(jar, fileSystem).files().take(5).filter { it.name.endsWith(".class") }.forEach {
-                val className = CreateClassAdapter(it).name
+                val className = createClassAdapter(it).name
             }
         }
     }

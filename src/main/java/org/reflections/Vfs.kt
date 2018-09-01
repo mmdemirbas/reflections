@@ -150,7 +150,7 @@ class SystemDir(path: Path) : VfsDir(path) {
 }
 
 class ZipDir(val jarFile: JarFile, val fileSystem: FileSystem) : VfsDir(fileSystem.getPath(jarFile.name)) {
-    // todo: JarFile'ı file'a bulaşmadan path'ten create edebilmeliyiz
+    // todo: JarFile'ı file'a bulaşmadan path'ten create edebilmeliyiz: JarInputStream ile oluyormuş
     constructor(path: Path) : this(JarFile(path.toFile()), path.fileSystem)
 
     override fun files() = jarFile.entries().asSequence().filter { !it.isDirectory }.map {
@@ -168,7 +168,7 @@ class JarInputDir(private val url: URL, val fileSystem: FileSystem) : VfsDir(fil
     // todo: bunu sequence olmaktan çıkar yada sequence bitince jar input stream otomatik kapatılsın bunun bir yolunu bul
     override fun files(): Sequence<VfsFile> {
         jarInputStream =
-                tryOrThrow("Could not open url connection") { JarInputStream(url.openConnection().getInputStream()) }
+                tryOrThrow("Could not open url connection: $url") { JarInputStream(url.openConnection().getInputStream()) }
         return whileNotNull { jarInputStream?.nextJarEntry }.mapNotNull {
             val size = when {
                 it.size < 0 -> it.size + 0xffffffffL //JDK-6916399
@@ -233,7 +233,7 @@ object VfsUrlTypes {
      * creates a [JarInputDir] over jar files, using Java's JarInputStream
      */
     fun jarStream(url: URL, fileSystem: FileSystem) =
-            mapIf(url.toExternalForm().contains(".jar")) { JarInputDir(url, fileSystem) }
+            mapIf(url.protocol != "file" && url.toExternalForm().contains(".jar")) { JarInputDir(url, fileSystem) }
 
     /**
      * creates a [ZipDir] over a jar url (contains ".jar!/" in it's name), using Java's [JarURLConnection]

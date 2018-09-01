@@ -39,13 +39,11 @@ class TestUtilsTests {
             withAnyParameterAnnotation(it, AM1::class.java)
         })
 
-        assertHasNames(listOf("f1", "f2"), C4::class.java.allFields())
+        assertHasNames(listOf("f1", "f2", "f3"), C4::class.java.allFields())
 
         assertHasNames(listOf("f2"), C4::class.java.allFields().filter {
             withAnnotation(it, JavaSpecific.newAF1("2"))
         })
-
-        assertHasNames(listOf("f1", "f2", "f3"), C4::class.java.allFields())
 
         assertEquals(C3::class.java.allAnnotations().size.toLong(), 5)
 
@@ -56,23 +54,23 @@ class TestUtilsTests {
     @Test
     fun withParameter() {
         val target = Collections::class.java
-        val arg1 = listOf(1, 2, 3)
+        val listOfInt = listOf(1, 2, 3)
 
-        val allMethods = arg1.javaClass.neededHierarchy().flatMap { type ->
-            target.allMethods().filter {
-                it.hasModifier(Modifier.STATIC) && it.hasParamTypes(listOf(type))
+        val allMethods = listOfInt.javaClass.neededHierarchy().flatMap { type ->
+            target.allMethods().filter { method ->
+                method.hasModifier(Modifier.STATIC) && method.hasParamTypes(listOf(type))
             }
         }
 
-        val allMethods1 = target.allMethods().filter {
-            it.hasModifier(Modifier.STATIC) && it.hasParamTypesSubtypesOf(listOf(arg1.javaClass))
+        val allMethods1 = target.allMethods().filter { method ->
+            method.hasModifier(Modifier.STATIC) && method.hasParamTypesSubtypesOf(listOf(listOfInt.javaClass))
         }
 
         assertEquals(allMethods1, allMethods)
 
         allMethods.forEach { method ->
             //effectively invokable
-            val invoke = method.invoke(null, arg1)
+            val invoke = method.invoke(null, listOfInt)
         }
     }
 
@@ -84,24 +82,24 @@ class TestUtilsTests {
         }
 
         val target = Collections::class.java
-        val arg1 = listOf(1, 2, 3)
+        val listOfInt = listOf(1, 2, 3)
 
-        val allMethods = arg1.javaClass.neededHierarchy().flatMap { type ->
-            target.allMethods().filter {
-                it.hasModifier(Modifier.STATIC) && it.hasParamTypes(listOf(type))
+        val allMethods = listOfInt.javaClass.neededHierarchy().flatMap { type ->
+            target.allMethods().filter { method ->
+                method.hasModifier(Modifier.STATIC) && method.hasParamTypes(listOf(type))
             }
         }
 
-        val allMethods1 = target.allMethods().filter {
-            it.hasModifier(Modifier.STATIC) && it.hasParamTypesSupertypesOf(listOf(Iterable::class.java)) && it.hasParamTypesSubtypesOf(
-                    listOf(arg1.javaClass))
+        val allMethods1 = target.allMethods().filter { method ->
+            method.hasModifier(Modifier.STATIC) && method.hasParamTypesSupertypesOf(listOf(Iterable::class.java)) && method.hasParamTypesSubtypesOf(
+                    listOf(listOfInt.javaClass))
         }
 
         assertEquals(allMethods, allMethods1)
 
         allMethods.forEach { method ->
             //effectively invokable
-            val invoke = method.invoke(null, arg1)
+            val invoke = method.invoke(null, listOfInt)
         }
     }
 

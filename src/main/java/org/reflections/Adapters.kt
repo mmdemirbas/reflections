@@ -16,12 +16,13 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
-val CreateClassAdapter = { vfsFile: VfsFile ->
+val createClassAdapter = { vfsFile: VfsFile ->
     // the Javassist is preferred in terms of performance and class loading.
     try {
         vfsFile.openInputStream()
             .use { stream -> JavassistClassAdapter(ClassFile(DataInputStream(BufferedInputStream(stream)))) }
     } catch (e: Exception) {
+        e.printStackTrace()
         JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
     }
 }
@@ -154,7 +155,7 @@ data class JavaReflectionMethodAdapter(val method: Member) : MethodAdapter {
     override fun parameterAnnotations(parameterIndex: Int) =
             (method as Executable).parameterAnnotations[parameterIndex].map { it.annotationClass.java.name }
 
-    override val returnType = (method as Method).returnType.name!!
+    override val returnType = (method as? Method)?.returnType?.name.orEmpty()
     override val modifier = Modifier.toString(method.modifiers)!!
     override val isPublic = Modifier.isPublic(method.modifiers)
 }

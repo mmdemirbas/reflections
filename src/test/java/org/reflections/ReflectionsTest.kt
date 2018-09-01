@@ -40,7 +40,9 @@ class ReflectionsTest {
 
         @Test
         fun `object excluded`() {
-            assertTrue(SubTypesScanner(excludeObjectClass = true).scan(TestModel::class.java).allTypes().isEmpty())
+            assertThrows<RuntimeException> {
+                SubTypesScanner(excludeObjectClass = true).scan(TestModel::class.java).allTypes()
+            }
         }
     }
 
@@ -94,7 +96,7 @@ class ReflectionsTest {
             }
 
             private fun assertTypesAnnotatedWith(annotation: Class<out Annotation>, expected: Set<Class<*>>) {
-                val actual = scanner.typesAnnotatedWith(annotation, true)
+                val actual = scanner.typesAnnotatedWith(annotation, true).toSet()
                 assertToStringEqualsSorted(expected, actual)
                 assertTrue(actual.all { it.annotations.asList().map { it.annotationType() }.contains(annotation) })
             }
@@ -141,7 +143,7 @@ class ReflectionsTest {
             // todo: gereksiz toList, toSet ve asList gibi metotları kaldır. mesela sonrasında filter olanlar...
 
             private fun assertMetaAnnotatedWith(annotation: Class<out Annotation>, expected: Set<Class<out Any>>) {
-                val actual = scanner.typesAnnotatedWith(annotation, false)
+                val actual = scanner.typesAnnotatedWith(annotation, false).toSet()
                 assertToStringEqualsSorted(expected, actual)
                 assertTrue(actual.all { cls ->
                     val result = mutableSetOf<Class<*>>()
@@ -448,7 +450,7 @@ class ReflectionsTest {
                                              Usage.C1::class.java.getDeclaredConstructor(Usage.C2::class.java),
                                              Usage.C1::class.java.getDeclaredMethod("method"),
                                              Usage.C1::class.java.getDeclaredMethod("method", String::class.java)),
-                                       scanner.usages(Usage.C1::class.java.getDeclaredField("c2")))
+                                       scanner.usages(Usage.C1::class.java.getDeclaredField("c2")).toSet())
         }
     }
 

@@ -23,7 +23,7 @@ class ReflectionsCollectTest {
                      serializer = XmlSerializer)
         val collected =
                 CompositeScanner.collect(packagePrefix = "META-INF/reflections/testModel",
-                                         resourceNameFilter = Include(".*"),
+                                         resourceNameFilter = Include(".*\\.xml"),
                                          fileSystem = fileSystem)
         assertEquals(scanned, collected)
     }
@@ -41,10 +41,5 @@ class ReflectionsCollectTest {
                                          serializer = JsonSerializer,
                                          fileSystem = fileSystem)
         assertEquals(CompositeScanner(scanned), collected)
-    }
-
-    @Test
-    fun merge() {
-        TODO("not implemented")
     }
 }

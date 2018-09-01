@@ -26,6 +26,8 @@ import java.util.jar.JarFile
 import javax.servlet.ServletContext
 import kotlin.streams.asSequence
 
+// todo: exceptionlar elden geçirilmeli, mesajlar daha anlaşılır detaylar vermeli ya da gereksiz exception'lar atılmamalı
+
 // todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
 // todo: testleri geçir
 // todo: file system ile ilgili testleri jimfs kullanarak yap, resources altında öyle dosyalar bulunmasın. çünkü testler olabildiğince self-contained olmalı
@@ -487,7 +489,7 @@ val Path.isDirectory get() = Files.isDirectory(this)
 fun Path.delete() = Files.delete(this)
 
 // todo: temp file create işlemini de Files & Path apisi üzerinden yap, yada kullanımını kaldırıp sil mümkünse...
-fun createTempPath() = java.io.File.createTempFile("", "").toPath()
+fun createTempPath() = java.io.File.createTempFile("reflections-", ".tmp").toPath()
 
 fun Path.toURL() = toUri().toURL()
 fun Path.bufferedWriter() = Files.newBufferedWriter(this)
