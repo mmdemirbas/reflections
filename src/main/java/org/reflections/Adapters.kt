@@ -16,23 +16,14 @@ import java.lang.reflect.Member
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 
-val CreateJavassistClassAdapter = { vfsFile: VfsFile ->
-    tryOrThrow("could not create class file from ${vfsFile.name}") {
+val CreateClassAdapter = { vfsFile: VfsFile ->
+    // the Javassist is preferred in terms of performance and class loading.
+    try {
         vfsFile.openInputStream()
             .use { stream -> JavassistClassAdapter(ClassFile(DataInputStream(BufferedInputStream(stream)))) }
+    } catch (e: Exception) {
+        JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
     }
-}
-
-val CreateJavaReflectionClassAdapter = { vfsFile: VfsFile ->
-    JavaReflectionClassAdapter(classForName(vfsFile.relativePath!!.replace("/", ".").replace(".class", ""))!!)
-}
-
-val CreateClassAdapter = try {
-    // the CreateJavassistClassAdapter is preferred in terms of performance and class loading.
-    CreateJavassistClassAdapter
-} catch (e: Throwable) {
-    logWarn("could not create CreateJavassistClassAdapter, using CreateJavaReflectionClassAdapter", e)
-    CreateJavaReflectionClassAdapter
 }
 
 interface ClassAdapter {
@@ -59,7 +50,6 @@ interface MethodAdapter {
     fun parameterAnnotations(parameterIndex: Int): List<String>
     val returnType: String
     val modifier: String
-
     fun getMethodFullKey(cls: ClassAdapter) = "${cls.name}.${name}(${parameters.joinToString()})"
 }
 
@@ -116,10 +106,8 @@ data class JavassistMethodAdapter(val method: MethodInfo) : MethodAdapter {
         isEmpty() -> listOf()
         else      -> {
             val iterator = Descriptor.Iterator(this)
-            val indices = whileNotNull { if (iterator.hasNext()) iterator.next() else null }.toList() + length
-            (0 until indices.size - 1).map {
-                Descriptor.toString(substring(indices[it], indices[it + 1]))
-            }
+            val indices = whileNotNull { mapIf(iterator.hasNext()) { iterator.next() } }.toList() + length
+            (0 until indices.size - 1).map { Descriptor.toString(substring(indices[it], indices[it + 1])) }
         }
     }
 }

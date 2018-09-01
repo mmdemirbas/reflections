@@ -16,7 +16,6 @@ import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.*
 import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
@@ -26,8 +25,6 @@ import java.util.jar.Attributes
 import java.util.jar.JarFile
 import javax.servlet.ServletContext
 import kotlin.streams.asSequence
-
-// todo: toMutableSet gibi mutable collection'lar minimum kullanılmalı
 
 // todo: class loader'ların farklı verilmesi durumu test ediliyor mu? Mesela SubtypesScanner.expandSuperTypes farklı class loader kullanabilir?
 // todo: testleri geçir
@@ -107,19 +104,27 @@ fun executorService(): ExecutorService? = Executors.newFixedThreadPool(Runtime.g
                                                                        DefaultThreadFactory("org.reflections-scanner-",
                                                                                             true))
 
-
 class Multimap<K, V> {
     val map = mutableMapOf<K, MutableSet<V>>()
-    fun putAll(multimap: Multimap<out K, out V>) = multimap.entries().forEach { put(it.key, it.value) }
+    fun putAll(multimap: Multimap<out K, out V>) = multimap.entries().forEach { put(it.first, it.second) }
     fun put(key: K, value: V) = map.getOrPut(key) { mutableSetOf() }.add(value)
     fun get(key: K) = map[key]
     fun keys() = map.keys
     fun values() = map.values.flatten()
-    fun entries() = map.entries.flatMap { (k, vs) -> vs.map { AbstractMap.SimpleImmutableEntry(k, it) } }
+    fun entries() = map.entries.flatMap { (k, vs) -> vs.map { k to it } }
     fun keyCount() = map.keys.size
     fun valueCount() = map.values.sumBy(Collection<*>::size)
 }
 
+fun <K, V> Map<K, Collection<V>>.toMultimap(): Multimap<K, V> {
+    val multimap = Multimap<K, V>()
+    forEach { key, values ->
+        values.forEach { value ->
+            multimap.put(key, value)
+        }
+    }
+    return multimap
+}
 
 /**
  * Returns a collection of direct superclass and directly implemented interfaces;
@@ -213,7 +218,6 @@ fun classForName(typeName: String, classLoaders: List<ClassLoader> = defaultClas
     if (exception.suppressed.isNotEmpty()) {
         logWarn("could not get type for name $typeName from any class loader", exception)
     }
-
     return null
 }
 
@@ -376,10 +380,7 @@ fun ServletContext.webInfClassesUrls(fileSystem: FileSystem = FileSystems.getDef
     if (path == null) getResource("/WEB-INF/classes")
     else {
         val file = fileSystem.getPath(path)
-        when {
-            Files.exists(file) -> file.toUri().toURL()
-            else               -> null
-        }
+        mapIf(Files.exists(file)) { file.toUri().toURL() }
     }
 }
 
@@ -498,4 +499,6 @@ fun Path.mkParentDirs(): Path {
     return this
 }
 
-fun Path.nullIfNotExists(): Path? = if (exists()) this else null
+fun Path.nullIfNotExists(): Path? = mapIf(exists()) { this }
+
+fun <R> mapIf(condition: Boolean, block: () -> R) = if (condition) block() else null

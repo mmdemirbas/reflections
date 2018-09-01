@@ -58,11 +58,10 @@ class TestUtilsTests {
         val target = Collections::class.java
         val arg1 = listOf(1, 2, 3)
 
-        val allMethods = mutableSetOf<Method>()
-        arg1.javaClass.neededHierarchy().forEach { type ->
-            allMethods.addAll(target.allMethods().filter {
+        val allMethods = arg1.javaClass.neededHierarchy().flatMap { type ->
+            target.allMethods().filter {
                 it.hasModifier(Modifier.STATIC) && it.hasParamTypes(listOf(type))
-            })
+            }
         }
 
         val allMethods1 = target.allMethods().filter {
@@ -87,11 +86,10 @@ class TestUtilsTests {
         val target = Collections::class.java
         val arg1 = listOf(1, 2, 3)
 
-        val allMethods = mutableSetOf<Method>()
-        arg1.javaClass.neededHierarchy().forEach { type ->
-            allMethods.addAll(target.allMethods().filter {
+        val allMethods = arg1.javaClass.neededHierarchy().flatMap { type ->
+            target.allMethods().filter {
                 it.hasModifier(Modifier.STATIC) && it.hasParamTypes(listOf(type))
-            })
+            }
         }
 
         val allMethods1 = target.allMethods().filter {

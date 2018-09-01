@@ -34,11 +34,11 @@ class VfsTest {
             assertTrue(jar1.toString().startsWith("file:"))
             assertTrue(jar1.toString().contains(".jar"))
 
-            assertNotNull(BuiltinVfsUrlTypes.JAR_FILE.createDir(jar1, fileSystem))
-            assertNull(BuiltinVfsUrlTypes.JAR_URL.createDir(jar1, fileSystem))
-            assertNull(BuiltinVfsUrlTypes.DIRECTORY.createDir(jar1, fileSystem))
+            assertNotNull(VfsUrlTypes.jarFile(jar1, fileSystem))
+            assertNull(VfsUrlTypes.jarUrl(jar1, fileSystem))
+            assertNull(VfsUrlTypes.directory(jar1, fileSystem))
 
-            val dir = BuiltinVfsUrlTypes.JAR_FILE.createDir(jar1, fileSystem)
+            val dir = VfsUrlTypes.jarFile(jar1, fileSystem)
             var vfsFile: VfsFile? = null
             for (f in dir!!.files()) {
                 if (f.relativePath!!.endsWith(".class")) {
@@ -47,7 +47,7 @@ class VfsTest {
                 }
             }
 
-            val stringCF = CreateJavassistClassAdapter(vfsFile!!)
+            val stringCF = CreateClassAdapter(vfsFile!!)
             val className = stringCF.name
         }
 
@@ -56,11 +56,11 @@ class VfsTest {
             assertTrue(rtJarUrl!!.toString().startsWith("jar:file:"))
             assertTrue(rtJarUrl.toString().contains(".jar!"))
 
-            assertNull(BuiltinVfsUrlTypes.JAR_FILE.createDir(rtJarUrl, fileSystem))
-            assertNotNull(BuiltinVfsUrlTypes.JAR_URL.createDir(rtJarUrl, fileSystem))
-            assertNull(BuiltinVfsUrlTypes.DIRECTORY.createDir(rtJarUrl, fileSystem))
+            assertNull(VfsUrlTypes.jarFile(rtJarUrl, fileSystem))
+            assertNotNull(VfsUrlTypes.jarUrl(rtJarUrl, fileSystem))
+            assertNull(VfsUrlTypes.directory(rtJarUrl, fileSystem))
 
-            val dir = BuiltinVfsUrlTypes.JAR_URL.createDir(rtJarUrl, fileSystem)
+            val dir = VfsUrlTypes.jarUrl(rtJarUrl, fileSystem)
             var vfsFile: VfsFile? = null
             for (f in dir!!.files()) {
                 if (f.relativePath == "java/lang/String.class") {
@@ -69,7 +69,7 @@ class VfsTest {
                 }
             }
 
-            val stringCF = CreateJavassistClassAdapter(vfsFile!!)
+            val stringCF = CreateClassAdapter(vfsFile!!)
             val className = stringCF.name
             assertTrue(className == "java.lang.String")
         }
@@ -79,11 +79,11 @@ class VfsTest {
             assertTrue(thisUrl!!.toString().startsWith("file:"))
             assertFalse(thisUrl.toString().contains(".jar"))
 
-            assertNull(BuiltinVfsUrlTypes.JAR_FILE.createDir(thisUrl, fileSystem))
-            assertNull(BuiltinVfsUrlTypes.JAR_URL.createDir(thisUrl, fileSystem))
-            assertNotNull(BuiltinVfsUrlTypes.DIRECTORY.createDir(thisUrl, fileSystem))
+            assertNull(VfsUrlTypes.jarFile(thisUrl, fileSystem))
+            assertNull(VfsUrlTypes.jarUrl(thisUrl, fileSystem))
+            assertNotNull(VfsUrlTypes.directory(thisUrl, fileSystem))
 
-            val dir = BuiltinVfsUrlTypes.DIRECTORY.createDir(thisUrl, fileSystem)
+            val dir = VfsUrlTypes.directory(thisUrl, fileSystem)
             var vfsFile: VfsFile? = null
             for (f in dir!!.files()) {
                 if (f.relativePath == "org/reflections/VfsTest.class") {
@@ -92,7 +92,7 @@ class VfsTest {
                 }
             }
 
-            val stringCF = CreateJavassistClassAdapter(vfsFile!!)
+            val stringCF = CreateClassAdapter(vfsFile!!)
             val className = stringCF.name
             assertTrue(className == javaClass.name)
         }
@@ -100,7 +100,7 @@ class VfsTest {
         val tempFile = createTempPath()
         tempFile.delete()
         assertFalse(tempFile.exists())
-        BuiltinVfsUrlTypes.DIRECTORY.createDir(tempFile.toURL(), fileSystem)!!.use { dir ->
+        VfsUrlTypes.directory(tempFile.toURL(), fileSystem)!!.use { dir ->
             assertNotNull(dir)
             assertFalse(dir.files().iterator().hasNext())
             assertNotNull(dir.path)
@@ -198,10 +198,11 @@ class VfsTest {
     @Test
     @Disabled
     fun vfsFromHttpUrl() {
-        defaultUrlTypes.add(object : VfsUrlType {
-            override fun createDir(url: URL, fileSystem: FileSystem) =
-                    if (url.protocol == "http") HttpDir(url, fileSystem) else null
-        })
+        defaultUrlTypes.add { url: URL, fileSystem: FileSystem ->
+            mapIf(url.protocol == "http") {
+                HttpDir(url, fileSystem)
+            }
+        }
 
         testVfsDir(URL("http://mirrors.ibiblio.org/pub/mirrors/maven2/org/slf4j/slf4j-api/1.5.6/slf4j-api-1.5.6.jar"))
     }
@@ -246,7 +247,7 @@ class VfsTest {
         val fileSystem = FileSystems.getDefault()
         urlForClassLoader().forEach { jar ->
             JarInputDir(jar, fileSystem).files().take(5).filter { it.name.endsWith(".class") }.forEach {
-                val className = CreateJavassistClassAdapter(it).name
+                val className = CreateClassAdapter(it).name
             }
         }
     }

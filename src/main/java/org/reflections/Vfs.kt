@@ -28,14 +28,14 @@ import java.util.zip.ZipEntry
  * }
  * ```
  *
- * [org.reflections.vfs.Vfs.fromURL] uses static [BuiltinVfsUrlTypes] to resolve URLs.
+ * [org.reflections.vfs.Vfs.fromURL] uses static [VfsUrlTypes] to resolve URLs.
  * It contains VfsTypes for handling for common resources such as local jar file, local directory, jar url, jar input stream and more.
  *
- * It can be plugged in with other [VfsUrlType] using [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.defaultUrlTypes].
+ * It can be plugged in with other [VfsUrlTypeParser] using [org.reflections.vfs.Vfs.addDefaultURLTypes] or [org.reflections.vfs.Vfs.defaultUrlTypes].
  *
  * for example:
  * ```
- * Vfs.addDefaultURLTypes(new Vfs.VfsUrlType() {
+ * Vfs.addDefaultURLTypes(new Vfs.VfsUrlTypeParser() {
  *   public boolean matches(URL url)         {
  *     return url.getProtocol().equals("http");
  *   }
@@ -54,22 +54,23 @@ object Vfs {
     /**
      * the default url types that will be used when issuing [org.reflections.vfs.Vfs.fromURL]
      */
-    val defaultUrlTypes: MutableList<VfsUrlType> = BuiltinVfsUrlTypes.values().toMutableList()
+    val defaultUrlTypes: MutableList<VfsUrlTypeParser> =
+            mutableListOf(VfsUrlTypes::jarFile,
+                          VfsUrlTypes::jarStream,
+                          VfsUrlTypes::jarUrl,
+                          VfsUrlTypes::directory,
+                          VfsUrlTypes::jbossVfs,
+                          VfsUrlTypes::jbossVfsFile,
+                          VfsUrlTypes::bundle)
 
     /**
-     * tries to create a VfsDir from the given url, using the given urlTypes
+     * tries to create a VfsDir from the given url, using the given urlTypeParsers
      */
     fun fromURL(url: URL,
                 fileSystem: FileSystem = FileSystems.getDefault(),
-                urlTypes: List<VfsUrlType> = defaultUrlTypes) = urlTypes.mapNotNull { type ->
-        try {
-            type.createDir(url, fileSystem)
-        } catch (e: Throwable) {
-            logWarn("could not create VfsDir using $type from url ${url.toExternalForm()}. skipping.", e)
-            null
-        }
-    }.firstOrNull()
-                                                                ?: throw RuntimeException("could not create VfsDir from url, no matching VfsUrlType was found [${url.toExternalForm()}]\neither use fromURL(final URL url, final List<VfsUrlType> urlTypes) or use the static setDefaultURLTypes(final List<VfsUrlType> urlTypes) or addDefaultURLTypes(VfsUrlType urlType) with your specialized VfsUrlType.")
+                urlTypeParsers: List<VfsUrlTypeParser> = defaultUrlTypes) =
+            urlTypeParsers.mapNotNull { parser -> tryOrNull { parser(url, fileSystem) } }.firstOrNull()
+            ?: throw RuntimeException("could not create VfsDir from url, no matching VfsUrlTypeParser was found [${url.toExternalForm()}]\neither use fromURL(final URL url, final List<VfsUrlTypeParser> urlTypeParsers) or use the static setDefaultURLTypes(final List<VfsUrlTypeParser> urlTypeParsers) or addDefaultURLTypes(VfsUrlTypeParser urlType) with your specialized VfsUrlTypeParser.")
 
     /**
      * return an iterable of all [VfsFile] in given urls, starting with given packagePrefix and matching nameFilter
@@ -119,7 +120,6 @@ object Vfs {
         fileSystem.getPath(path).nullIfNotExists() ?: fileSystem.getPath(path.replace("%20", " ")).nullIfNotExists()
     }
 }
-
 
 abstract class VfsDir(val path: Path) : Closeable {
     abstract fun files(): Sequence<VfsFile>
@@ -220,142 +220,107 @@ class JarInputFile(entry: ZipEntry,
 }
 
 
-interface VfsUrlType {
-    fun createDir(url: URL, fileSystem: FileSystem = FileSystems.getDefault()): VfsDir?
-}
+typealias VfsUrlTypeParser = (url: URL, fileSystem: FileSystem) -> VfsDir?
 
-/**
- * built-in url types used by [org.reflections.vfs.Vfs.fromURL]
- *
- *
- * JAR_FILE - creates a [org.reflections.vfs.ZipDir] over jar file
- *
- * JAR_URL - creates a [org.reflections.vfs.ZipDir] over a jar url (contains ".jar!/" in it's name), using Java's [JarURLConnection]
- *
- * DIRECTORY - creates a [org.reflections.vfs.SystemDir] over a file system directory
- *
- * jboss vfs - for protocols vfs, using jboss vfs (should be provided in classpath)
- *
- * jboss vfsfile - creates a [UrlTypeVFS] for protocols vfszip and vfsfile.
- *
- * BUNDLE - for bundle protocol, using eclipse FileLocator (should be provided in classpath)
- *
- * JAR_STREAM - creates a [JarInputDir] over jar files, using Java's JarInputStream
- */
-enum class BuiltinVfsUrlTypes : VfsUrlType {
-    JAR_FILE {
-        override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol == "file" && url.hasJarFileInPath() -> ZipDir(Vfs.getFile(url, fileSystem)!!)
-            else                                             -> null
-        }
-    },
+object VfsUrlTypes {
+    /**
+     * creates a [ZipDir] over a jar file
+     */
+    fun jarFile(url: URL, fileSystem: FileSystem) =
+            mapIf(url.protocol == "file" && url.hasJarFileInPath()) { ZipDir(Vfs.getFile(url, fileSystem)!!) }
 
-    JAR_STREAM {
-        override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.toExternalForm().contains(".jar") -> JarInputDir(url, fileSystem)
-            else                                  -> null
-        }
-    },
+    /**
+     * creates a [JarInputDir] over jar files, using Java's JarInputStream
+     */
+    fun jarStream(url: URL, fileSystem: FileSystem) =
+            mapIf(url.toExternalForm().contains(".jar")) { JarInputDir(url, fileSystem) }
 
-    JAR_URL {
-        override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol in listOf("jar", "zip", "wsjar") -> {
-                tryOrNull {
-                    val urlConnection = url.openConnection()
-                    if (urlConnection is JarURLConnection) {
-                        urlConnection.setUseCaches(false)
-                        ZipDir(urlConnection.jarFile, fileSystem)
-                    } else null
-                } ?: Vfs.getFile(url, fileSystem)?.let { ZipDir(it) }
+    /**
+     * creates a [ZipDir] over a jar url (contains ".jar!/" in it's name), using Java's [JarURLConnection]
+     */
+    fun jarUrl(url: URL, fileSystem: FileSystem) = mapIf(url.protocol in listOf("jar", "zip", "wsjar")) {
+        tryOrNull {
+            (url.openConnection() as? JarURLConnection)?.let { urlConnection ->
+                urlConnection.setUseCaches(false)
+                ZipDir(urlConnection.jarFile, fileSystem)
             }
-            else                                          -> null
+        } ?: Vfs.getFile(url, fileSystem)?.let { ZipDir(it) }
+    }
+
+    /**
+     * creates a [SystemDir] over a file system directory
+     */
+    fun directory(url: URL, fileSystem: FileSystem) = mapIf(url.protocol == "file" && !url.hasJarFileInPath()) {
+        Vfs.getFile(url, fileSystem)?.let { file ->
+            mapIf(file.isDirectory) { SystemDir(file) }
         }
-    },
+    }
 
-    DIRECTORY {
-        override fun createDir(url: URL, fileSystem: FileSystem): SystemDir? {
-            if (url.protocol != "file") return null
-            if (url.hasJarFileInPath()) return null
-            val file = Vfs.getFile(url, fileSystem)
-            if (file?.isDirectory == true) return SystemDir(file)
-            return null
-        }
-    },
+    private fun URL.hasJarFileInPath() = toExternalForm().matches(".*\\.jar(!.*|$)".toRegex())
 
-    JBOSS_VFS {
-        override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol == "vfs" -> {
-                val content = url.openConnection().content
-                val virtualFile = contextClassLoader()!!.loadClass("org.jboss.vfs.VirtualFile")
-                // todo: physicalFile'ın direk Path olarak alınması mümkün olabilir mi?
-                // todo: Jboss'u test dependency olarak ekleyip bunu test edebiliriz
-                val physicalFile = (virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File).toPath()
-                val name = virtualFile.getMethod("getName").invoke(content) as String
-                var file = physicalFile.parent.resolve(name)
-                if (!file.exists() || !file.canRead()) file = physicalFile
-                if (file.isDirectory) SystemDir(file) else ZipDir(file)
-            }
-            else                  -> null
-        }
-    },
+    /**
+     * for protocols vfs, using jboss vfs (should be provided in classpath)
+     */
+    fun jbossVfs(url: URL, fileSystem: FileSystem) = mapIf(url.protocol == "vfs") {
+        val content = url.openConnection().content
+        val virtualFile = contextClassLoader()!!.loadClass("org.jboss.vfs.VirtualFile")
+        // todo: physicalFile'ın direk Path olarak alınması mümkün olabilir mi?
+        // todo: Jboss'u test dependency olarak ekleyip bunu test edebiliriz
+        val physicalFile = (virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File).toPath()
+        val name = virtualFile.getMethod("getName").invoke(content) as String
+        var file = physicalFile.parent.resolve(name)
+        if (!file.exists() || !file.canRead()) file = physicalFile
+        if (file.isDirectory) SystemDir(file) else ZipDir(file)
+    }
 
-    JBOSS_VFSFILE {
-        private val VFSZIP = "vfszip"
-        private val VFSFILE = "vfsfile"
-
-        override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol in listOf(VFSZIP, VFSFILE) -> tryOrNull {
-                ZipDir(JarFile(adaptURL(url, fileSystem).file), fileSystem)
-            }
-            else                                    -> null
-        }
-
-        private fun adaptURL(url: URL, fileSystem: FileSystem) = tryOrDefault(url) {
-            when (url.protocol) {
-                VFSFILE -> URL(url.toString().replace(VFSFILE, "file"))
-                VFSZIP  -> {
-                    var ret: URL? = null
-                    val path = url.path
-                    var pos = 0
-                    while (pos != -1) {
-                        val matcher = Pattern.compile("\\.[ejprw]ar/").matcher(path)
-                        pos = if (matcher.find(pos)) matcher.end() else -1
-                        if (pos > 0) {
-                            val file = fileSystem.getPath(path.substring(0, pos - 1))
-                            if (file.exists() && file.isFile) {
-                                val zipFile = path.substring(0, pos - 1)
-                                var zipPath = path.substring(pos)
-                                var numSubs = 1
-                                listOf(".ear/", ".jar/", ".war/", ".sar/", ".har/", ".par/").forEach { ext ->
-                                    while (zipPath.contains(ext)) {
-                                        numSubs++
-                                        zipPath = zipPath.replace(ext, ext.substring(0, 4) + '!')
-                                    }
+    /**
+     * creates a [UrlTypeVFS] for protocols vfszip and vfsfile.
+     */
+    fun jbossVfsFile(url: URL, fileSystem: FileSystem) = tryOrNull {
+        when (url.protocol) {
+            "vfsfile" -> ZipDir(JarFile(URL(url.toString().replace("vfsfile", "file")).file), fileSystem)
+            "vfszip"  -> {
+                var ret: URL? = null
+                val path = url.path
+                var pos = 0
+                while (pos != -1) {
+                    val matcher = Pattern.compile("\\.[ejprw]ar/").matcher(path)
+                    pos = if (matcher.find(pos)) matcher.end() else -1
+                    if (pos > 0) {
+                        val file = fileSystem.getPath(path.substring(0, pos - 1))
+                        if (file.exists() && file.isFile) {
+                            val zipFile = path.substring(0, pos - 1)
+                            var zipPath = path.substring(pos)
+                            var numSubs = 1
+                            listOf(".ear/", ".jar/", ".war/", ".sar/", ".har/", ".par/").forEach { ext ->
+                                while (zipPath.contains(ext)) {
+                                    numSubs++
+                                    zipPath = zipPath.replace(ext, ext.substring(0, 4) + '!')
                                 }
-                                val prefix = "zip:".repeat(numSubs)
-                                ret = when {
-                                    zipPath.trim { it <= ' ' }.isEmpty() -> URL("$prefix/$zipFile")
-                                    else                                 -> URL("$prefix/$zipFile!$zipPath")
-                                }
-                                break
                             }
+                            val prefix = "zip:".repeat(numSubs)
+                            ret = URL(when {
+                                          zipPath.trim { it <= ' ' }.isEmpty() -> "$prefix/$zipFile"
+                                          else                                 -> "$prefix/$zipFile!$zipPath"
+                                      })
+                            break
                         }
                     }
-                    ret ?: throw RuntimeException("Unable to identify the real zip file in path '$path'.")
                 }
-                else    -> url
+                val adaptURL = ret ?: throw RuntimeException("Unable to identify the real zip file in path '$path'.")
+                ZipDir(JarFile(adaptURL.file), fileSystem)
             }
+            else      -> null
         }
-    },
+    }
 
-    BUNDLE {
-        override fun createDir(url: URL, fileSystem: FileSystem) = when {
-            url.protocol.startsWith("bundle") -> Vfs.fromURL(url = contextClassLoader()!!.loadClass("org.eclipse.core.runtime.FileLocator").getMethod(
-                    "resolve",
-                    URL::class.java).invoke(null, url) as URL, fileSystem = fileSystem)
-            else                              -> null
-        }
-    },
+    /**
+     * for bundle protocol, using eclipse FileLocator (should be provided in classpath)
+     */
+    fun bundle(url: URL, fileSystem: FileSystem) = mapIf(url.protocol.startsWith("bundle")) {
+        Vfs.fromURL(url = contextClassLoader()!!.loadClass("org.eclipse.core.runtime.FileLocator").getMethod("resolve",
+                                                                                                             URL::class.java).invoke(
+                null,
+                url) as URL, fileSystem = fileSystem)
+    }
 }
-
-private fun URL.hasJarFileInPath() = toExternalForm().matches(".*\\.jar(!.*|$)".toRegex())

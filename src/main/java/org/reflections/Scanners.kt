@@ -56,7 +56,6 @@ interface Scanner<S : Scanner<S>> {
              executorService: ExecutorService? = null,
              fileSystem: FileSystem = FileSystems.getDefault()): S {
         if (urls.isEmpty()) throw RuntimeException("given scan urls are empty. set urls in the configuration")
-
         logDebug("going to scan these urls:\n{}", urls.joinToString("\n"))
 
         val scanMetrics =
@@ -157,6 +156,7 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
             }.flatMap(flatMap)
 
     companion object {
+        // todo: tek bir dosyayı geri yükleyebilme desteği de sağlanmalı
         /**
          * collect saved Reflections resources from all urls that contains the given [packagePrefix] and matches the given
          * [resourceNameFilter] and de-serializes them using the given serializer.
@@ -245,13 +245,9 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
     }
 
     fun keys() = store.keys()
-    fun entries(): MutableSet<MutableMap.MutableEntry<String, MutableSet<String>>> = store.map.entries
-
-    fun stringEntries() = store.map.entries
-
+    fun entries() = store.map.entries
     fun keyCount(): Int = store.keyCount()
     fun valueCount(): Int = store.valueCount()
-
     fun values(keys: Collection<String>): Collection<String> = keys.flatMap(::values)
     fun values(): Collection<String> = store.values()
     fun values(key: String): Collection<String> = store.get(key).orEmpty()
@@ -302,21 +298,17 @@ abstract class ClassScanner<S : ClassScanner<S>> : SimpleScanner<S>() {
 
 class FieldAnnotationsScanner : ClassScanner<FieldAnnotationsScanner>() {
     override fun scanClass(cls: ClassAdapter) = cls.fields.forEach { field ->
-        field.annotations.filter { annotation -> acceptResult(annotation) }.forEach { annotation ->
-            addEntry(annotation, "${cls.name}.${field.name}")
-        }
+        field.annotations.filter { annotation -> acceptResult(annotation) }
+            .forEach { annotation -> addEntry(annotation, "${cls.name}.${field.name}") }
     }
 
-    fun fieldsAnnotatedWith(annotation: Annotation) = fieldsAnnotatedWith(annotation.annotationType()).filter {
-        withAnnotation(it, annotation)
-    }
+    fun fieldsAnnotatedWith(annotation: Annotation) =
+            fieldsAnnotatedWith(annotation.annotationType()).filter { withAnnotation(it, annotation) }
 
     fun fieldsAnnotatedWith(annotation: Class<out Annotation>) = values(annotation.fullName()).map { field ->
         val className = field.substringBeforeLast('.')
         val fieldName = field.substringAfterLast('.')
-        tryOrThrow("Can't resolve field named $fieldName") {
-            classForName(className)!!.getDeclaredField(fieldName)
-        }
+        tryOrThrow("Can't resolve field named $fieldName") { classForName(className)!!.getDeclaredField(fieldName) }
     }
 }
 
@@ -328,9 +320,7 @@ class FieldAnnotationsScanner : ClassScanner<FieldAnnotationsScanner>() {
 class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoaders()) : ClassScanner<MemberUsageScanner>() {
     private val classPool by lazy {
         ClassPool().also { pool ->
-            classLoaders.forEach { classLoader ->
-                pool.appendClassPath(LoaderClassPath(classLoader))
-            }
+            classLoaders.forEach { classLoader -> pool.appendClassPath(LoaderClassPath(classLoader)) }
         }
     }
 
@@ -384,9 +374,7 @@ class MethodAnnotationsScanner : ClassScanner<MethodAnnotationsScanner>() {
     }
 
     fun constructorsAnnotatedWith(annotation: Annotation) =
-            constructorsAnnotatedWith(annotation.annotationType()).filter {
-                withAnnotation(it, annotation)
-            }
+            constructorsAnnotatedWith(annotation.annotationType()).filter { withAnnotation(it, annotation) }
 
     fun constructorsAnnotatedWith(annotation: Class<out Annotation>) =
             listOf(annotation.fullName()).methodAnnotations<Constructor<*>>()
@@ -583,31 +571,26 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
 }
 
 
-fun descriptorToMember(value: String) = tryOrThrow("Can't resolve member $value") { descriptorToMemberOrThrow(value) }
-
-fun descriptorToMemberOrThrow(descriptor: String): Member {
-    val p0 = descriptor.lastIndexOf('(')
-    val memberKey = if (p0 == -1) descriptor else descriptor.substringBeforeLast('(')
-    val methodParameters = if (p0 == -1) "" else descriptor.substringAfterLast('(').substringBeforeLast(')')
-
+fun descriptorToMember(value: String) = tryOrThrow("Can't resolve member $value") {
+    val p0 = value.lastIndexOf('(')
+    val memberKey = if (p0 == -1) value else value.substringBeforeLast('(')
+    val methodParameters = if (p0 == -1) "" else value.substringAfterLast('(').substringBeforeLast(')')
     val p1 = Math.max(memberKey.lastIndexOf('.'), memberKey.lastIndexOf('$'))
     val className = memberKey.substring(memberKey.lastIndexOf(' ') + 1, p1)
     val memberName = memberKey.substring(p1 + 1)
-
     val parameterTypes = methodParameters.split(',').dropLastWhile { it.isEmpty() }.mapNotNull { name ->
         classForName(name.trim { it.toInt() <= ' '.toInt() })
     }.toTypedArray()
-
-    return classForName(className)?.classHieararchy()?.asSequence()?.mapNotNull {
+    classForName(className)?.classHieararchy()?.asSequence()?.mapNotNull {
         tryOrNull {
             when {
-                !descriptor.contains("(")    -> it.getDeclaredField(memberName) as Member
-                descriptor.contains("init>") -> it.getDeclaredConstructor(*parameterTypes) as Member
-                else                         -> it.getDeclaredMethod(memberName, *parameterTypes) as Member
+                !value.contains("(")    -> it.getDeclaredField(memberName) as Member
+                value.contains("init>") -> it.getDeclaredConstructor(*parameterTypes) as Member
+                else                    -> it.getDeclaredMethod(memberName, *parameterTypes) as Member
             }
         }
     }?.firstOrNull() ?: throw RuntimeException(when {
-                                                   descriptor.contains("(") -> "Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className"
-                                                   else                     -> "Can't resolve $memberName field for class $className"
+                                                   value.contains("(") -> "Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className"
+                                                   else                -> "Can't resolve $memberName field for class $className"
                                                })
 }

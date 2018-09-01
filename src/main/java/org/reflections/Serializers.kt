@@ -48,19 +48,19 @@ object XmlSerializer : Serializer {
     // todo: basitlik açısından JAXB object'e dönüştürülebilir
     override fun read(reader: Reader): CompositeScanner {
         return tryOrThrow("could not read.") {
-            val scanners = mutableListOf<SimpleScanner<*>>()
-            SAXReader().read(reader).rootElement.elements().forEach { e1 ->
-                val index = e1 as Element
-                val scanner =
-                        Class.forName("${SimpleScanner::class.java.`package`.name}.${index.name}")!!.newInstance() as SimpleScanner<*>
-                index.elements().forEach { e2 ->
-                    val entry = e2 as Element
-                    val key = entry.element("key")
-                    entry.element("values").elements().map { it as Node }.forEach {
-                        scanner.addEntry(key.text, it.text)
+            val scanners = SAXReader().read(reader).rootElement.elements().map {
+                val scannerNode = it as Element
+                val scannerClassName = scannerNode.name
+                val scannerClass = Class.forName(scannerClassName)
+                val scanner = scannerClass!!.newInstance() as SimpleScanner<*>
+                scannerNode.elements().forEach {
+                    val entryElement = it as Element
+                    val keyElement = entryElement.element("key")
+                    entryElement.element("values").elements().map { it as Node }.forEach { valueElement ->
+                        scanner.addEntry(keyElement.text, valueElement.text)
                     }
                 }
-                scanners.add(scanner)
+                scanner
             }
             CompositeScanner(scanners)
         }
@@ -68,11 +68,13 @@ object XmlSerializer : Serializer {
 
     override fun write(scanners: CompositeScanner, writer: Appendable) {
         val document = DocumentFactory.getInstance().createDocument()
-        val root = document.addElement("Reflections")
+        val root = document.addElement("reflections")
         scanners.scanners.forEach { scanner ->
-            val indexElement = root.addElement(scanner.javaClass.simpleName!!)
-            scanner.stringEntries().forEach { (key, values) ->
-                val entryElement = indexElement.addElement("entry")
+            val scannerClass = scanner.javaClass
+            val scannerNodeName = scannerClass.name!!
+            val scannerNode = root.addElement(scannerNodeName)
+            scanner.entries().forEach { (key, values) ->
+                val entryElement = scannerNode.addElement("entry")
                 entryElement.addElement("key").text = key
                 val valuesElement = entryElement.addElement("values")
                 values.forEach { value ->
@@ -110,29 +112,38 @@ object JsonSerializer : Serializer {
     private val gson: com.google.gson.Gson by lazy {
         com.google.gson.GsonBuilder()
             .registerTypeAdapter(CompositeScanner::class.java,
-                                 com.google.gson.JsonSerializer<CompositeScanner> { scanners, type, context ->
-                                     context.serialize(scanners.scanners.associate { scanner ->
-                                         scanner.javaClass.name to scanner.stringEntries()
-                                     })
-                                 })
-            .registerTypeAdapter(CompositeScanner::class.java,
                                  com.google.gson.JsonDeserializer<CompositeScanner> { jsonElement, type, context ->
-                                     val scanners = mutableListOf<SimpleScanner<*>>()
-                                     (jsonElement as com.google.gson.JsonObject).entrySet()
-                                         .forEach { (scannerType, multimap) ->
-                                             val scanner = Class.forName(scannerType).newInstance() as SimpleScanner<*>
-                                             (multimap as com.google.gson.JsonObject).entrySet()
-                                                 .forEach { (key, value) ->
-                                                     (value as com.google.gson.JsonArray).forEach { element ->
-                                                         scanner.addEntry(key, element.asString)
-                                                     }
+                                     val scanners =
+                                             (jsonElement as com.google.gson.JsonObject).entrySet()
+                                                 .map { (scannerType, multimap) ->
+                                                     val scanner =
+                                                             Class.forName(scannerType).newInstance() as SimpleScanner<*>
+                                                     (multimap as com.google.gson.JsonObject).entrySet()
+                                                         .forEach { (key, value) ->
+                                                             (value as com.google.gson.JsonArray).forEach { element ->
+                                                                 scanner.addEntry(key, element.asString)
+                                                             }
+                                                         }
+                                                     scanner
                                                  }
-                                             scanners.add(scanner)
-                                         }
                                      CompositeScanner(scanners)
                                  }).setPrettyPrinting().create()
     }
 
-    override fun read(reader: Reader) = gson.fromJson(reader, CompositeScanner::class.java)!!
-    override fun write(scanners: CompositeScanner, writer: Appendable) = gson.toJson(scanners, writer)
+    fun CompositeScanner.toMap(): List<Map<String, MutableMap<String, MutableSet<String>>>> {
+        return scanners.map { scanner ->
+            mapOf(scanner.javaClass.name to scanner.store.map)
+        }
+    }
+
+    override fun read(reader: Reader) = CompositeScanner((gson.fromJson(reader,
+                                                                        List::class.java) as List<Map<String, Map<String, List<String>>>>).map {
+        val single = it.entries.single()
+        val scannerClassName = single.key
+        val scanner = Class.forName(scannerClassName).newInstance() as SimpleScanner<*>
+        scanner.store.putAll(single.value.toMultimap())
+        scanner
+    })
+
+    override fun write(scanners: CompositeScanner, writer: Appendable) = gson.toJson(scanners.toMap(), writer)
 }

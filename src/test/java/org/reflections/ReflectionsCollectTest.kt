@@ -18,9 +18,13 @@ class ReflectionsCollectTest {
                                  MethodAnnotationsScanner(),
                                  MethodParameterNamesScanner(),
                                  MemberUsageScanner()).scan(TestModel::class.java)
-        scanned.save(path = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.xml"),
+        println(XmlSerializer.toString(scanned))
+        scanned.save(path = userDir.resolve("target/test-classes/META-INF/reflections/testModel/reflections.xml"),
                      serializer = XmlSerializer)
-        val collected = CompositeScanner.collect(fileSystem = fileSystem)
+        val collected =
+                CompositeScanner.collect(packagePrefix = "META-INF/reflections/testModel",
+                                         resourceNameFilter = Include(".*"),
+                                         fileSystem = fileSystem)
         assertEquals(scanned, collected)
     }
 
@@ -28,6 +32,7 @@ class ReflectionsCollectTest {
     fun `collect JSON`() {
         val fileSystem = FileSystems.getDefault()
         val scanned = MethodParameterScanner().scan(TestModel::class.java)
+        println(JsonSerializer.toString(CompositeScanner(scanned)))
         scanned.save(path = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
                      serializer = JsonSerializer)
         val collected =
@@ -35,7 +40,7 @@ class ReflectionsCollectTest {
                                          resourceNameFilter = Include(".*-reflections\\.json"),
                                          serializer = JsonSerializer,
                                          fileSystem = fileSystem)
-        assertEquals(scanned, collected)
+        assertEquals(CompositeScanner(scanned), collected)
     }
 
     @Test
