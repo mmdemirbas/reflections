@@ -1,8 +1,6 @@
 package org.reflections
 
 import org.junit.jupiter.api.Assertions.assertEquals
-import java.lang.reflect.Executable
-import java.lang.reflect.Member
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
@@ -48,26 +46,6 @@ fun Class<*>.allMethods() = neededHierarchy().flatMap { it.declaredMethods.filte
 fun Class<*>.allFields() = neededHierarchy().flatMap { it.declaredFields.filterNotNull() }
 fun Class<*>.allAnnotations() = neededHierarchy().flatMap { it.declaredAnnotations.filterNotNull() }
 fun Class<*>.neededHierarchy() = classAndInterfaceHieararchyExceptObject()
-
-fun Member.hasParamTypes(types: List<Class<*>>) = parameterTypes() == types
-fun Member.hasParamTypesSubtypesOf(types: List<Class<*>>) = isAssignable(parameterTypes(), types)
-fun Member.hasParamTypesSupertypesOf(types: List<Class<*>>) = isAssignable(types, parameterTypes())
-fun Member.hasModifier(mod: Int): Boolean = modifiers and mod != 0
-fun Member.parameterTypes() = (this as? Executable)?.parameterTypes.orEmpty().asList()
-
-fun isAssignable(child: List<Class<*>>, parent: List<Class<*>>): Boolean {
-    return when {
-        child.size != parent.size -> false
-        else                      -> {
-            child.indices.forEach { i ->
-                if (!parent[i].isAssignableFrom(child[i]) || parent[i] == Any::class.java && child[i] != Any::class.java) {
-                    return false
-                }
-            }
-            true
-        }
-    }
-}
 
 // todo: userDir hack midir nedir buna gerek var mı?
 //a hack to fix user.dir issue(?) in surfire

@@ -168,9 +168,6 @@ fun <T : AnnotatedElement> withAnnotation(element: T, expected: Annotation) =
                                                                                                element.getAnnotation(
                                                                                                        expected.annotationType()))
 
-fun withAnyParameterAnnotation(member: Member, expectedType: Class<out Annotation>) =
-        parameterAnnotations(member).map { actual -> actual.annotationType() }.any { actualType -> actualType == expectedType }
-
 fun withAnyParameterAnnotation(member: Member, expected: Annotation) = parameterAnnotations(member).any { actual ->
     areAnnotationMembersMatching(expected, actual)
 }

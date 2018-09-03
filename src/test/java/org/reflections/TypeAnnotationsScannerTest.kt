@@ -4,14 +4,14 @@ import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.reflections.TestModel.AC2
 
 class TypeAnnotationsScannerTest {
     @Nested
     inner class TypesAnnotatedWith {
         private val scanner =
                 CompositeScanner(SubTypesScanner(excludeObjectClass = false),
-                                 TypeAnnotationsScanner()).scan(
-                        TestModel::class.java).dump()
+                                 TypeAnnotationsScanner()).scan(TestModel::class.java).dump()
 
         @Nested
         inner class MetaEnabled {
@@ -23,7 +23,10 @@ class TypeAnnotationsScannerTest {
             @Test
             fun `meta annotation on class`() {
                 assertTypesAnnotatedWith(TestModel.AC1::class.java,
-                                         setOf(TestModel.C1::class.java, TestModel.C2::class.java, TestModel.C3::class.java, TestModel.C5::class.java))
+                                         setOf(TestModel.C1::class.java,
+                                               TestModel.C2::class.java,
+                                               TestModel.C3::class.java,
+                                               TestModel.C5::class.java))
             }
 
             @Test
@@ -40,8 +43,7 @@ class TypeAnnotationsScannerTest {
                 val actual = scanner.typesAnnotatedWith(annotation, true).toSet()
                 assertToStringEqualsSorted(expected, actual)
                 Assertions.assertTrue(actual.all {
-                    it.annotations.asList()
-                        .map { it.annotationType() }.contains(annotation)
+                    it.annotations.asList().map { it.annotationType() }.contains(annotation)
                 })
             }
 
@@ -50,8 +52,8 @@ class TypeAnnotationsScannerTest {
                 assertToStringEqualsSorted(setOf(TestModel.C3::class.java,
                                                  TestModel.I3::class.java,
                                                  TestModel.AC3::class.java),
-                                           scanner.typesAnnotatedWith(JavaSpecific.newAC2(
-                                                                   "ugh?!"), true))
+                                           scanner.typesAnnotatedWith(AC2::class.newAnnotation(Pair("value", "ugh?!")),
+                                                                      true))
             }
         }
 
@@ -117,22 +119,19 @@ class TypeAnnotationsScannerTest {
                                              TestModel.C6::class.java,
                                              TestModel.AC3::class.java,
                                              TestModel.C7::class.java),
-                                       scanner.typesAnnotatedWith(JavaSpecific.newAC2("ugh?!"),
+                                       scanner.typesAnnotatedWith(AC2::class.newAnnotation(Pair("value", "ugh?!")),
                                                                   false))
         }
 
         @Test
         fun `no match`() {
-            assertToStringEqualsSorted(emptySet(),
-                                                       scanner.typesAnnotatedWith(TestModel.AM1::class.java,
-                                                                                  false))
+            assertToStringEqualsSorted(emptySet(), scanner.typesAnnotatedWith(TestModel.AM1::class.java, false))
         }
 
         @Test
         fun `TypeAnnotationsScanner not configured`() {
             val e = assertThrows<RuntimeException> {
-                CompositeScanner().scan(TestModel::class.java)
-                    .typesAnnotatedWith(TestModel.AC1::class.java, false)
+                CompositeScanner().scan(TestModel::class.java).typesAnnotatedWith(TestModel.AC1::class.java, false)
             }
             Assertions.assertEquals("TypeAnnotationsScanner was not configured", e.message)
         }
