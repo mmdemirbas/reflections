@@ -1,7 +1,7 @@
 package org.reflections.util;
 
-import com.google.common.base.Predicate;
 import com.google.common.base.Joiner;
+import com.google.common.base.Predicate;
 import com.google.common.collect.Lists;
 import org.reflections.ReflectionsException;
 
@@ -19,27 +19,47 @@ import java.util.regex.Pattern;
  * </pre>
  */
 public class FilterBuilder implements Predicate<String> {
+
     private final List<Predicate<String>> chain;
 
-    public FilterBuilder() {chain = Lists.newArrayList();}
+    public FilterBuilder()                                           {chain = Lists.newArrayList();}
+
     private FilterBuilder(final Iterable<Predicate<String>> filters) {chain = Lists.newArrayList(filters);}
 
-    /** include a regular expression */
+    /**
+     * include a regular expression
+     */
     public FilterBuilder include(final String regex) {return add(new Include(regex));}
 
-    /** exclude a regular expression*/
-    public FilterBuilder exclude(final String regex) {add(new Exclude(regex)); return this;}
+    /**
+     * exclude a regular expression
+     */
+    public FilterBuilder exclude(final String regex) {
+        add(new Exclude(regex));
+        return this;
+    }
 
-    /** add a Predicate to the chain of predicates*/
-    public FilterBuilder add(Predicate<String> filter) {chain.add(filter); return this;}
+    /**
+     * add a Predicate to the chain of predicates
+     */
+    public FilterBuilder add(Predicate<String> filter) {
+        chain.add(filter);
+        return this;
+    }
 
-    /** include a package of a given class */
+    /**
+     * include a package of a given class
+     */
     public FilterBuilder includePackage(final Class<?> aClass) {return add(new Include(packageNameRegex(aClass)));}
 
-    /** exclude a package of a given class */
+    /**
+     * exclude a package of a given class
+     */
     public FilterBuilder excludePackage(final Class<?> aClass) {return add(new Exclude(packageNameRegex(aClass)));}
 
-    /** include packages of given prefixes */
+    /**
+     * include packages of given prefixes
+     */
     public FilterBuilder includePackage(final String... prefixes) {
         for (String prefix : prefixes) {
             add(new Include(prefix(prefix)));
@@ -47,46 +67,70 @@ public class FilterBuilder implements Predicate<String> {
         return this;
     }
 
-    /** exclude a package of a given prefix */
+    /**
+     * exclude a package of a given prefix
+     */
     public FilterBuilder excludePackage(final String prefix) {return add(new Exclude(prefix(prefix)));}
 
     private static String packageNameRegex(Class<?> aClass) {return prefix(aClass.getPackage().getName() + ".");}
 
-    public static String prefix(String qualifiedName) {return qualifiedName.replace(".","\\.") + ".*";}
+    public static String prefix(String qualifiedName)       {return qualifiedName.replace(".", "\\.") + ".*";}
 
-    @Override public String toString() {return Joiner.on(", ").join(chain);}
+    @Override
+    public String toString() {return Joiner.on(", ").join(chain);}
 
     public boolean apply(String regex) {
         boolean accept = chain == null || chain.isEmpty() || chain.get(0) instanceof Exclude;
 
         if (chain != null) {
             for (Predicate<String> filter : chain) {
-                if (accept && filter instanceof Include) {continue;} //skip if this filter won't change
-                if (!accept && filter instanceof Exclude) {continue;}
+                if (accept && filter instanceof Include) {
+                    continue;
+                } //skip if this filter won't change
+                if (!accept && filter instanceof Exclude) {
+                    continue;
+                }
                 accept = filter.apply(regex);
-                if (!accept && filter instanceof Exclude) {break;} //break on first exclusion
+                if (!accept && filter instanceof Exclude) {
+                    break;
+                } //break on first exclusion
             }
         }
         return accept;
     }
 
     public abstract static class Matcher implements Predicate<String> {
+
         final Pattern pattern;
+
         public Matcher(final String regex) {pattern = Pattern.compile(regex);}
+
         public abstract boolean apply(String regex);
-        @Override public String toString() {return pattern.pattern();}
+
+        @Override
+        public String toString() {return pattern.pattern();}
     }
 
     public static class Include extends Matcher {
+
         public Include(final String patternString) {super(patternString);}
-        @Override public boolean apply(final String regex) {return pattern.matcher(regex).matches();}
-        @Override public String toString() {return "+" + super.toString();}
+
+        @Override
+        public boolean apply(final String regex) {return pattern.matcher(regex).matches();}
+
+        @Override
+        public String toString() {return "+" + super.toString();}
     }
 
     public static class Exclude extends Matcher {
+
         public Exclude(final String patternString) {super(patternString);}
-        @Override public boolean apply(final String regex) {return !pattern.matcher(regex).matches();}
-        @Override public String toString() {return "-" + super.toString();}
+
+        @Override
+        public boolean apply(final String regex) {return !pattern.matcher(regex).matches();}
+
+        @Override
+        public String toString() {return "-" + super.toString();}
     }
 
     /**
@@ -107,7 +151,7 @@ public class FilterBuilder implements Predicate<String> {
         if (!Utils.isEmpty(includeExcludeString)) {
             for (String string : includeExcludeString.split(",")) {
                 String trimmed = string.trim();
-                char prefix = trimmed.charAt(0);
+                char   prefix  = trimmed.charAt(0);
                 String pattern = trimmed.substring(1);
 
                 Predicate<String> filter;
@@ -148,10 +192,10 @@ public class FilterBuilder implements Predicate<String> {
         if (!Utils.isEmpty(includeExcludeString)) {
             for (String string : includeExcludeString.split(",")) {
                 String trimmed = string.trim();
-                char prefix = trimmed.charAt(0);
+                char   prefix  = trimmed.charAt(0);
                 String pattern = trimmed.substring(1);
                 if (pattern.endsWith(".") == false) {
-                  pattern += ".";
+                    pattern += ".";
                 }
                 pattern = prefix(pattern);
 

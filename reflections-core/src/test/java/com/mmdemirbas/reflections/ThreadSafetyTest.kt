@@ -43,7 +43,9 @@ class ThreadSafetyTest {
                                 TypeAnnotationsScanner(),
                                 FieldAnnotationsScanner(),
                                 MethodAnnotationsScanner(),
-                                MethodParameterScanner(),
+                                MethodParameterTypesScanner(),
+                                MethodReturnTypesScanner(),
+                                MethodParameterAnnotationsScanner(),
                                 MethodParameterNamesScanner(),
                                 MemberUsageScanner()).scan(klass = TestModel::class.java,
                                                            executorService = executorService)

@@ -10,7 +10,14 @@ import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLDecoder;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Enumeration;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -23,7 +30,7 @@ public abstract class ClasspathHelper {
     /**
      * Gets the current thread context class loader.
      * {@code Thread.currentThread().getContextClassLoader()}.
-     * 
+     *
      * @return the context class loader, may be null
      */
     public static ClassLoader contextClassLoader() {
@@ -33,7 +40,7 @@ public abstract class ClasspathHelper {
     /**
      * Gets the class loader of this library.
      * {@code Reflections.class.getClassLoader()}.
-     * 
+     *
      * @return the static library class loader, may be null
      */
     public static ClassLoader staticClassLoader() {
@@ -44,7 +51,7 @@ public abstract class ClasspathHelper {
      * Returns an array of class Loaders initialized from the specified array.
      * <p>
      * If the input is null or empty, it defaults to both {@link #contextClassLoader()} and {@link #staticClassLoader()}
-     * 
+     *
      * @return the array of class loaders, not null
      */
     public static ClassLoader[] classLoaders(ClassLoader... classLoaders) {
@@ -52,11 +59,9 @@ public abstract class ClasspathHelper {
             return classLoaders;
         } else {
             ClassLoader contextClassLoader = contextClassLoader(), staticClassLoader = staticClassLoader();
-            return contextClassLoader != null ?
-                    staticClassLoader != null && contextClassLoader != staticClassLoader ?
-                            new ClassLoader[]{contextClassLoader, staticClassLoader} :
-                            new ClassLoader[]{contextClassLoader} :
-                    new ClassLoader[] {};
+            return contextClassLoader != null ? staticClassLoader != null && contextClassLoader != staticClassLoader
+                                                ? new ClassLoader[]{contextClassLoader, staticClassLoader}
+                                                : new ClassLoader[]{contextClassLoader} : new ClassLoader[]{};
 
         }
     }
@@ -72,7 +77,7 @@ public abstract class ClasspathHelper {
      * and {@link #staticClassLoader()} are used for {@link ClassLoader#getResources(String)}.
      * <p>
      * The returned URLs retainsthe order of the given {@code classLoaders}.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forPackage(String name, ClassLoader... classLoaders) {
@@ -94,16 +99,16 @@ public abstract class ClasspathHelper {
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forResource(String resourceName, ClassLoader... classLoaders) {
-        final List<URL> result = new ArrayList<URL>();
+        final List<URL>     result  = new ArrayList<URL>();
         final ClassLoader[] loaders = classLoaders(classLoaders);
         for (ClassLoader classLoader : loaders) {
             try {
                 final Enumeration<URL> urls = classLoader.getResources(resourceName);
                 while (urls.hasMoreElements()) {
-                    final URL url = urls.nextElement();
-                    int index = url.toExternalForm().lastIndexOf(resourceName);
+                    final URL url   = urls.nextElement();
+                    int       index = url.toExternalForm().lastIndexOf(resourceName);
                     if (index != -1) {
-                    	// Add old url as contextUrl to support exotic url handlers
+                        // Add old url as contextUrl to support exotic url handlers
                         result.add(new URL(url, url.toExternalForm().substring(0, index)));
                     } else {
                         result.add(url);
@@ -125,17 +130,22 @@ public abstract class ClasspathHelper {
      * <p>
      * If the optional {@link ClassLoader}s are not specified, then both {@link #contextClassLoader()}
      * and {@link #staticClassLoader()} are used for {@link ClassLoader#getResources(String)}.
-     * 
+     *
      * @return the URL containing the class, null if not found
      */
     public static URL forClass(Class<?> aClass, ClassLoader... classLoaders) {
-        final ClassLoader[] loaders = classLoaders(classLoaders);
-        final String resourceName = aClass.getName().replace(".", "/") + ".class";
+        final ClassLoader[] loaders      = classLoaders(classLoaders);
+        final String        resourceName = aClass.getName().replace(".", "/") + ".class";
         for (ClassLoader classLoader : loaders) {
             try {
                 final URL url = classLoader.getResource(resourceName);
                 if (url != null) {
-                    final String normalizedUrl = url.toExternalForm().substring(0, url.toExternalForm().lastIndexOf(aClass.getPackage().getName().replace(".", "/")));
+                    final String normalizedUrl = url.toExternalForm()
+                                                    .substring(0,
+                                                               url.toExternalForm()
+                                                                  .lastIndexOf(aClass.getPackage()
+                                                                                     .getName()
+                                                                                     .replace(".", "/")));
                     return new URL(normalizedUrl);
                 }
             } catch (MalformedURLException e) {
@@ -146,7 +156,7 @@ public abstract class ClasspathHelper {
         }
         return null;
     }
-    
+
     /**
      * Returns a distinct collection of URLs based on URLs derived from class loaders.
      * <p>
@@ -154,7 +164,7 @@ public abstract class ClasspathHelper {
      * {@link #contextClassLoader()} and {@link #staticClassLoader()}.
      * <p>
      * The returned URLs retains the order of the given {@code classLoaders}.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forClassLoader() {
@@ -171,12 +181,12 @@ public abstract class ClasspathHelper {
      * and {@link #staticClassLoader()} are used for {@link ClassLoader#getResources(String)}.
      * <p>
      * The returned URLs retains the order of the given {@code classLoaders}.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forClassLoader(ClassLoader... classLoaders) {
-        final Collection<URL> result = new ArrayList<URL>();
-        final ClassLoader[] loaders = classLoaders(classLoaders);
+        final Collection<URL> result  = new ArrayList<URL>();
+        final ClassLoader[]   loaders = classLoaders(classLoaders);
         for (ClassLoader classLoader : loaders) {
             while (classLoader != null) {
                 if (classLoader instanceof URLClassLoader) {
@@ -197,12 +207,12 @@ public abstract class ClasspathHelper {
      * This finds the URLs using the {@code java.class.path} system property.
      * <p>
      * The returned collection of URLs retains the classpath order.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forJavaClassPath() {
-        Collection<URL> urls = new ArrayList<URL>();
-        String javaClassPath = System.getProperty("java.class.path");
+        Collection<URL> urls          = new ArrayList<URL>();
+        String          javaClassPath = System.getProperty("java.class.path");
         if (javaClassPath != null) {
             for (String path : javaClassPath.split(File.pathSeparator)) {
                 try {
@@ -223,12 +233,12 @@ public abstract class ClasspathHelper {
      * This finds the URLs using the {@link ServletContext}.
      * <p>
      * The returned URLs retains the order of the given {@code classLoaders}.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forWebInfLib(final ServletContext servletContext) {
-        final Collection<URL> urls = new ArrayList<URL>();
-        Set<?> resourcePaths = servletContext.getResourcePaths("/WEB-INF/lib");
+        final Collection<URL> urls          = new ArrayList<URL>();
+        Set<?>                resourcePaths = servletContext.getResourcePaths("/WEB-INF/lib");
         if (resourcePaths == null) {
             return urls;
         }
@@ -244,7 +254,7 @@ public abstract class ClasspathHelper {
      * Returns the URL of the {@code WEB-INF/classes} folder.
      * <p>
      * This finds the URLs using the {@link ServletContext}.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static URL forWebInfClasses(final ServletContext servletContext) {
@@ -252,8 +262,9 @@ public abstract class ClasspathHelper {
             final String path = servletContext.getRealPath("/WEB-INF/classes");
             if (path != null) {
                 final File file = new File(path);
-                if (file.exists())
+                if (file.exists()) {
                     return file.toURL();
+                }
             } else {
                 return servletContext.getResource("/WEB-INF/classes");
             }
@@ -268,7 +279,7 @@ public abstract class ClasspathHelper {
      * additional jar files to be included on the classpath. This method finds the jar files
      * using the {@link #contextClassLoader()} and {@link #staticClassLoader()}, before
      * searching for any additional manifest classpaths.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forManifest() {
@@ -282,25 +293,29 @@ public abstract class ClasspathHelper {
      * jar files to be included on the classpath. This method takes a single URL, tries to
      * resolve it as a jar file, and if so, adds any additional manifest classpaths.
      * The returned collection of URLs will always contain the input URL.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forManifest(final URL url) {
         final Collection<URL> result = new ArrayList<URL>();
         result.add(url);
         try {
-            final String part = cleanPath(url);
-            File jarFile = new File(part);
-            JarFile myJar = new JarFile(part);
-            URL validUrl = tryToGetValidUrl(jarFile.getPath(), new File(part).getParent(), part);
-            if (validUrl != null) { result.add(validUrl); }
+            final String part     = cleanPath(url);
+            File         jarFile  = new File(part);
+            JarFile      myJar    = new JarFile(part);
+            URL          validUrl = tryToGetValidUrl(jarFile.getPath(), new File(part).getParent(), part);
+            if (validUrl != null) {
+                result.add(validUrl);
+            }
             final Manifest manifest = myJar.getManifest();
             if (manifest != null) {
                 final String classPath = manifest.getMainAttributes().getValue(new Attributes.Name("Class-Path"));
                 if (classPath != null) {
                     for (String jar : classPath.split(" ")) {
                         validUrl = tryToGetValidUrl(jarFile.getPath(), new File(part).getParent(), jar);
-                        if (validUrl != null) { result.add(validUrl); }
+                        if (validUrl != null) {
+                            result.add(validUrl);
+                        }
                     }
                 }
             }
@@ -319,7 +334,7 @@ public abstract class ClasspathHelper {
      * The returned collection of URLs will always contain all the input URLs.
      * <p>
      * The returned URLs retains the input order.
-     * 
+     *
      * @return the collection of URLs, not null
      */
     public static Collection<URL> forManifest(final Iterable<URL> urls) {
@@ -334,14 +349,18 @@ public abstract class ClasspathHelper {
     //a little bit cryptic...
     static URL tryToGetValidUrl(String workingDir, String path, String filename) {
         try {
-            if (new File(filename).exists())
+            if (new File(filename).exists()) {
                 return new File(filename).toURI().toURL();
-            if (new File(path + File.separator + filename).exists())
+            }
+            if (new File(path + File.separator + filename).exists()) {
                 return new File(path + File.separator + filename).toURI().toURL();
-            if (new File(workingDir + File.separator + filename).exists())
+            }
+            if (new File(workingDir + File.separator + filename).exists()) {
                 return new File(workingDir + File.separator + filename).toURI().toURL();
-            if (new File(new URL(filename).getFile()).exists())
+            }
+            if (new File(new URL(filename).getFile()).exists()) {
                 return new File(new URL(filename).getFile()).toURI().toURL();
+            }
         } catch (MalformedURLException e) {
             // don't do anything, we're going on the assumption it is a jar, which could be wrong
         }
@@ -350,8 +369,9 @@ public abstract class ClasspathHelper {
 
     /**
      * Cleans the URL.
-     * 
-     * @param url  the URL to clean, not null
+     *
+     * @param url the URL to clean, not null
+     *
      * @return the path, not null
      */
     public static String cleanPath(final URL url) {

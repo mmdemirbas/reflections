@@ -22,8 +22,8 @@ class UrlsTest {
 
         val urlClassLoader1 = URLClassLoader(urls1.toTypedArray(), null)
         val urlClassLoader2 = URLClassLoader(urls2.toTypedArray(), null)
-        val resultUrls1 = urlForClassLoader(listOf(urlClassLoader1))
-        val resultUrls2 = urlForClassLoader(listOf(urlClassLoader2))
+        val resultUrls1 = ScanCommand.ScanClassloader(listOf(urlClassLoader1)).toUrls()
+        val resultUrls2 = ScanCommand.ScanClassloader(listOf(urlClassLoader2)).toUrls()
 
         assertEquals(urls1,
                      resultUrls1.toList(),

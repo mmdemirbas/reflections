@@ -1,10 +1,11 @@
 package org.reflections.scanners;
 
-import org.reflections.ReflectionsException;
 import org.reflections.vfs.Vfs;
 
-/** scans classes and stores fqn as key and full path as value.
- * <p>Deprecated. use {@link org.reflections.scanners.TypeElementsScanner} */
+/**
+ * scans classes and stores fqn as key and full path as value.
+ * <p>Deprecated. use {@link org.reflections.scanners.TypeElementsScanner}
+ */
 @Deprecated
 public class TypesScanner extends AbstractScanner {
 

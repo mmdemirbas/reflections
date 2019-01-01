@@ -5,13 +5,14 @@ import java.io.InputStream;
 import java.util.zip.ZipEntry;
 
 /**
-*
-*/
+ *
+ */
 public class JarInputFile implements Vfs.File {
-    private final ZipEntry entry;
+
+    private final ZipEntry    entry;
     private final JarInputDir jarInputDir;
-    private final long fromIndex;
-    private final long endIndex;
+    private final long        fromIndex;
+    private final long        endIndex;
 
     public JarInputFile(ZipEntry entry, JarInputDir jarInputDir, long cursor, long nextCursor) {
         this.entry = entry;

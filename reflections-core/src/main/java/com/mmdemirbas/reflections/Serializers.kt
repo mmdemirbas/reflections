@@ -8,7 +8,6 @@ import org.dom4j.io.SAXReader
 import org.dom4j.io.XMLWriter
 import java.io.Reader
 import java.io.StringWriter
-import java.lang.Appendable
 import java.nio.file.Path
 
 // TODO: Reflections outputunu orjinaliyle %100 uyumlu hale getir. En azından bunu da support et, hatta default yap.
@@ -57,7 +56,8 @@ data class XmlSerializer(val version: XmlSerializerVersion = XmlSerializerVersio
                 val scannerNode = it as Element
                 val scannerClassName = scannerNode.name
                 val scannerClass = Class.forName(scannerClassName)
-                val scanner = scannerClass!!.newInstance() as SimpleScanner<*>
+                val scanner =
+                        scannerClass.throwIfNull("Class.forName($scannerClassName)").newInstance() as SimpleScanner<*>
                 scannerNode.elements().forEach {
                     val entryElement = it as Element
                     val keyElement = entryElement.element("key")
@@ -76,7 +76,7 @@ data class XmlSerializer(val version: XmlSerializerVersion = XmlSerializerVersio
         val root = document.addElement("reflections")
         scanners.scanners.forEach { scanner ->
             val scannerClass = scanner.javaClass
-            val scannerNodeName = scannerClass.name!!
+            val scannerNodeName = scannerClass.name.throwIfNull("name of Class $scannerClass")
             val scannerNode = root.addElement(scannerNodeName)
             scanner.entries().forEach { (key, values) ->
                 val entryElement = scannerNode.addElement("entry")

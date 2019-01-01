@@ -45,12 +45,10 @@ class SubTypesScannerTest {
     }
 
     interface A // outside of scanned scope
-
     interface B : A // outside of scanned scope, but immediate supertype
 
     interface ScannedScope {
         interface C : B
-
         interface D : B
     }
 
@@ -61,7 +59,7 @@ class SubTypesScannerTest {
         @Test
         fun `expand super types`() {
             val scanner =
-                    SubTypesScanner(expandSuperTypes = true).scan(urls = setOf(urlForClass(C::class.java)!!),
+                    SubTypesScanner(expandSuperTypes = true).scan(urls = setOf(ScanCommand.ScanClass(C::class.java).toUrl()),
                                                                   filter = inputsFilter).dump()
             val subTypes = scanner.subTypesOf(A::class.java)
             assertTrue(subTypes.contains(B::class.java), "expanded")
@@ -71,7 +69,7 @@ class SubTypesScannerTest {
         @Test
         fun `do not expand super types`() {
             val scanner =
-                    SubTypesScanner(expandSuperTypes = false).scan(urls = setOf(urlForClass(C::class.java)!!),
+                    SubTypesScanner(expandSuperTypes = false).scan(urls = setOf(ScanCommand.ScanClass(C::class.java).toUrl()),
                                                                    filter = inputsFilter).dump()
             val subTypes = scanner.subTypesOf(A::class.java)
             assertFalse(subTypes.contains(B::class.java), "expanded")

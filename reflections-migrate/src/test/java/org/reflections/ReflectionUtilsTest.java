@@ -19,8 +19,29 @@ import java.util.Collections;
 import java.util.Set;
 
 import static com.google.common.collect.Collections2.transform;
-import static org.junit.Assert.*;
-import static org.reflections.ReflectionUtils.*;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertThat;
+import static org.junit.Assert.assertTrue;
+import static org.reflections.ReflectionUtils.getAllAnnotations;
+import static org.reflections.ReflectionUtils.getAllConstructors;
+import static org.reflections.ReflectionUtils.getAllFields;
+import static org.reflections.ReflectionUtils.getAllMethods;
+import static org.reflections.ReflectionUtils.getAllSuperTypes;
+import static org.reflections.ReflectionUtils.getAnnotations;
+import static org.reflections.ReflectionUtils.getMethods;
+import static org.reflections.ReflectionUtils.withAnnotation;
+import static org.reflections.ReflectionUtils.withAnyParameterAnnotation;
+import static org.reflections.ReflectionUtils.withModifier;
+import static org.reflections.ReflectionUtils.withName;
+import static org.reflections.ReflectionUtils.withParameters;
+import static org.reflections.ReflectionUtils.withParametersAssignableFrom;
+import static org.reflections.ReflectionUtils.withParametersAssignableTo;
+import static org.reflections.ReflectionUtils.withParametersCount;
+import static org.reflections.ReflectionUtils.withPattern;
+import static org.reflections.ReflectionUtils.withReturnType;
+import static org.reflections.ReflectionUtils.withReturnTypeAssignableTo;
+import static org.reflections.ReflectionUtils.withTypeAssignableTo;
 import static org.reflections.ReflectionsTest.are;
 
 /**
@@ -33,7 +54,9 @@ public class ReflectionUtilsTest {
     public void getAllTest() {
         assertThat(getAllSuperTypes(TestModel.C3.class, withAnnotation(TestModel.AI1.class)), are(TestModel.I1.class));
 
-        Set<Method> allMethods = getAllMethods(TestModel.C4.class, withModifier(Modifier.PUBLIC), withReturnType(void.class));
+        Set<Method> allMethods = getAllMethods(TestModel.C4.class,
+                                               withModifier(Modifier.PUBLIC),
+                                               withReturnType(void.class));
         Set<Method> allMethods1 = getAllMethods(TestModel.C4.class, withPattern("public.*.void .*"));
 
         assertTrue(allMethods.containsAll(allMethods1) && allMethods1.containsAll(allMethods));
@@ -45,8 +68,9 @@ public class ReflectionUtilsTest {
 
         assertThat(getAllFields(TestModel.C4.class, withAnnotation(new TestModel.AF1() {
             public String value() {return "2";}
-            public Class<? extends Annotation> annotationType() {return TestModel.AF1.class;}})),
-                names("f2"));
+
+            public Class<? extends Annotation> annotationType() {return TestModel.AF1.class;}
+        })), names("f2"));
 
         assertThat(getAllFields(TestModel.C4.class, withTypeAssignableTo(String.class)), names("f1", "f2", "f3"));
 
@@ -59,16 +83,19 @@ public class ReflectionUtilsTest {
         assertTrue(getAnnotations(m4).isEmpty());
     }
 
-    @Test public void withParameter() throws Exception {
-        Class target = Collections.class;
-        Object arg1 = Arrays.asList(1, 2, 3);
+    @Test
+    public void withParameter() throws Exception {
+        Class  target = Collections.class;
+        Object arg1   = Arrays.asList(1, 2, 3);
 
         Set<Method> allMethods = Sets.newHashSet();
         for (Class<?> type : getAllSuperTypes(arg1.getClass())) {
             allMethods.addAll(getAllMethods(target, withModifier(Modifier.STATIC), withParameters(type)));
         }
 
-        Set<Method> allMethods1 = getAllMethods(target, withModifier(Modifier.STATIC), withParametersAssignableTo(arg1.getClass()));
+        Set<Method> allMethods1 = getAllMethods(target,
+                                                withModifier(Modifier.STATIC),
+                                                withParametersAssignableTo(arg1.getClass()));
 
         assertEquals(allMethods, allMethods1);
 
@@ -83,15 +110,18 @@ public class ReflectionUtilsTest {
         //Check for null safe
         getAllMethods(Collections.class, withModifier(Modifier.STATIC), withParametersAssignableFrom());
 
-        Class target = Collections.class;
-        Object arg1 = Arrays.asList(1, 2, 3);
+        Class  target = Collections.class;
+        Object arg1   = Arrays.asList(1, 2, 3);
 
         Set<Method> allMethods = Sets.newHashSet();
         for (Class<?> type : getAllSuperTypes(arg1.getClass())) {
             allMethods.addAll(getAllMethods(target, withModifier(Modifier.STATIC), withParameters(type)));
         }
 
-        Set<Method> allMethods1 = getAllMethods(target, withModifier(Modifier.STATIC), withParametersAssignableFrom(Iterable.class), withParametersAssignableTo(arg1.getClass()));
+        Set<Method> allMethods1 = getAllMethods(target,
+                                                withModifier(Modifier.STATIC),
+                                                withParametersAssignableFrom(Iterable.class),
+                                                withParametersAssignableTo(arg1.getClass()));
 
         assertEquals(allMethods, allMethods1);
 
@@ -101,8 +131,9 @@ public class ReflectionUtilsTest {
         }
     }
 
-    @Test public void withReturn() throws Exception {
-        Set<Method> returnMember = getAllMethods(Class.class, withReturnTypeAssignableTo(Member.class));
+    @Test
+    public void withReturn() throws Exception {
+        Set<Method> returnMember              = getAllMethods(Class.class, withReturnTypeAssignableTo(Member.class));
         Set<Method> returnsAssignableToMember = getAllMethods(Class.class, withReturnType(Method.class));
 
         assertTrue(returnMember.containsAll(returnsAssignableToMember));
@@ -117,7 +148,7 @@ public class ReflectionUtilsTest {
     public void getAllAndReflections() {
         Reflections reflections = new Reflections(TestModel.class, new FieldAnnotationsScanner());
 
-        Set<Field> af1 = reflections.getFieldsAnnotatedWith(TestModel.AF1.class);
+        Set<Field>           af1       = reflections.getFieldsAnnotatedWith(TestModel.AF1.class);
         Set<? extends Field> allFields = ReflectionUtils.getAll(af1, withModifier(Modifier.PROTECTED));
         assertTrue(allFields.size() == 1);
         assertThat(allFields, names("f2"));
@@ -134,14 +165,14 @@ public class ReflectionUtilsTest {
     private BaseMatcher<Set<? extends Member>> names(final String... namesArray) {
         return new BaseMatcher<Set<? extends Member>>() {
 
-                public boolean matches(Object o) {
-                    Collection<String> transform = names((Set<Member>) o);
-                    final Collection<?> names = Arrays.asList(namesArray);
-                    return transform.containsAll(names) && names.containsAll(transform);
-                }
+            public boolean matches(Object o) {
+                Collection<String>  transform = names((Set<Member>) o);
+                final Collection<?> names     = Arrays.asList(namesArray);
+                return transform.containsAll(names) && names.containsAll(transform);
+            }
 
-                public void describeTo(Description description) {
-                }
-            };
+            public void describeTo(Description description) {
+            }
+        };
     }
 }

@@ -14,10 +14,11 @@ import java.util.zip.ZipEntry;
  *
  */
 public class JarInputDir implements Vfs.Dir {
+
     private final URL url;
     JarInputStream jarInputStream;
-    long cursor = 0;
-    long nextCursor = 0;
+    long           cursor     = 0;
+    long           nextCursor = 0;
 
     public JarInputDir(URL url) {
         this.url = url;
@@ -33,8 +34,11 @@ public class JarInputDir implements Vfs.Dir {
                 return new AbstractIterator<Vfs.File>() {
 
                     {
-                        try { jarInputStream = new JarInputStream(url.openConnection().getInputStream()); }
-                        catch (Exception e) { throw new ReflectionsException("Could not open url connection", e); }
+                        try {
+                            jarInputStream = new JarInputStream(url.openConnection().getInputStream());
+                        } catch (Exception e) {
+                            throw new ReflectionsException("Could not open url connection", e);
+                        }
                     }
 
                     protected Vfs.File computeNext() {
@@ -46,7 +50,9 @@ public class JarInputDir implements Vfs.Dir {
                                 }
 
                                 long size = entry.getSize();
-                                if (size < 0) size = 0xffffffffl + size; //JDK-6916399
+                                if (size < 0) {
+                                    size = 0xffffffffl + size; //JDK-6916399
+                                }
                                 nextCursor += size;
                                 if (!entry.isDirectory()) {
                                     return new JarInputFile(entry, JarInputDir.this, cursor, nextCursor);

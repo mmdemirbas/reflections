@@ -1,26 +1,38 @@
 package com.mmdemirbas.reflections
 
-import java.nio.file.Paths
 import java.util.regex.Pattern
 
 sealed class Filter {
-    fun test(fqn: String): Boolean = test(SystemFile(SystemDir(Paths.get(".")), Paths.get(fqn.replace('.', '/'))))
-    abstract fun test(file: VirtualFile): Boolean
+    abstract fun acceptFqn(fqn: String): Boolean
+    abstract fun acceptFile(file: VirtualFile): Boolean
 
     data class Include(val patternString: String) : Filter() {
         private val pattern = Pattern.compile(patternString)
-        override fun test(file: VirtualFile) = pattern.matcher(file.relativePath!!).matches()
+
+        override fun acceptFqn(fqn: String) = pattern.matcher(fqn.fqnToResourceName()).matches()
+
+        override fun acceptFile(file: VirtualFile) =
+                pattern.matcher(file.relativePath.throwIfNull("relativePath of virtualFile: $file")).matches()
+
         override fun toString() = "+$patternString"
     }
 
     data class Exclude(val patternString: String) : Filter() {
         private val pattern = Pattern.compile(patternString)
-        override fun test(file: VirtualFile) = !pattern.matcher(file.relativePath!!).matches()
+
+        override fun acceptFqn(fqn: String) = !pattern.matcher(fqn.fqnToResourceName()).matches()
+
+        override fun acceptFile(file: VirtualFile) =
+                !pattern.matcher(file.relativePath.throwIfNull("relativePath of virtualFile: $file")).matches()
+
         override fun toString() = "-$patternString"
     }
 
     data class Composite(val filters: List<Filter>) : Filter() {
-        override fun test(s: VirtualFile): Boolean {
+        override fun acceptFqn(fqn: String) = acceptComposite({ acceptFqn(fqn) })
+        override fun acceptFile(file: VirtualFile) = acceptComposite({ acceptFile(file) })
+
+        fun acceptComposite(acceptFn: Filter.() -> Boolean): Boolean {
             var accept = filters.isEmpty() || filters[0] is Exclude
             loop@ for (filter in filters) {
                 //skip if this filter won't change
@@ -28,7 +40,7 @@ sealed class Filter {
                     accept -> if (filter is Include) continue@loop
                     else   -> if (filter is Exclude) continue@loop
                 }
-                accept = filter.test(s)
+                accept = filter.acceptFn()
                 //break on first exclusion
                 if (!accept && filter is Exclude) break
             }
@@ -80,3 +92,8 @@ fun parseFilter(includeExcludeString: String, transformPattern: (String) -> Stri
 
 fun Class<*>.toPackageNameRegex() = "${`package`.name}.".toPrefixRegex()
 fun String.toPrefixRegex() = replace(".", "\\.") + ".*"
+
+fun String.fqnToResourceName() = when {
+    isEmpty() -> ""
+    else      -> replace('.', '/').substringBefore('$') + ".class"
+}

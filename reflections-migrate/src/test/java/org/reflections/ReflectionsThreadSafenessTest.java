@@ -27,9 +27,8 @@ public class ReflectionsThreadSafenessTest {
         Callable<Set<Class<? extends ImmutableMap>>> callable = new Callable<Set<Class<? extends ImmutableMap>>>() {
             @Override
             public Set<Class<? extends ImmutableMap>> call() throws Exception {
-                final Reflections reflections = new Reflections(new ConfigurationBuilder()
-                        .setUrls(singletonList(ClasspathHelper.forClass(ImmutableMap.class)))
-                        .setScanners(new SubTypesScanner(false)));
+                final Reflections reflections = new Reflections(new ConfigurationBuilder().setUrls(singletonList(
+                        ClasspathHelper.forClass(ImmutableMap.class))).setScanners(new SubTypesScanner(false)));
 
                 return reflections.getSubTypesOf(ImmutableMap.class);
             }
@@ -37,7 +36,7 @@ public class ReflectionsThreadSafenessTest {
 
         final ExecutorService pool = Executors.newFixedThreadPool(2);
 
-        final Future<?> first = pool.submit(callable);
+        final Future<?> first  = pool.submit(callable);
         final Future<?> second = pool.submit(callable);
 
         assertEquals(first.get(5, SECONDS), second.get(5, SECONDS));

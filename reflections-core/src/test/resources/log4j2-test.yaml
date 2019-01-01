@@ -1,0 +1,17 @@
+Configuration:
+
+  name: test
+  status: info
+
+  Appenders:
+    Console:
+      name: stdout
+      target: SYSTEM_OUT
+      PatternLayout:
+        Pattern: "%d{yy/MM/dd HH:mm:ss.SSS} %p: (%F:%L) %m%n"
+
+  Loggers:
+    Root:
+      level: debug
+      AppenderRef:
+      - ref: stdout

@@ -1,5 +1,11 @@
 package org.reflections.vfs;
 
+import com.google.common.base.Predicate;
+import org.reflections.Reflections;
+import org.reflections.ReflectionsException;
+import org.reflections.vfs.Vfs.Dir;
+import org.reflections.vfs.Vfs.UrlType;
+
 import java.io.File;
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -8,25 +14,19 @@ import java.util.jar.JarFile;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import org.reflections.Reflections;
-import org.reflections.ReflectionsException;
-import org.reflections.vfs.Vfs.Dir;
-import org.reflections.vfs.Vfs.UrlType;
-
-import com.google.common.base.Predicate;
-
 /**
  * UrlType to be used by Reflections library.
  * This class handles the vfszip and vfsfile protocol of JBOSS files.
  * <p>
  * <p>to use it, register it in Vfs via {@link Vfs#addDefaultURLTypes(UrlType)} or {@link Vfs#setDefaultURLTypes(java.util.List)}.
- * @author Sergio Pola
  *
+ * @author Sergio Pola
  */
 public class UrlTypeVFS implements UrlType {
+
     public final static String[] REPLACE_EXTENSION = new String[]{".ear/", ".jar/", ".war/", ".sar/", ".har/", ".par/"};
 
-    final String VFSZIP = "vfszip";
+    final String VFSZIP  = "vfszip";
     final String VFSFILE = "vfsfile";
 
     public boolean matches(URL url) {
@@ -60,15 +60,16 @@ public class UrlTypeVFS implements UrlType {
         }
     }
 
-    URL replaceZipSeparators(String path, Predicate<File> acceptFile)
-            throws MalformedURLException {
+    URL replaceZipSeparators(String path, Predicate<File> acceptFile) throws MalformedURLException {
         int pos = 0;
         while (pos != -1) {
             pos = findFirstMatchOfDeployableExtention(path, pos);
 
             if (pos > 0) {
                 File file = new File(path.substring(0, pos - 1));
-                if (acceptFile.apply(file)) { return replaceZipSeparatorStartingFrom(path, pos); }
+                if (acceptFile.apply(file)) {
+                    return replaceZipSeparatorStartingFrom(path, pos);
+                }
             }
         }
 
@@ -91,8 +92,7 @@ public class UrlTypeVFS implements UrlType {
         }
     };
 
-    URL replaceZipSeparatorStartingFrom(String path, int pos)
-            throws MalformedURLException {
+    URL replaceZipSeparatorStartingFrom(String path, int pos) throws MalformedURLException {
         String zipFile = path.substring(0, pos - 1);
         String zipPath = path.substring(pos);
 

@@ -1,23 +1,23 @@
 package org.reflections;
 
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-
 import org.junit.Test;
 import org.reflections.util.FilterBuilder;
+
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test filtering
  */
 public class FilterBuilderTest {
 
-  @Test
-  public void test_include() {
-      FilterBuilder filter = new FilterBuilder().include("org\\.reflections.*");
-      assertTrue(filter.apply("org.reflections.Reflections"));
-      assertTrue(filter.apply("org.reflections.foo.Reflections"));
-      assertFalse(filter.apply("org.foobar.Reflections"));
-  }
+    @Test
+    public void test_include() {
+        FilterBuilder filter = new FilterBuilder().include("org\\.reflections.*");
+        assertTrue(filter.apply("org.reflections.Reflections"));
+        assertTrue(filter.apply("org.reflections.foo.Reflections"));
+        assertFalse(filter.apply("org.foobar.Reflections"));
+    }
 
     @Test
     public void test_includePackage() {

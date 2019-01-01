@@ -1,11 +1,7 @@
 package com.mmdemirbas.reflections
 
 import com.mmdemirbas.reflections.Vfs.defaultUrlTypes
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Disabled
 import org.junit.jupiter.api.Test
 import java.io.DataInputStream
@@ -17,7 +13,7 @@ import java.nio.file.Files
 import java.nio.file.Path
 
 class VfsTest {
-    private fun getSomeJar(): URL = urlForClassLoader().firstOrNull { url ->
+    private fun getSomeJar(): URL = ScanCommand.ScanClassloader().toUrls().firstOrNull { url ->
         !url.toExternalForm().contains("surefire") && url.toExternalForm().endsWith(".jar")
     } ?: throw RuntimeException()
 
@@ -50,8 +46,8 @@ class VfsTest {
 
         run {
             val fileSystem = FileSystems.getDefault()
-            val rtJarUrl = urlForClass(String::class.java)
-            assertTrue(rtJarUrl!!.toString().startsWith("jar:file:"))
+            val rtJarUrl = ScanCommand.ScanClass(String::class.java).toUrl()
+            assertTrue(rtJarUrl.toString().startsWith("jar:file:"))
             assertTrue(rtJarUrl.toString().contains(".jar!"))
 
             assertNull(VfsUrlTypes.jarFile(rtJarUrl, fileSystem))
@@ -74,8 +70,8 @@ class VfsTest {
 
         run {
             val fileSystem = FileSystems.getDefault()
-            val thisUrl = urlForClass(javaClass)
-            assertTrue(thisUrl!!.toString().startsWith("file:"))
+            val thisUrl = ScanCommand.ScanClass(javaClass).toUrl()
+            assertTrue(thisUrl.toString().startsWith("file:"))
             assertFalse(thisUrl.toString().contains(".jar"))
 
             assertNull(VfsUrlTypes.jarFile(thisUrl, fileSystem))
@@ -111,7 +107,7 @@ class VfsTest {
 
     @Test
     fun dirWithSpaces() {
-        val urls = urlForPackage("dir+with spaces")
+        val urls = ScanCommand.ScanPackage("dir+with spaces").toUrls()
         assertFalse(urls.isEmpty())
         urls.forEach { url -> testVfsDir(url) }
     }
@@ -147,8 +143,8 @@ class VfsTest {
     @Test
     fun vfsFromDirWithinAJarUrl() {
         val fileSystem = FileSystems.getDefault()
-        val directoryInJarUrl = urlForClass(String::class.java)
-        assertTrue(directoryInJarUrl!!.toString().startsWith("jar:file:"))
+        val directoryInJarUrl = ScanCommand.ScanClass(String::class.java).toUrl()
+        assertTrue(directoryInJarUrl.toString().startsWith("jar:file:"))
         assertTrue(directoryInJarUrl.toString().contains(".jar!"))
 
         val directoryInJarPath = directoryInJarUrl.toExternalForm().replaceFirst("jar:".toRegex(), "")
@@ -245,7 +241,7 @@ class VfsTest {
     @Test
     fun jarInputStream() {
         val fileSystem = FileSystems.getDefault()
-        urlForClassLoader().forEach { jar ->
+        ScanCommand.ScanClassloader().toUrls().forEach { jar ->
             JarInputDir(jar, fileSystem).files().take(5).filter { it.name.endsWith(".class") }.forEach {
                 val className = createClassAdapter(it).name
             }

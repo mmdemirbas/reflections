@@ -5,90 +5,257 @@ import javassist.ClassPool
 import javassist.CtBehavior
 import javassist.CtMember
 import javassist.LoaderClassPath
-import javassist.bytecode.LocalVariableAttribute
-import javassist.expr.ConstructorCall
-import javassist.expr.ExprEditor
-import javassist.expr.FieldAccess
-import javassist.expr.MethodCall
-import javassist.expr.NewExpr
+import javassist.expr.*
+import java.io.IOException
 import java.lang.annotation.Inherited
-import java.lang.reflect.AccessibleObject
-import java.lang.reflect.Constructor
-import java.lang.reflect.Executable
-import java.lang.reflect.Member
-import java.lang.reflect.Method
-import java.lang.reflect.Modifier
+import java.lang.reflect.*
+import java.net.MalformedURLException
 import java.net.URL
+import java.net.URLClassLoader
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
+import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.regex.Pattern
+import javax.servlet.ServletContext
 import kotlin.system.measureTimeMillis
 
+// todo: scan metric sağla, tarama süresi ve kaç key kaç value oluştuğu bilgisi verilebilir
 
-data class ScanMetrics(val elapsedTime: Int = 0, val keyCount: Int = 0, val valueCount: Int = 0) {
-    constructor(metrics: List<ScanMetrics>) : this(metrics.sumBy { it.elapsedTime },
-                                                   metrics.sumBy { it.keyCount },
-                                                   metrics.sumBy { it.valueCount })
+sealed class ScanCommand {
+    abstract fun toUrls(): List<URL>
+
+    data class ScanClasspath(val classpath: String = System.getProperty("java.class.path").orEmpty(),
+                             val fileSystem: FileSystem = FileSystems.getDefault(),
+                             val pathSeparator: String = java.io.File.pathSeparator) : ScanCommand() {
+        override fun toUrls() =
+                classpath.split(pathSeparator.toRegex()).dropLastWhile { it.isEmpty() }.mapNotNull { path ->
+                    tryOrNull { fileSystem.getPath(path).toUri().toURL() }
+                }.distinctUrls().toList()
+    }
+
+    /**
+     * Returns a distinct collection of URLs based on URLs derived from class loaders.
+     *
+     *
+     * This finds the URLs using [URLClassLoader.getURLs] using the specified
+     * class loader, searching up the parent hierarchy.
+     *
+     *
+     * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+     * and [staticClassLoader] are used for [ClassLoader.getResources].
+     *
+     *
+     * The returned URLs retains the order of the given `classLoaders`.
+     *
+     * @return the collection of URLs, not null
+     */
+    data class ScanClassloader(val classLoaders: Collection<ClassLoader?> = defaultClassLoaders()) : ScanCommand() {
+        override fun toUrls() = classLoaders.flatMap { loader ->
+            loader.generateWhileNotNull { parent }
+        }.filterIsInstance<URLClassLoader>().flatMap { it.urLs.orEmpty().asList() }.distinctUrls().toList()
+    }
+
+    /**
+     * Returns a distinct collection of URLs based on a resource.
+     *
+     *
+     * This searches for the resource name, using [ClassLoader.getResources].
+     * For example, `urlForResource(test.properties)` effectively returns URLs from the
+     * classpath containing files of that name.
+     *
+     *
+     * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+     * and [staticClassLoader] are used for [ClassLoader.getResources].
+     *
+     *
+     * The returned URLs retains the order of the given `classLoaders`.
+     *
+     * @return the collection of URLs, not null
+     */
+    data class ScanResource(val resourceName: String,
+                            val classLoaders: Collection<ClassLoader> = defaultClassLoaders()) : ScanCommand() {
+        override fun toUrls(): List<URL> {
+            return classLoaders.flatMap { classLoader ->
+                try {
+                    classLoader.getResources(resourceName).toList().map { url ->
+                        val externalForm = url.toExternalForm()
+                        when {
+                            externalForm.contains(resourceName) -> // Add old url as contextUrl to support exotic url handlers
+                                URL(url, externalForm.substringBeforeLast(resourceName))
+                            else                                -> url
+                        }
+                    }
+                } catch (e: IOException) {
+                    logger.error("error getting resources for $resourceName", e)
+                    emptyList<URL>()
+                }
+            }.distinctUrls().toList()
+        }
+    }
+
+    /**
+     * Returns a distinct collection of URLs based on a package name.
+     *
+     *
+     * This searches for the package name as a resource, using [ClassLoader.getResources].
+     * For example, `urlForPackage(org.reflections)` effectively returns URLs from the
+     * classpath containing packages starting with `org.reflections`.
+     *
+     *
+     * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+     * and [staticClassLoader] are used for [ClassLoader.getResources].
+     *
+     *
+     * The returned URLs retainsthe order of the given `classLoaders`.
+     *
+     * @return the collection of URLs, not null
+     */
+    data class ScanPackage(val name: String,
+                           val classLoaders: List<ClassLoader> = defaultClassLoaders()) : ScanCommand() {
+        override fun toUrls() =
+                ScanResource(name.replace(".", "/").replace("\\", "/").removePrefix("/"), classLoaders).toUrls()
+    }
+
+    /**
+     * Returns the URL that contains a `Class`.
+     *
+     *
+     * This searches for the class using [ClassLoader.getResource].
+     *
+     *
+     * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
+     * and [staticClassLoader] are used for [ClassLoader.getResources].
+     *
+     * @return the URL containing the class, null if not found
+     */
+    data class ScanClass(val aClass: Class<*>, val classLoaders: Collection<ClassLoader> = defaultClassLoaders()) :
+            ScanCommand() {
+        override fun toUrls() = listOf(toUrl())
+
+        fun toUrl(): URL {
+            val resourceName = aClass.name.replace(".", "/") + ".class"
+            return classLoaders.mapNotNull {
+                try {
+                    val url = it.getResource(resourceName)
+                    when (url) {
+                        null -> null
+                        else -> URL(url.toExternalForm().substringBeforeLast(aClass.getPackage().name.replace(".",
+                                                                                                              "/")))
+                    }
+                } catch (e: MalformedURLException) {
+                    logger.warn("Could not get URL", e)
+                    null
+                }
+            }.firstOrNull()
+                   ?: throw RuntimeException("Couldn't find ${aClass.name} in any of the class loaders: $classLoaders")
+        }
+    }
+
+    data class ScanUrl(val urls: List<URL>) : ScanCommand() {
+        override fun toUrls() = urls
+    }
+
+    /**
+     * Returns a distinct collection of URLs based on the `WEB-INF/lib` folder.
+     *
+     *
+     * This finds the URLs using the [javax.servlet.ServletContext].
+     *
+     *
+     * The returned URLs retains the order of the given `classLoaders`.
+     *
+     * @return the collection of URLs, not null
+     */
+    data class ScanWebInfLib(val servletContext: ServletContext) : ScanCommand() {
+        override fun toUrls() = servletContext.getResourcePaths("/WEB-INF/lib").orEmpty().mapNotNull {
+            tryOrNull {
+                servletContext.getResource(it as String)
+            }
+        }.distinctUrls().toList()
+    }
+
+    /**
+     * Returns the URL of the `WEB-INF/classes` folder.
+     *
+     *
+     * This finds the URLs using the [javax.servlet.ServletContext].
+     *
+     * @return the collection of URLs, not null
+     */
+
+    data class ScanWebInfClasses(val servletContext: ServletContext,
+                                 val fileSystem: FileSystem = FileSystems.getDefault()) : ScanCommand() {
+        override fun toUrls() = listOf(toUrl())
+
+        fun toUrl(): URL {
+            val path = servletContext.getRealPath("/WEB-INF/classes")
+            return if (path == null) servletContext.getResource("/WEB-INF/classes")
+            else {
+                val file = fileSystem.getPath(path)
+                if (Files.exists(file)) file.toUri().toURL() else throw  RuntimeException()
+            }
+        }
+    }
 }
+
 
 interface Scanner<S : Scanner<S>> {
     fun save(path: Path, serializer: Serializer = XmlSerializer()): S
     fun dump(serializer: Serializer = JsonSerializer()): S
 
+    // todo: sınıflar adreslenirken yüklendikleri classLoader'lar da dahil edilse daha gerçekçi olur.
+    // todo: bir sınıf tek bir classloader'da bulununca bırakılmalı mı? Sanki hepsine bakılsa daha doğru olmaz mı?
+
     fun scan(prefix: String,
-             executorService: ExecutorService? = null,
-             fileSystem: FileSystem = FileSystems.getDefault()) = scan(urls = urlForPackage(prefix),
-                                                                       filter = Filter.Include(prefix.toPrefixRegex()),
-                                                                       executorService = executorService,
-                                                                       fileSystem = fileSystem)
+             fileSystem: FileSystem = FileSystems.getDefault(),
+             executorService: ExecutorService? = null) = scan(urls = ScanCommand.ScanPackage(prefix).toUrls(),
+            // todo: filter'lar öncelikle PackageStartsWith gibi custom tiplerle zenginleştirilmeli, en son regex olabilir
+                                                              filter = Filter.Include(prefix.toPrefixRegex()),
+                                                              fileSystem = fileSystem,
+                                                              executorService = executorService)
 
     fun scan(klass: Class<*>,
-             executorService: ExecutorService? = null,
-             fileSystem: FileSystem = FileSystems.getDefault()) =
-            scan(filter = Filter.Include(klass.name.replace("$", "\\$").replace(".", "\\.") + "(\\$.*)?"),
-                 urls = setOf(urlForClass(klass)!!),
-                 executorService = executorService,
-                 fileSystem = fileSystem)
+             fileSystem: FileSystem = FileSystems.getDefault(),
+             executorService: ExecutorService? = null) = scan(urls = ScanCommand.ScanClass(klass).toUrls(),
+                                                              filter = Filter.Include(klass.name.fqnToResourceName()),
+                                                              fileSystem = fileSystem,
+                                                              executorService = executorService)
 
     fun scan(urls: Collection<URL> = emptySet(),
              filter: Filter = Filter.Composite(emptyList()),
-             executorService: ExecutorService? = null,
-             fileSystem: FileSystem = FileSystems.getDefault()): S {
-        if (urls.isEmpty()) throw RuntimeException("given scan urls are empty. set urls in the configuration")
-        logDebug("going to scan these urls:\n{}", urls.joinToString("\n"))
-
-        val scanMetrics =
-                urls.map { url -> Callable<ScanMetrics> { scanUrl(filter, url, fileSystem) } }
-                    .runAllPossiblyParallelAndWait(executorService)
-        val afterScanMetrics = afterScan()
-        val combined = ScanMetrics(scanMetrics + afterScanMetrics)
+             fileSystem: FileSystem = FileSystems.getDefault(),
+             executorService: ExecutorService? = null): S {
+        // todo: thread'lerin top-level'ında bir exception olduğunda sonucun açık seçik belirtilmesi gerek. ortak mekanizma düşün.
+        urls.map { url ->
+            Runnable {
+                try {
+                    scanUrl(url, filter, fileSystem)
+                } catch (e: Exception) {
+                    logger.error("Error while scanning $url", e)
+                    throw e
+                }
+            }
+        }.runAllPossiblyParallelAndWait(executorService)
         executorService?.shutdown()
-
-        logInfo("Reflections took {} ms to scan {} urls, producing {} keys and {} values",
-                combined.elapsedTime,
-                combined.keyCount,
-                combined.valueCount)
         return this as S
     }
 
-    fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem = FileSystems.getDefault()): ScanMetrics
+    fun scanUrl(url: URL, filter: Filter, fileSystem: FileSystem = FileSystems.getDefault())
 
-    fun afterScan() = ScanMetrics()
+    fun afterScan() = Unit
 }
 
 data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<CompositeScanner> {
     constructor(vararg scanners: SimpleScanner<*>) : this(scanners.asList())
 
-    override fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem) = ScanMetrics(scanners.map {
-        it.scanUrl(filter, url, fileSystem)
-    })
+    override fun scanUrl(url: URL, filter: Filter, fileSystem: FileSystem) =
+            scanners.forEach { it.scanUrl(url, filter, fileSystem) }
 
     override fun save(path: Path, serializer: Serializer): CompositeScanner {
         serializer.write(this, path).also {
-            logInfo("Reflections successfully saved in ${path.toAbsolutePath()} using ${serializer.javaClass.simpleName}")
+            logger.info("Reflections successfully saved in ${path.toAbsolutePath()} using ${serializer.javaClass.simpleName}")
         }
         return this
     }
@@ -187,9 +354,10 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
 
             // todo: performans için list yerine sequence kullanımı değerlendirilebilir genel olarak
             val elapsedMillis = measureTimeMillis {
-                urls = urlForPackage(packagePrefix)
+                urls = ScanCommand.ScanPackage(packagePrefix).toUrls()
                 scanners = findFiles(inUrls = urls, fileSystem = fileSystem).filter {
-                    it.relativePath!!.startsWith(packagePrefix) && resourceNameFilter.test(it)
+                    it.relativePath.throwIfNull("relativePath of virtualFile: $it").startsWith(packagePrefix) && resourceNameFilter.acceptFile(
+                            it)
                 }.toList().flatMap { file ->
                     tryOrThrow("could not merge $file") {
                         file.openInputStream().bufferedReader().use { stream -> serializer.read(stream).scanners }
@@ -197,12 +365,12 @@ data class CompositeScanner(val scanners: List<SimpleScanner<*>>) : Scanner<Comp
                 }
             }
 
-            logInfo("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
-                    elapsedMillis,
-                    urls.size,
-                    scanners.sumBy(SimpleScanner<*>::keyCount),
-                    scanners.sumBy(SimpleScanner<*>::valueCount),
-                    urls.joinToString())
+            logger.info("Reflections took {} ms to collect {} urls, producing {} keys and %d values [{}]",
+                        elapsedMillis,
+                        urls.size,
+                        scanners.sumBy(SimpleScanner<*>::keyCount),
+                        scanners.sumBy(SimpleScanner<*>::valueCount),
+                        urls.joinToString())
 
             return CompositeScanner(scanners)
         }
@@ -222,18 +390,13 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
         return this as S
     }
 
-    override fun scanUrl(filter: Filter, url: URL, fileSystem: FileSystem): ScanMetrics {
-        val elapsedMillis = measureTimeMillis {
-            Vfs.fromURL(url = url, fileSystem = fileSystem).use(VirtualDir::files).forEach { vfsFile ->
-                // todo: fix filtering if (filter.test(vfsFile))
-                try {
-                    scanFile(vfsFile)
-                } catch (e: Exception) {
-                    logWarn("could not scan file {} in with scanner {}", vfsFile.relativePath, javaClass.simpleName, e)
-                }
+    override fun scanUrl(url: URL, filter: Filter, fileSystem: FileSystem) {
+        Vfs.fromURL(url = url, fileSystem = fileSystem).use(VirtualDir::files).forEach { vfsFile ->
+            //   todo:             if (filter.acceptFile(vfsFile))
+            tryOrThrow("could not scan file ${vfsFile.relativePath} with scanner ${javaClass.simpleName}") {
+                scanFile(vfsFile)
             }
         }
-        return ScanMetrics(elapsedMillis.toInt())
     }
 
     abstract fun scanFile(virtualFile: VirtualFile)
@@ -274,8 +437,9 @@ abstract class SimpleScanner<S : SimpleScanner<S>> : Scanner<S> {
  */
 class ResourceScanner : SimpleScanner<ResourceScanner>() {
     override fun scanFile(virtualFile: VirtualFile) {
-        if (!virtualFile.relativePath!!.endsWith(".class")) {
-            addEntry(virtualFile.name, virtualFile.relativePath!!)
+        val relativePath = virtualFile.relativePath.throwIfNull("relativePath of virtualFile: $virtualFile")
+        if (!relativePath.endsWith(".class")) {
+            addEntry(virtualFile.name, relativePath)
         }
     }
 
@@ -296,8 +460,10 @@ class ResourceScanner : SimpleScanner<ResourceScanner>() {
 
 abstract class ClassScanner<S : ClassScanner<S>> : SimpleScanner<S>() {
     override fun scanFile(virtualFile: VirtualFile) {
-        if (virtualFile.relativePath!!.endsWith(".class")) {
-            tryOrThrow("could not create class object from virtualFile ${virtualFile.relativePath!!}") {
+        val relativePath = virtualFile.relativePath.throwIfNull("relativePath of virtualFile: $virtualFile")
+        if (relativePath.endsWith(".class")) {
+            tryOrThrow("could not create class object from virtualFile $relativePath") {
+                // todo: multiple scanners varsa her scanner aynı file'ı yeniden yüklüyor, efficient bir api sağlanabilir
                 scanClass(createClassAdapter(virtualFile))
             }
         }
@@ -307,19 +473,27 @@ abstract class ClassScanner<S : ClassScanner<S>> : SimpleScanner<S>() {
 }
 
 class FieldAnnotationsScanner : ClassScanner<FieldAnnotationsScanner>() {
-    override fun scanClass(cls: ClassAdapter) = cls.fields.forEach { field ->
-        field.annotations.forEach { annotation ->
-            addEntry(annotation, "${cls.name}.${field.name}")
+    override fun scanClass(cls: ClassAdapter) {
+        cls.fields.forEach { field ->
+            field.annotations.forEach { annotation ->
+                addEntry(annotation, "${cls.name}.${field.name}")
+            }
         }
     }
 
     fun fieldsAnnotatedWith(annotation: Annotation) =
             fieldsAnnotatedWith(annotation.annotationType()).filter { withAnnotation(it, annotation) }
 
-    fun fieldsAnnotatedWith(annotation: Class<out Annotation>) = values(annotation.fullName()).map { field ->
-        val className = field.substringBeforeLast('.')
-        val fieldName = field.substringAfterLast('.')
-        tryOrThrow("Can't resolve field named $fieldName") { classForName(className)!!.getDeclaredField(fieldName) }
+    fun fieldsAnnotatedWith(annotation: Class<out Annotation>): List<Field> {
+        val annotationName = annotation.fullName()
+        val fields = values(annotationName)
+        return fields.map { field ->
+            val className = field.substringBeforeLast('.')
+            val fieldName = field.substringAfterLast('.')
+            tryOrThrow("Can't resolve field named $fieldName") {
+                classForName(className).throwIfNull("classForName($className)").getDeclaredField(fieldName)
+            }
+        }
     }
 }
 
@@ -346,43 +520,42 @@ class MemberUsageScanner(val classLoaders: List<ClassLoader> = defaultClassLoade
     }
 
     private fun scanMember(member: CtBehavior) {
-        //key contains this$/val$ means local field/parameter closure
-        val key =
-                "${member.declaringClassName}.${member.methodInfo.name}(${member.parameterNames})" //+ " #" + member.getMethodInfo().getLineNumber(0)
+        val key = "${member.declaringClassName}.${member.methodInfo.name}(${member.parameterTypeNames})"
         member.instrument(object : ExprEditor() {
             override fun edit(e: NewExpr?) = tryOrThrow("Could not find new instance usage in $key") {
-                addEntry("${e!!.constructor.declaringClassName}.<init>(${e.constructor.parameterNames})",
+                addEntry("${e!!.constructor.declaringClassName}.<init>(${e.constructor.parameterTypeNames})",
                          "$key #${e.lineNumber}")
             }
 
             override fun edit(m: MethodCall?) = tryOrThrow("Could not find member ${m!!.className} in $key") {
-                addEntry("${m.method.declaringClassName}.${m.methodName}(${m.method.parameterNames})",
+                addEntry("${m.method.declaringClassName}.${m.methodName}(${m.method.parameterTypeNames})",
                          "$key #${m.lineNumber}")
             }
 
             override fun edit(c: ConstructorCall?) = tryOrThrow("Could not find member ${c!!.className} in $key") {
-                addEntry("${c.constructor.declaringClassName}.<init>(${c.constructor.parameterNames})",
+                addEntry("${c.constructor.declaringClassName}.<init>(${c.constructor.parameterTypeNames})",
                          "$key #${c.lineNumber}")
             }
 
             override fun edit(f: FieldAccess?) = tryOrThrow("Could not find member ${f!!.fieldName} in $key") {
                 addEntry("${f.field.declaringClassName}.${f.fieldName}", "$key #${f.lineNumber}")
             }
+
+            // todo: diğer usage tipleri de inspect edilebilir: cast, instanceof vs...
         })
     }
 
+    val CtBehavior.parameterTypeNames
+        get() = methodInfo.asAdapter(declaringClassName).params.joinToString(",") { it.type }
+
     val CtMember.declaringClassName get() = declaringClass.name
-    val CtBehavior.parameterNames
-        get() = JavassistMethodAdapter(methodInfo, declaringClass.name).parameters.joinToString { it.type }
 
     fun usages(o: AccessibleObject) = values(listOf(o.fullName())).map(::descriptorToMember)
 }
 
 class MethodAnnotationsScanner : ClassScanner<MethodAnnotationsScanner>() {
     override fun scanClass(cls: ClassAdapter) = cls.methods.forEach { method ->
-        method.annotations.forEach { annotation ->
-            addEntry(annotation, method.signature)
-        }
+        method.annotations.forEach { annotation -> addEntry(annotation, method.signature) }
     }
 
     fun constructorsAnnotatedWith(annotation: Annotation) =
@@ -404,45 +577,53 @@ class MethodAnnotationsScanner : ClassScanner<MethodAnnotationsScanner>() {
 }
 
 class MethodParameterNamesScanner : ClassScanner<MethodParameterNamesScanner>() {
+    // todo: scanner tipine göre kendi data type'ını tanımlasak daha kullanışlı olabilir.
     override fun scanClass(cls: ClassAdapter) = cls.methods.forEach { method ->
-        val key = method.signature
-        val table =
-                (method as JavassistMethodAdapter).method.codeAttribute?.getAttribute(LocalVariableAttribute.tag) as LocalVariableAttribute?
-        val length = table?.tableLength() ?: 0
-        val startIndex = if (Modifier.isStatic(method.method.accessFlags)) 0 else 1 //skip this
-        if (startIndex < length) {
-            addEntry(key, (startIndex until length).joinToString {
-                method.method.constPool.getUtf8Info(table!!.nameIndex(it))
-            })
-        }
+        addEntry(method.signature, method.params.joinToString(",") { it.name ?: "?" })
     }
 
     fun paramNames(executable: Executable): List<String> {
         val names = values(executable.fullName())
         return when {
             names.isEmpty() -> emptyList()
-            else            -> names.single().split(", ").dropLastWhile { it.isEmpty() }
+            else            -> names.single().split(',').dropLastWhile { it.isEmpty() }
         }
     }
 }
 
-/**
- * scans methods/constructors and indexes parameters, return type and parameter annotations
- */
-class MethodParameterScanner : ClassScanner<MethodParameterScanner>() {
+class MethodParameterTypesScanner : ClassScanner<MethodParameterTypesScanner>() {
     override fun scanClass(cls: ClassAdapter) = cls.methods.forEach { method ->
-        addEntry(method.parameters.map { it.type }.toString(), method.signature)
+        addEntry(method.params.joinToString(",") { it.type }, method.signature)
+    }
+
+    fun methodsWithParamTypes(vararg types: Class<*>) = valuesByType<Method>(types.map { it.fullName() })
+
+    fun constructorsWithParamTypes(vararg types: Class<*>) =
+            valuesByType<Constructor<*>>(listOf(types.joinToString(",") { it.fullName() }))
+
+    private inline fun <reified T> valuesByType(keys: List<String>) =
+            values(keys).map(::descriptorToMember).filterIsInstance<T>()
+}
+
+class MethodReturnTypesScanner : ClassScanner<MethodReturnTypesScanner>() {
+    override fun scanClass(cls: ClassAdapter) = cls.methods.forEach { method ->
         addEntry(method.returnType, method.signature)
-        method.parameters.forEach { parameter ->
+    }
+
+    fun methodsWithReturnType(returnType: Class<*>) = valuesByType<Method>(listOf(returnType.fullName()))
+
+    private inline fun <reified T> valuesByType(keys: List<String>) =
+            values(keys).map(::descriptorToMember).filterIsInstance<T>()
+}
+
+class MethodParameterAnnotationsScanner : ClassScanner<MethodParameterAnnotationsScanner>() {
+    override fun scanClass(cls: ClassAdapter) = cls.methods.forEach { method ->
+        method.params.forEach { parameter ->
             parameter.annotations.forEach { annotation ->
                 addEntry(annotation, method.signature)
             }
         }
     }
-
-    fun methodsWithParamTypes(vararg types: Class<*>) = valuesByType<Method>(types.map { it.fullName() })
-
-    fun methodsWithReturnType(returnType: Class<*>) = valuesByType<Method>(listOf(returnType.fullName()))
 
     fun methodsWithAnyParamAnnotated(annotation: Annotation) =
             methodsWithAnyParamAnnotated(annotation.annotationClass.java).filter {
@@ -451,9 +632,6 @@ class MethodParameterScanner : ClassScanner<MethodParameterScanner>() {
 
     fun methodsWithAnyParamAnnotated(annotation: Class<out Annotation>) =
             valuesByType<Method>(listOf(annotation.fullName()))
-
-    fun constructorsWithParamTypes(vararg types: Class<*>) =
-            valuesByType<Constructor<*>>(listOf(types.map { it.fullName() }.joinToString()))
 
     fun constructorsWithAnyParamAnnotated(annotation: Annotation) =
             constructorsWithAnyParamAnnotated(annotation.annotationType()).filter {
@@ -470,6 +648,7 @@ class MethodParameterScanner : ClassScanner<MethodParameterScanner>() {
 class TypeElementsScanner(val includeFields: Boolean = true,
                           val includeMethods: Boolean = true,
                           val includeAnnotations: Boolean = true) : ClassScanner<TypeElementsScanner>() {
+    // todo: bunun kullanım alanı var mı? orjinalinde testi var mı? 3 scanner'a parçalanabilir
     override fun scanClass(cls: ClassAdapter) {
         addEntry(cls.name, "")
 
@@ -481,7 +660,7 @@ class TypeElementsScanner(val includeFields: Boolean = true,
 
         if (includeMethods) {
             cls.methods.forEach { method ->
-                addEntry(cls.name, "${method.name}(${method.parameters.joinToString { it.type }}")
+                addEntry(cls.name, "${method.name}(${method.params.joinToString(",") { it.type }}")
             }
         }
 
@@ -498,6 +677,7 @@ class TypeElementsScanner(val includeFields: Boolean = true,
  */
 class TypeAnnotationsScanner : ClassScanner<TypeAnnotationsScanner>() {
     override fun scanClass(cls: ClassAdapter) = cls.annotations.forEach { addEntry(it, cls.name) }
+    // todo: query method'larını class'ın içine taşı
 }
 
 
@@ -510,16 +690,13 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
 
     private fun addEntryIfAccepted(fqn: String, value: String) {
         // todo: fqn yerine file veya başka bir domain object kullanmanın yolunu araştır
-        if (!excludeObjectClass || Filter.Exclude(Any::class.java.name).test(fqn)) {
+        if (!excludeObjectClass || Filter.Exclude(Any::class.java.name).acceptFqn(fqn)) {
             addEntry(fqn, value)
         }
     }
 
-    override fun afterScan(): ScanMetrics {
-        val elapsedMillis = measureTimeMillis {
-            if (expandSuperTypes) expandSuperTypes()
-        }
-        return ScanMetrics(elapsedMillis.toInt())
+    override fun afterScan() {
+        if (expandSuperTypes) expandSuperTypes()
     }
 
     /**
@@ -545,7 +722,7 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
     private fun expandSupertypes(mmap: Multimap<in String, in String>, key: String, type: Class<*>) {
         type.directParentsExceptObject().forEach { supertype ->
             if (mmap.put(supertype.fullName(), key)) {
-                logDebug("expanded subtype {} -> {}", supertype.name, key)
+                logger.debug("expanded subtype {} -> {}", supertype.name, key)
                 expandSupertypes(mmap, supertype.fullName(), supertype)
             }
         }
@@ -569,27 +746,25 @@ class SubTypesScanner(val excludeObjectClass: Boolean = true,
 
 
 private fun descriptorToMember(value: String) = tryOrThrow("Can't resolve member $value") {
-    val p0 = value.lastIndexOf('(')
-    val memberKey = if (p0 == -1) value else value.substringBeforeLast('(')
-    val methodParameters = if (p0 == -1) "" else value.substringAfterLast('(').substringBeforeLast(')')
-
-    val p1 = Math.max(memberKey.lastIndexOf('.'), memberKey.lastIndexOf('$'))
-    val className = memberKey.substring(memberKey.lastIndexOf(' ') + 1, p1)
-    val memberName = memberKey.substring(p1 + 1)
-
-    val parameterTypes = methodParameters.split(',').dropLastWhile { it.isEmpty() }.mapNotNull { name ->
-        classForName(name.trim { it.toInt() <= ' '.toInt() })
-    }.toTypedArray()
+    val memberFullName = value.substringBeforeLast('(')
+    val paramTypeNames = value.substringAfterLast('(', "").substringBeforeLast(')')
+    val className = memberFullName.substringBeforeLast('.')
+    val memberName = memberFullName.substringAfterLast('.')
+    val paramTypes = when {
+        paramTypeNames.isEmpty() -> emptyArray()
+        else                     -> paramTypeNames.split(',').mapNotNull { type -> classForName(type.trim { it.toInt() <= ' '.toInt() }) }.toTypedArray()
+    }
     classForName(className)?.classHieararchy()?.asSequence()?.mapNotNull {
         tryOrNull {
             when {
                 !value.contains("(")    -> it.getDeclaredField(memberName) as Member
-                value.contains("init>") -> it.getDeclaredConstructor(*parameterTypes) as Member
-                else                    -> it.getDeclaredMethod(memberName, *parameterTypes) as Member
+                value.contains("init>") -> it.getDeclaredConstructor(*paramTypes) as Member
+                else                    -> it.getDeclaredMethod(memberName, *paramTypes) as Member
             }
         }
     }?.firstOrNull() ?: throw RuntimeException(when {
-                                                   value.contains("(") -> "Can't resolve $memberName(${parameterTypes.joinToString()}) method for class $className"
+                                                   value.contains("(") -> "Can't resolve $memberName(${paramTypes.joinToString(
+                                                           ",")}) method for class $className"
                                                    else                -> "Can't resolve $memberName field for class $className"
                                                })
 }

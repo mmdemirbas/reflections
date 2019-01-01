@@ -17,12 +17,15 @@ fun <T : Annotation> Class<T>.newAnnotation(vararg properties: Pair<String, Any>
     val factory = ProxyFactory()
     factory.interfaces = arrayOf(this)
     factory.setHandler(annotationHandler(this, properties.toMap()))
-    return (factory.createClass() as Class<out T>).newInstance()!!
+    return (factory.createClass() as Class<out T>).newInstance()
+        .throwIfNull("new instance of proxy class extending $this")
 }
 
 private fun <T : Annotation> annotationHandler(type: Class<T>,
                                                givenProperties: Map<String, Any>): (Any?, Method, Method?, Array<out Any?>) -> Any? {
-    val propsAndNulls = type.declaredMethods.map { it.name!! to (givenProperties[it.name] ?: it.defaultValue) }
+    val propsAndNulls = type.declaredMethods.map {
+        it.name.throwIfNull("name of Method: $it") to (givenProperties[it.name] ?: it.defaultValue)
+    }
     val missingProps = propsAndNulls.filter { it.second == null }.map { it.first }
     if (missingProps.isNotEmpty()) throw IllegalArgumentException("Missing properties: $missingProps")
     val props = propsAndNulls as List<Pair<String, Any>>

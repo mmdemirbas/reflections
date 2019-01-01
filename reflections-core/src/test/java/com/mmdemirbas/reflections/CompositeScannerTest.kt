@@ -34,7 +34,7 @@ class CompositeScannerTest {
         fun `collect JSON`() {
             val fileSystem = FileSystems.getDefault()
             val scanned =
-                    MethodParameterScanner().scan(TestModel::class.java).dump(JsonSerializer())
+                    MethodParameterTypesScanner().scan(TestModel::class.java).dump(JsonSerializer())
                         .save(path = userDir.resolve("target/test-classes/META-INF/reflections/testModel-reflections.json"),
                               serializer = JsonSerializer())
             val collected =

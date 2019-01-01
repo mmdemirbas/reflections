@@ -14,9 +14,9 @@ import org.reflections.vfs.Vfs;
 @SuppressWarnings({"RawUseOfParameterizedType", "unchecked"})
 public abstract class AbstractScanner implements Scanner {
 
-	private Configuration configuration;
-	private Multimap<String, String> store;
-	private Predicate<String> resultFilter = Predicates.alwaysTrue(); //accept all by default
+    private Configuration            configuration;
+    private Multimap<String, String> store;
+    private Predicate<String>        resultFilter = Predicates.alwaysTrue(); //accept all by default
 
     public boolean acceptsInput(String file) {
         return getMetadataAdapter().acceptsInput(file);
@@ -62,24 +62,27 @@ public abstract class AbstractScanner implements Scanner {
     }
 
     public Scanner filterResultsBy(Predicate<String> filter) {
-        this.setResultFilter(filter); return this;
+        this.setResultFilter(filter);
+        return this;
     }
 
     //
     public boolean acceptResult(final String fqn) {
-		return fqn != null && resultFilter.apply(fqn);
-	}
+        return fqn != null && resultFilter.apply(fqn);
+    }
 
-	protected MetadataAdapter getMetadataAdapter() {
-		return configuration.getMetadataAdapter();
-	}
+    protected MetadataAdapter getMetadataAdapter() {
+        return configuration.getMetadataAdapter();
+    }
 
     //
-    @Override public boolean equals(Object o) {
+    @Override
+    public boolean equals(Object o) {
         return this == o || o != null && getClass() == o.getClass();
     }
 
-    @Override public int hashCode() {
+    @Override
+    public int hashCode() {
         return getClass().hashCode();
     }
 }

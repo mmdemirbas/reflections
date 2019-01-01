@@ -7,7 +7,11 @@ import org.reflections.vfs.Vfs;
 
 import javax.annotation.Nullable;
 import java.lang.annotation.Annotation;
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -29,15 +33,15 @@ public class JavaReflectionAdapter implements MetadataAdapter<Class, Field, Memb
     }
 
     public String getMethodName(Member method) {
-        return method instanceof Method ? method.getName() :
-                method instanceof Constructor ? "<init>" : null;
+        return method instanceof Method ? method.getName() : method instanceof Constructor ? "<init>" : null;
     }
 
     public List<String> getParameterNames(final Member member) {
         List<String> result = Lists.newArrayList();
 
-        Class<?>[] parameterTypes = member instanceof Method ? ((Method) member).getParameterTypes() :
-                member instanceof Constructor ? ((Constructor) member).getParameterTypes() : null;
+        Class<?>[] parameterTypes = member instanceof Method
+                                    ? ((Method) member).getParameterTypes()
+                                    : member instanceof Constructor ? ((Constructor) member).getParameterTypes() : null;
 
         if (parameterTypes != null) {
             for (Class<?> paramType : parameterTypes) {
@@ -58,16 +62,20 @@ public class JavaReflectionAdapter implements MetadataAdapter<Class, Field, Memb
     }
 
     public List<String> getMethodAnnotationNames(Member method) {
-        Annotation[] annotations =
-                method instanceof Method ? ((Method) method).getDeclaredAnnotations() :
-                method instanceof Constructor ? ((Constructor) method).getDeclaredAnnotations() : null;
+        Annotation[] annotations = method instanceof Method
+                                   ? ((Method) method).getDeclaredAnnotations()
+                                   : method instanceof Constructor
+                                     ? ((Constructor) method).getDeclaredAnnotations()
+                                     : null;
         return getAnnotationNames(annotations);
     }
 
     public List<String> getParameterAnnotationNames(Member method, int parameterIndex) {
-        Annotation[][] annotations =
-                method instanceof Method ? ((Method) method).getParameterAnnotations() :
-                method instanceof Constructor ? ((Constructor) method).getParameterAnnotations() : null;
+        Annotation[][] annotations = method instanceof Method
+                                     ? ((Method) method).getParameterAnnotations()
+                                     : method instanceof Constructor
+                                       ? ((Constructor) method).getParameterAnnotations()
+                                       : null;
 
         return getAnnotationNames(annotations != null ? annotations[parameterIndex] : null);
     }
@@ -102,9 +110,9 @@ public class JavaReflectionAdapter implements MetadataAdapter<Class, Field, Memb
     }
 
     public boolean isPublic(Object o) {
-        Integer mod =
-                o instanceof Class ? ((Class) o).getModifiers() :
-                o instanceof Member ? ((Member) o).getModifiers() : null;
+        Integer mod = o instanceof Class
+                      ? ((Class) o).getModifiers()
+                      : o instanceof Member ? ((Member) o).getModifiers() : null;
 
         return mod != null && Modifier.isPublic(mod);
     }
@@ -119,16 +127,20 @@ public class JavaReflectionAdapter implements MetadataAdapter<Class, Field, Memb
     }
 
     public List<String> getInterfacesNames(Class cls) {
-        Class[] classes = cls.getInterfaces();
-        List<String> names = new ArrayList<String>(classes != null ? classes.length : 0);
-        if (classes != null) for (Class cls1 : classes) names.add(cls1.getName());
+        Class[]      classes = cls.getInterfaces();
+        List<String> names   = new ArrayList<String>(classes != null ? classes.length : 0);
+        if (classes != null) {
+            for (Class cls1 : classes) {
+                names.add(cls1.getName());
+            }
+        }
         return names;
     }
 
     public boolean acceptsInput(String file) {
         return file.endsWith(".class");
     }
-    
+
     //
     private List<String> getAnnotationNames(Annotation[] annotations) {
         List<String> names = new ArrayList<String>(annotations.length);
@@ -141,8 +153,12 @@ public class JavaReflectionAdapter implements MetadataAdapter<Class, Field, Memb
     public static String getName(Class type) {
         if (type.isArray()) {
             try {
-                Class cl = type;
-                int dim = 0; while (cl.isArray()) { dim++; cl = cl.getComponentType(); }
+                Class cl  = type;
+                int   dim = 0;
+                while (cl.isArray()) {
+                    dim++;
+                    cl = cl.getComponentType();
+                }
                 return cl.getName() + Utils.repeat("[]", dim);
             } catch (Throwable e) {
                 //

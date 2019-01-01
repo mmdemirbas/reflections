@@ -1,16 +1,28 @@
 package org.reflections.scanners;
 
 import com.google.common.base.Joiner;
-import javassist.*;
+import javassist.CannotCompileException;
+import javassist.ClassPool;
+import javassist.CtBehavior;
+import javassist.CtClass;
+import javassist.LoaderClassPath;
+import javassist.NotFoundException;
 import javassist.bytecode.MethodInfo;
-import javassist.expr.*;
+import javassist.expr.ConstructorCall;
+import javassist.expr.ExprEditor;
+import javassist.expr.FieldAccess;
+import javassist.expr.MethodCall;
+import javassist.expr.NewExpr;
 import org.reflections.ReflectionsException;
 import org.reflections.util.ClasspathHelper;
 
-/** scans methods/constructors/fields usage
- * <p><i> depends on {@link org.reflections.adapters.JavassistAdapter} configured </i>*/
+/**
+ * scans methods/constructors/fields usage
+ * <p><i> depends on {@link org.reflections.adapters.JavassistAdapter} configured </i>
+ */
 @SuppressWarnings("unchecked")
 public class MemberUsageScanner extends AbstractScanner {
+
     private ClassPool classPool;
 
     @Override
@@ -25,20 +37,22 @@ public class MemberUsageScanner extends AbstractScanner {
             }
             ctClass.detach();
         } catch (Exception e) {
-            throw new ReflectionsException("Could not scan method usage for " + getMetadataAdapter().getClassName(cls), e);
+            throw new ReflectionsException("Could not scan method usage for " + getMetadataAdapter().getClassName(cls),
+                                           e);
         }
     }
 
     void scanMember(CtBehavior member) throws CannotCompileException {
         //key contains this$/val$ means local field/parameter closure
-        final String key = member.getDeclaringClass().getName() + "." + member.getMethodInfo().getName() +
-                "(" + parameterNames(member.getMethodInfo()) + ")"; //+ " #" + member.getMethodInfo().getLineNumber(0)
+        final String key = member.getDeclaringClass().getName() + "." + member.getMethodInfo().getName() + "("
+                           + parameterNames(member.getMethodInfo())
+                           + ")"; //+ " #" + member.getMethodInfo().getLineNumber(0)
         member.instrument(new ExprEditor() {
             @Override
             public void edit(NewExpr e) throws CannotCompileException {
                 try {
-                    put(e.getConstructor().getDeclaringClass().getName() + "." + "<init>" +
-                            "(" + parameterNames(e.getConstructor().getMethodInfo()) + ")", e.getLineNumber(), key);
+                    put(e.getConstructor().getDeclaringClass().getName() + "." + "<init>" + "("
+                        + parameterNames(e.getConstructor().getMethodInfo()) + ")", e.getLineNumber(), key);
                 } catch (NotFoundException e1) {
                     throw new ReflectionsException("Could not find new instance usage in " + key, e1);
                 }
@@ -47,8 +61,8 @@ public class MemberUsageScanner extends AbstractScanner {
             @Override
             public void edit(MethodCall m) throws CannotCompileException {
                 try {
-                    put(m.getMethod().getDeclaringClass().getName() + "." + m.getMethodName() +
-                            "(" + parameterNames(m.getMethod().getMethodInfo()) + ")", m.getLineNumber(), key);
+                    put(m.getMethod().getDeclaringClass().getName() + "." + m.getMethodName() + "("
+                        + parameterNames(m.getMethod().getMethodInfo()) + ")", m.getLineNumber(), key);
                 } catch (NotFoundException e) {
                     throw new ReflectionsException("Could not find member " + m.getClassName() + " in " + key, e);
                 }
@@ -57,8 +71,8 @@ public class MemberUsageScanner extends AbstractScanner {
             @Override
             public void edit(ConstructorCall c) throws CannotCompileException {
                 try {
-                    put(c.getConstructor().getDeclaringClass().getName() + "." + "<init>" +
-                            "(" + parameterNames(c.getConstructor().getMethodInfo()) + ")", c.getLineNumber(), key);
+                    put(c.getConstructor().getDeclaringClass().getName() + "." + "<init>" + "("
+                        + parameterNames(c.getConstructor().getMethodInfo()) + ")", c.getLineNumber(), key);
                 } catch (NotFoundException e) {
                     throw new ReflectionsException("Could not find member " + c.getClassName() + " in " + key, e);
                 }

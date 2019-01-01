@@ -1,29 +1,19 @@
 package com.mmdemirbas.reflections
 
 import org.apache.logging.log4j.LogManager
-import java.io.IOException
-import java.lang.reflect.AnnotatedElement
-import java.lang.reflect.Constructor
-import java.lang.reflect.Executable
-import java.lang.reflect.Field
-import java.lang.reflect.Member
-import java.lang.reflect.Method
-import java.net.MalformedURLException
+import java.lang.reflect.*
 import java.net.URL
-import java.net.URLClassLoader
 import java.net.URLDecoder
 import java.nio.file.FileSystem
 import java.nio.file.FileSystems
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.concurrent.Callable
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ThreadFactory
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.jar.Attributes
 import java.util.jar.JarFile
-import javax.servlet.ServletContext
 import kotlin.streams.asSequence
 
 // todo: exceptionlar elden geçirilmeli, mesajlar daha anlaşılır detaylar vermeli ya da gereksiz exception'lar atılmamalı
@@ -68,12 +58,8 @@ import kotlin.streams.asSequence
 
 fun Annotation.annotationType() = annotationClass.java
 
-private val logger = LogManager.getLogger("org.reflections.Reflections")
-
-fun logDebug(format: String, vararg args: Any?) = logger.debug(format, args)
-fun logInfo(format: String, vararg args: Any?) = logger.info(format, args)
-fun logWarn(format: String, vararg args: Any?) = logger.warn(format, args)
-fun logError(format: String, vararg args: Any?) = logger.error(format, args)
+// todo: loaded, indexed gibi ne olup bittiği debug level loglanmalı
+val logger = LogManager.getLogger("org.reflections.Reflections")
 
 fun String.substringBetween(first: Char, last: Char): String = substring(indexOf(first) + 1, lastIndexOf(last))
 
@@ -206,24 +192,24 @@ fun classForName(typeName: String, classLoaders: List<ClassLoader> = defaultClas
     if (primitives.contains(typeName)) return primitives[typeName]!!.type
 
     val type = typeNameToTypeDescriptor(typeName)
-    val exception = RuntimeException("could not get type for name $typeName from any class loader")
+    val exception = RuntimeException("could not get type for name '$typeName' from any class loader")
     classLoaders.forEach { classLoader ->
         if (type.contains('[')) {
             try {
                 return Class.forName(type, false, classLoader)
             } catch (e: Throwable) {
-                exception.addSuppressed(RuntimeException("could not get type for name $typeName", e))
+                exception.addSuppressed(RuntimeException("could not get type for name '$typeName'", e))
             }
         }
         try {
             return classLoader.loadClass(type)
         } catch (e: Throwable) {
-            exception.addSuppressed(RuntimeException("could not get type for name $typeName", e))
+            exception.addSuppressed(RuntimeException("could not get type for name '$typeName'", e))
         }
     }
 
     if (exception.suppressed.isNotEmpty()) {
-        logWarn("could not get type for name $typeName from any class loader", exception)
+        logger.warn("could not get type for name '$typeName' from any class loader", exception)
     }
     return null
 }
@@ -250,146 +236,6 @@ fun staticClassLoader() = Scanner::class.java.classLoader ?: null
 
 fun defaultClassLoaders(): List<ClassLoader> = listOfNotNull(contextClassLoader(), staticClassLoader()).distinct()
 
-/**
- * Returns a distinct collection of URLs based on a package name.
- *
- *
- * This searches for the package name as a resource, using [ClassLoader.getResources].
- * For example, `urlForPackage(org.reflections)` effectively returns URLs from the
- * classpath containing packages starting with `org.reflections`.
- *
- *
- * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
- * and [staticClassLoader] are used for [ClassLoader.getResources].
- *
- *
- * The returned URLs retainsthe order of the given `classLoaders`.
- *
- * @return the collection of URLs, not null
- */
-fun urlForPackage(name: String, classLoaders: List<ClassLoader> = defaultClassLoaders()) =
-        urlForResource(name.replace(".", "/").replace("\\", "/").removePrefix("/"), classLoaders)
-
-/**
- * Returns a distinct collection of URLs based on a resource.
- *
- *
- * This searches for the resource name, using [ClassLoader.getResources].
- * For example, `urlForResource(test.properties)` effectively returns URLs from the
- * classpath containing files of that name.
- *
- *
- * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
- * and [staticClassLoader] are used for [ClassLoader.getResources].
- *
- *
- * The returned URLs retains the order of the given `classLoaders`.
- *
- * @return the collection of URLs, not null
- */
-fun urlForResource(resourceName: String?, classLoaders: Collection<ClassLoader> = defaultClassLoaders()) =
-        classLoaders.flatMap<ClassLoader, URL> { classLoader ->
-            try {
-                val resources = classLoader.getResources(resourceName).toList()
-                resources.map { url ->
-                    val externalForm = url.toExternalForm()
-                    when {
-                        externalForm.contains(resourceName!!) -> // Add old url as contextUrl to support exotic url handlers
-                            URL(url, externalForm.substringBeforeLast(resourceName))
-                        else                                  -> url
-                    }
-                }
-            } catch (e: IOException) {
-                logError("error getting resources for ${resourceName!!}", e)
-                emptyList()
-            }
-        }.distinctUrls()
-
-/**
- * Returns the URL that contains a `Class`.
- *
- *
- * This searches for the class using [ClassLoader.getResource].
- *
- *
- * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
- * and [staticClassLoader] are used for [ClassLoader.getResources].
- *
- * @return the URL containing the class, null if not found
- */
-fun urlForClass(aClass: Class<*>, classLoaders: Collection<ClassLoader> = defaultClassLoaders()): URL? {
-    val resourceName = aClass.name.replace(".", "/") + ".class"
-    return classLoaders.mapNotNull {
-        try {
-            val url = it.getResource(resourceName)
-            when (url) {
-                null -> null
-                else -> URL(url.toExternalForm().substringBeforeLast(aClass.getPackage().name.replace(".", "/")))
-            }
-        } catch (e: MalformedURLException) {
-            logWarn("Could not get URL", e)
-            null
-        }
-    }.firstOrNull()
-}
-
-/**
- * Returns a distinct collection of URLs based on URLs derived from class loaders.
- *
- *
- * This finds the URLs using [URLClassLoader.getURLs] using the specified
- * class loader, searching up the parent hierarchy.
- *
- *
- * If the optional [ClassLoader]s are not specified, then both [contextClassLoader]
- * and [staticClassLoader] are used for [ClassLoader.getResources].
- *
- *
- * The returned URLs retains the order of the given `classLoaders`.
- *
- * @return the collection of URLs, not null
- */
-fun urlForClassLoader(classLoaders: Collection<ClassLoader?> = defaultClassLoaders()) = classLoaders.flatMap { loader ->
-    loader.generateWhileNotNull { parent }
-}.filterIsInstance<URLClassLoader>().flatMap { it.urLs.orEmpty().asList() }.distinctUrls()
-
-
-fun urlForJavaClassPath(fileSystem: FileSystem = FileSystems.getDefault(),
-                        pathSeparator: String = java.io.File.pathSeparator) =
-        System.getProperty("java.class.path").orEmpty().split(pathSeparator.toRegex()).dropLastWhile { it.isEmpty() }.mapNotNull { path ->
-            tryOrNull { fileSystem.getPath(path).toUri().toURL() }
-        }.distinctUrls()
-
-/**
- * Returns a distinct collection of URLs based on the `WEB-INF/lib` folder.
- *
- *
- * This finds the URLs using the [javax.servlet.ServletContext].
- *
- *
- * The returned URLs retains the order of the given `classLoaders`.
- *
- * @return the collection of URLs, not null
- */
-fun ServletContext.webInfLibUrls() =
-        getResourcePaths("/WEB-INF/lib").orEmpty().mapNotNull { tryOrNull { getResource(it as String) } }.distinctUrls()
-
-/**
- * Returns the URL of the `WEB-INF/classes` folder.
- *
- *
- * This finds the URLs using the [javax.servlet.ServletContext].
- *
- * @return the collection of URLs, not null
- */
-fun ServletContext.webInfClassesUrls(fileSystem: FileSystem = FileSystems.getDefault()) = tryOrNull {
-    val path = getRealPath("/WEB-INF/classes")
-    if (path == null) getResource("/WEB-INF/classes")
-    else {
-        val file = fileSystem.getPath(path)
-        mapIf(Files.exists(file)) { file.toUri().toURL() }
-    }
-}
 
 /**
  * Returns a distinct collection of URLs by expanding the specified URLs with Manifest information.
@@ -477,11 +323,10 @@ fun <R> tryCatch(`try`: () -> R, catch: (Throwable) -> R) = try {
     catch(e)
 }
 
-fun <V> Iterable<Callable<V>>.runAllPossiblyParallelAndWait(executorService: ExecutorService?) =
-        when (executorService) {
-            null -> map { it.call()!! }
-            else -> map { executorService.submit(it::call) }.map { it.get()!! }
-        }
+fun Iterable<Runnable>.runAllPossiblyParallelAndWait(executorService: ExecutorService?) = when (executorService) {
+    null -> forEach { it.run() }
+    else -> map { executorService.submit(it::run) }.forEach { it.get()!! }
+}
 
 fun Path.exists() = Files.exists(this)
 fun Path.walkTopDown() = Files.walk(this).asSequence()
@@ -510,17 +355,34 @@ fun Path.nullIfNotExists(): Path? = mapIf(exists()) { this }
 
 fun <R> mapIf(condition: Boolean, block: () -> R) = if (condition) block() else null
 
+fun <X, Y> zipWithPadding(xs: List<X>, ys: List<Y>) = zipWithPadding(xs, ys) { x, y -> Pair(x, y) }
+
+fun <X, Y, Z> zipWithPadding(xs: List<X>, ys: List<Y>, zs: List<Z>) =
+        zipWithPadding(xs, ys, zs) { x, y, z -> Triple(x, y, z) }
 
 /**
- * Returns a list of values built from the elements of `this` array and the [other] array with the same index
+ * Returns a list of values built from the elements of [xs] and [ys] with the same index
  * using the provided [transform] function applied to each pair of elements.
- * The returned list has length of the longest collection. Missing elements assumed null.
+ * The returned list has length of the longest list. Missing elements assumed null.
  */
-inline fun <T, R, V> List<out T>.zipWithPadding(other: List<out R>, transform: (a: T?, b: R?) -> V): List<V> {
-    val size = maxOf(size, other.size)
-    val list = ArrayList<V>(size)
-    for (i in 0 until size) {
-        list.add(transform(this.getOrNull(i), other.getOrNull(i)))
-    }
-    return list
+fun <X, Y, R> zipWithPadding(xs: List<X>, ys: List<Y>, transform: (x: X?, y: Y?) -> R): List<R> {
+    val all = listOf(xs, ys)
+    val sizes = all.map { it.size }
+    val maxSize = sizes.max() ?: 0
+    return (0 until maxSize).map { i -> transform(xs.getOrNull(i), ys.getOrNull(i)) }
 }
+
+/**
+ * Returns a list of values built from the elements of [xs], [ys] and [zs] with the same index
+ * using the provided [transform] function applied to each triple of elements.
+ * The returned list has length of the longest list. Missing elements assumed null.
+ */
+fun <X, Y, Z, R> zipWithPadding(xs: List<X>, ys: List<Y>, zs: List<Z>, transform: (x: X?, y: Y?, z: Z?) -> R): List<R> {
+    val all = listOf(xs, ys, zs)
+    val sizes = all.map { it.size }
+    val maxSize = sizes.max() ?: 0
+    return (0 until maxSize).map { i -> transform(xs.getOrNull(i), ys.getOrNull(i), zs.getOrNull(i)) }
+}
+
+// todo: throwIfNull biraz gereksiz bir metot sanki, kaldırılsa iyi olabilir
+fun <T> T?.throwIfNull(message: String) = this ?: throw RuntimeException(message)

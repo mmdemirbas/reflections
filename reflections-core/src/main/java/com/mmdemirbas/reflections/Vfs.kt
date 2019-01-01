@@ -80,7 +80,7 @@ object Vfs {
                 try {
                     fromURL(url = url, fileSystem = fileSystem).files()
                 } catch (e: Throwable) {
-                    logError("could not findFiles for url. continuing. [$url]", e)
+                    logger.error("could not findFiles for url. continuing. [$url]", e)
                     emptySequence<VirtualFile>()
                 }
             }
@@ -208,8 +208,9 @@ object VfsUrlTypes {
     /**
      * creates a [ZipDir] over a jar file
      */
-    fun jarFile(url: URL, fileSystem: FileSystem) =
-            mapIf(url.protocol == "file" && url.hasJarFileInPath()) { ZipDir(Vfs.getFile(url, fileSystem)!!) }
+    fun jarFile(url: URL, fileSystem: FileSystem) = mapIf(url.protocol == "file" && url.hasJarFileInPath()) {
+        ZipDir(Vfs.getFile(url, fileSystem).throwIfNull("virtualFile from url: $url"))
+    }
 
     /**
      * creates a [JarInputDir] over jar files, using Java's JarInputStream
@@ -245,7 +246,7 @@ object VfsUrlTypes {
      */
     fun jbossVfs(url: URL, fileSystem: FileSystem) = mapIf(url.protocol == "vfs") {
         val content = url.openConnection().content
-        val virtualFile = contextClassLoader()!!.loadClass("org.jboss.vfs.VirtualFile")
+        val virtualFile = contextClassLoader().throwIfNull("contextClassLoader").loadClass("org.jboss.vfs.VirtualFile")
         // todo: physicalFile'ın direk Path olarak alınması mümkün olabilir mi?
         // todo: Jboss'u test dependency olarak ekleyip bunu test edebiliriz
         val physicalFile = (virtualFile.getMethod("getPhysicalFile").invoke(content) as java.io.File).toPath()
@@ -300,9 +301,8 @@ object VfsUrlTypes {
      * for bundle protocol, using eclipse FileLocator (should be provided in classpath)
      */
     fun bundle(url: URL, fileSystem: FileSystem) = mapIf(url.protocol.startsWith("bundle")) {
-        Vfs.fromURL(url = contextClassLoader()!!.loadClass("org.eclipse.core.runtime.FileLocator").getMethod("resolve",
-                                                                                                             URL::class.java).invoke(
-                null,
-                url) as URL, fileSystem = fileSystem)
+        Vfs.fromURL(url = contextClassLoader().throwIfNull("contextClassLoader").loadClass("org.eclipse.core.runtime.FileLocator").getMethod(
+                "resolve",
+                URL::class.java).invoke(null, url) as URL, fileSystem = fileSystem)
     }
 }

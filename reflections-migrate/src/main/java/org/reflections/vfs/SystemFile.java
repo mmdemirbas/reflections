@@ -1,12 +1,15 @@
 package org.reflections.vfs;
 
-import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.InputStream;
 
-/** an implementation of {@link Vfs.File} for a directory {@link java.io.File} */
+/**
+ * an implementation of {@link Vfs.File} for a directory {@link java.io.File}
+ */
 public class SystemFile implements Vfs.File {
-    private final SystemDir root;
+
+    private final SystemDir    root;
     private final java.io.File file;
 
     public SystemFile(final SystemDir root, java.io.File file) {

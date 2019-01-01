@@ -1,15 +1,8 @@
 package com.mmdemirbas.reflections
 
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.*
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Assumptions.assumeTrue
-import org.junit.jupiter.api.Disabled
-import org.junit.jupiter.api.Nested
-import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.TestInstance
-import org.junit.jupiter.api.assertThrows
 
 /**
  * @author Muhammed Demirbaş
@@ -127,7 +120,7 @@ class NewAnnotationTest {
             // assertEquals(other.toString(), self.toString())
 
             // So, we couldn't mimic it and need to define expected value explicitly:
-            assertEquals("@org.reflections.NewAnnotationTest\$MyAnno(value=same, boolean=true, char=M, short=3, int=1, long=2, float=0.5, double=0.4, stringArray=[a comment])",
+            assertEquals("@com.mmdemirbas.reflections.NewAnnotationTest\$MyAnno(value=same, boolean=true, char=M, short=3, int=1, long=2, float=0.5, double=0.4, stringArray=[a comment])",
                          self.toString())
         }
     }

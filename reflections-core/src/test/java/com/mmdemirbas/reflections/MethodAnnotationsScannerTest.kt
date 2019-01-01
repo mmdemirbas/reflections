@@ -40,7 +40,7 @@ class MethodAnnotationsScannerTest {
         private val scanner = MethodAnnotationsScanner().scan(TestModel::class.java).dump()
 
         @Test
-        fun `by isntance`() {
+        fun `by instance`() {
             val am1 = AM1::class.newAnnotation(Pair("value", "1"))
             assertToStringEqualsSorted(setOf(TestModel.C4::class.java.getDeclaredConstructor(String::class.java)),
                                        scanner.constructorsAnnotatedWith(am1))
